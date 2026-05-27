@@ -55,6 +55,7 @@ const sampleProduct: Product = {
   ],
   stock: 4,
   tags: ["hair", "curl"],
+  concerns: [],
   isFeatured: false,
   isBestSeller: true,
   isNewArrival: true,
