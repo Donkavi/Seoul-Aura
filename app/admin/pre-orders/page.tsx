@@ -14,6 +14,7 @@ import {
   ExternalLink,
   MessageSquare,
   Send,
+  type LucideIcon,
 } from "lucide-react";
 import { cn, relativeDate, formatPrice } from "@/lib/utils";
 import CountUp from "@/components/admin/CountUp";
@@ -23,7 +24,7 @@ type FilterTab = "all" | PreOrderStatus;
 
 const STATUS_META: Record<
   PreOrderStatus,
-  { label: string; color: string; icon: React.ComponentType<{ size?: number }> }
+  { label: string; color: string; icon: LucideIcon }
 > = {
   pending: { label: "Pending", color: "bg-gold-50 text-gold-700 border-gold-200", icon: Clock },
   reviewing: { label: "Reviewing", color: "bg-blue-50 text-blue-700 border-blue-200", icon: Eye },
