@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Sparkles,
   Calendar,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -303,7 +304,7 @@ function Field({
   label,
   children,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   label: string;
   children: React.ReactNode;
 }) {
