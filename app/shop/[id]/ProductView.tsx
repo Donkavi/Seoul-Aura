@@ -1,0 +1,561 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  Check,
+  Plus,
+  Minus,
+  Heart,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Truck,
+  ShieldCheck,
+  Globe,
+  Lock,
+  Flame,
+  Share2,
+  Expand,
+  X,
+  ZoomIn,
+} from "lucide-react";
+import { useCart } from "@/context/CartContext";
+import { formatPrice, cn } from "@/lib/utils";
+import StarRating from "@/components/product/StarRating";
+import ProductCard from "@/components/shop/ProductCard";
+import NotifyMeForm from "@/components/product/NotifyMeForm";
+import type { Product } from "@/types";
+
+const sizeOptionsFor = (product: Product): string[] => {
+  if (product.subtype === "Haircare") return ["177ml", "236ml"];
+  if (product.subtype === "Skincare") return ["30ml", "50ml", "100ml"];
+  if (product.subtype === "Sunscreen") return ["50ml"];
+  if (product.subtype === "Snacks" || product.subtype === "Sweets") return ["100g", "250g", "500g"];
+  if (product.subtype === "Dates") return ["250g", "500g", "1kg"];
+  return ["Standard"];
+};
+
+const benefitsFor = (product: Product): string[] => {
+  const map: Record<string, string[]> = {
+    Skincare: [
+      "Hydrates & plumps skin",
+      "Strengthens skin barrier",
+      "Suitable for sensitive skin",
+      "Dermatologically tested",
+    ],
+    Haircare: [
+      "Seals in Moisture",
+      "Adds Shine & Anti Frizz",
+      "Safe for Color-treated Hair",
+      "For all Hair Types",
+    ],
+    Sunscreen: [
+      "Broad-spectrum SPF 50",
+      "Lightweight, no white cast",
+      "Reef-safe formula",
+      "Layers under makeup",
+    ],
+    Snacks: [
+      "Authentic Korean recipe",
+      "No artificial colors",
+      "Halal certified",
+      "Freshly imported",
+    ],
+    Dates: [
+      "Premium grade selection",
+      "Hand-picked in Dubai",
+      "Naturally sweet, no added sugar",
+      "Gift-ready packaging",
+    ],
+  };
+  return map[product.subtype] ?? [
+    "100% Authentic",
+    "Freshly imported",
+    "Quality guaranteed",
+    "Carefully packaged",
+  ];
+};
+
+const ACCORDION_SECTIONS = [
+  { id: "description", label: "Description" },
+  { id: "shipping", label: "Shipping Information" },
+  { id: "question", label: "Ask a Question" },
+];
+
+export default function ProductView({
+  product,
+  related,
+}: {
+  product: Product;
+  related: Product[];
+}) {
+  const { addItem, openDrawer } = useCart();
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [selectedSize, setSelectedSize] = useState(0);
+  const [qty, setQty] = useState(1);
+  const [openSection, setOpenSection] = useState<string | null>("description");
+  const [adding, setAdding] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [zoom, setZoom] = useState(false);
+
+  const images = product.images?.length ? product.images : [];
+  const hasMultiple = images.length > 1;
+
+  const nextImage = () => setSelectedImage((selectedImage + 1) % images.length);
+  const prevImage = () =>
+    setSelectedImage(selectedImage === 0 ? images.length - 1 : selectedImage - 1);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+      if (e.key === "ArrowRight") nextImage();
+      if (e.key === "ArrowLeft") prevImage();
+    };
+    window.addEventListener("keydown", handler);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handler);
+      document.body.style.overflow = "";
+    };
+  }, [lightboxOpen, selectedImage, images.length]);
+
+  const sizes = sizeOptionsFor(product);
+  const benefits = benefitsFor(product);
+  const discount = product.comparePrice
+    ? Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)
+    : 0;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = "sa-recently-viewed";
+    const raw = localStorage.getItem(key);
+    let list: string[] = raw ? JSON.parse(raw) : [];
+    list = list.filter((id) => id !== product._id);
+    list.unshift(product._id);
+    list = list.slice(0, 8);
+    localStorage.setItem(key, JSON.stringify(list));
+  }, [product._id]);
+
+  const handleAddToCart = () => {
+    setAdding(true);
+    addItem(product, qty);
+    setTimeout(() => setAdding(false), 1200);
+  };
+
+  const handleBuyNow = () => {
+    addItem(product, qty);
+    setTimeout(() => (window.location.href = "/checkout"), 200);
+  };
+
+  const brandName = product.tags?.[0] ?? `${product.origin} Brand`;
+  const installment = (product.price / 3).toFixed(2);
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 lg:px-8 pb-12 lg:pb-16">
+      <div className="grid lg:grid-cols-2 gap-10 lg:gap-16">
+        <div className="space-y-4 lg:sticky lg:top-28 lg:self-start">
+          <div
+            className="relative aspect-square bg-ink-50 rounded-sm overflow-hidden group cursor-zoom-in"
+            onMouseEnter={() => setZoom(true)}
+            onMouseLeave={() => setZoom(false)}
+            onClick={() => setLightboxOpen(true)}
+          >
+            {images[selectedImage] ? (
+              <Image
+                src={images[selectedImage]}
+                alt={`${product.name} — view ${selectedImage + 1}`}
+                fill
+                className={cn(
+                  "object-cover transition-transform duration-500",
+                  zoom && "scale-110"
+                )}
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                priority
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-rose-100 to-rose-200" />
+            )}
+
+            <div className="absolute top-5 left-5 flex flex-col gap-2">
+              {product.isBestSeller && (
+                <span className="badge-origin bg-ink-900 text-white">Bestseller</span>
+              )}
+              {discount > 0 && (
+                <span className="badge-origin bg-rose-600 text-white">Save {discount}%</span>
+              )}
+            </div>
+
+            <div className="absolute top-5 right-5 flex flex-col gap-2">
+              <button
+                aria-label="Expand image"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightboxOpen(true);
+                }}
+                className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center hover:bg-rose-50 transition-colors"
+              >
+                <Expand size={14} />
+              </button>
+              <button
+                aria-label="Share"
+                onClick={(e) => e.stopPropagation()}
+                className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center hover:bg-rose-50 transition-colors"
+              >
+                <Share2 size={14} />
+              </button>
+            </div>
+
+            {hasMultiple && (
+              <>
+                <button
+                  aria-label="Previous image"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    prevImage();
+                  }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 hover:bg-white backdrop-blur rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  aria-label="Next image"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    nextImage();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 hover:bg-white backdrop-blur rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ChevronRight size={16} />
+                </button>
+
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white/80 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-semibold text-ink-700">
+                  <ZoomIn size={11} />
+                  {selectedImage + 1} / {images.length}
+                </div>
+              </>
+            )}
+          </div>
+
+          {hasMultiple && (
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+              {images.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedImage(i)}
+                  aria-label={`View image ${i + 1}`}
+                  className={cn(
+                    "relative w-20 h-20 lg:w-24 lg:h-24 bg-ink-50 rounded-sm overflow-hidden border-2 transition-all flex-shrink-0",
+                    selectedImage === i
+                      ? "border-rose-600 shadow-rose"
+                      : "border-ink-100 hover:border-ink-400 opacity-70 hover:opacity-100"
+                  )}
+                >
+                  <Image src={img} alt="" fill className="object-cover" sizes="96px" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <Link
+              href={`/shop?brand=${brandName}`}
+              className="text-sm text-rose-600 underline-offset-4 hover:underline uppercase tracking-wider"
+            >
+              {brandName}
+            </Link>
+            <div className="flex items-start justify-between gap-3 mt-2">
+              <h1 className="font-display text-3xl lg:text-4xl font-medium text-ink-900 leading-tight">
+                {product.name}
+              </h1>
+              {product.stock === 0 && (
+                <span className="badge-origin bg-rose-600 text-white whitespace-nowrap mt-1">
+                  Sold Out
+                </span>
+              )}
+            </div>
+
+            <a href="#reviews" className="inline-flex items-center gap-2 mt-3 hover:text-rose-600">
+              <StarRating value={Math.round(product.averageRating)} readOnly size={14} />
+              <span className="text-xs text-ink-500">
+                {product.averageRating > 0
+                  ? `${product.averageRating.toFixed(1)} (${product.reviewCount} reviews)`
+                  : "No reviews yet"}
+              </span>
+            </a>
+          </div>
+
+          <p className="text-sm text-ink-700 leading-relaxed">{product.description}</p>
+
+          <ul className="space-y-2 pt-1">
+            {benefits.map((benefit) => (
+              <li key={benefit} className="flex items-center gap-2 text-sm text-ink-900">
+                <span className="w-4 h-4 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                  <Check size={10} strokeWidth={3} className="text-green-600" />
+                </span>
+                {benefit}
+              </li>
+            ))}
+          </ul>
+
+          {sizes.length > 1 && (
+            <div>
+              <p className="text-sm text-ink-900 font-medium mb-2">
+                Size: <span className="text-ink-500 font-normal">{sizes[selectedSize]}</span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {sizes.map((size, i) => (
+                  <button
+                    key={size}
+                    onClick={() => setSelectedSize(i)}
+                    className={cn(
+                      "px-4 py-2 border text-sm font-medium transition-all",
+                      i === selectedSize
+                        ? "border-ink-900 text-ink-900 bg-white"
+                        : "border-ink-200 text-ink-500 bg-ink-50 hover:border-ink-400"
+                    )}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="border-t border-ink-100 pt-5">
+            <p className="text-xs text-ink-500 mb-1">Price</p>
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <span className="font-display text-3xl text-ink-900">{formatPrice(product.price)}</span>
+              {product.comparePrice && product.comparePrice > product.price && (
+                <span className="text-lg text-ink-400 line-through">
+                  {formatPrice(product.comparePrice)}
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-ink-600 mt-2 space-y-1">
+              <p>
+                3 X Rs {installment} or 3.5% Cashback with{" "}
+                <span className="inline-block bg-ink-900 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold align-middle">
+                  mintpay
+                </span>
+              </p>
+              <p>
+                or pay in 3 × Rs {installment} with{" "}
+                <span className="inline-block bg-purple-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold align-middle">
+                  KOKO
+                </span>
+              </p>
+            </div>
+            <p className="text-xs text-ink-500 mt-2">
+              <Link href="/shipping" className="underline hover:text-rose-600">Shipping</Link>{" "}
+              calculated at checkout.
+            </p>
+          </div>
+
+          {product.stock > 0 ? (
+            <>
+              <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center border border-ink-300 h-12">
+                  <button
+                    onClick={() => setQty(Math.max(1, qty - 1))}
+                    className="px-3 h-full hover:bg-ink-50"
+                    aria-label="Decrease"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="w-10 text-center font-medium">{qty}</span>
+                  <button
+                    onClick={() => setQty(qty + 1)}
+                    className="px-3 h-full hover:bg-ink-50"
+                    aria-label="Increase"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+                <button
+                  className="w-12 h-12 border border-ink-300 hover:border-rose-400 hover:text-rose-600 flex items-center justify-center transition-colors"
+                  aria-label="Wishlist"
+                >
+                  <Heart size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={handleAddToCart}
+                  disabled={adding}
+                  className="w-full border-2 border-ink-900 hover:bg-ink-900 hover:text-white text-ink-900 font-medium py-3.5 text-sm tracking-wide transition-all duration-300 disabled:opacity-50"
+                >
+                  {adding ? "Added to Cart ✓" : "Add to Cart"}
+                </button>
+                <button
+                  onClick={handleBuyNow}
+                  className="w-full bg-rose-300 hover:bg-rose-400 text-ink-900 font-medium py-3.5 text-sm tracking-wide transition-all duration-300"
+                >
+                  Buy it now
+                </button>
+              </div>
+            </>
+          ) : (
+            <NotifyMeForm productId={product._id} productName={product.name} />
+          )}
+
+          <ul className="space-y-2.5 pt-4 border-t border-ink-100 text-sm text-ink-700">
+            {product.stock > 0 && product.stock <= 5 && (
+              <li className="flex items-center gap-2">
+                <Flame size={14} className="text-rose-600 flex-shrink-0" />
+                <span>
+                  <strong>Hurry!</strong> Only {product.stock} left — get yours now!
+                </span>
+              </li>
+            )}
+            <li className="flex items-center gap-2">
+              <Truck size={14} className="text-ink-500 flex-shrink-0" />
+              Delivery Charge LKR 450
+            </li>
+            <li className="flex items-center gap-2">
+              <ShieldCheck size={14} className="text-ink-500 flex-shrink-0" />
+              Guaranteed 100% Authentic Products
+            </li>
+            <li className="flex items-center gap-2">
+              <Globe size={14} className="text-ink-500 flex-shrink-0" />
+              Imported From {product.origin}
+            </li>
+            <li className="flex items-center gap-2">
+              <Lock size={14} className="text-ink-500 flex-shrink-0" />
+              Secure Payments
+            </li>
+          </ul>
+
+          <div className="border-t border-ink-100 pt-2">
+            {ACCORDION_SECTIONS.map((section) => (
+              <div key={section.id} className="border-b border-ink-100">
+                <button
+                  onClick={() =>
+                    setOpenSection(openSection === section.id ? null : section.id)
+                  }
+                  className="w-full flex items-center justify-between py-4 text-sm font-medium text-ink-900 hover:text-rose-600 transition-colors"
+                >
+                  {section.label}
+                  <ChevronDown
+                    size={16}
+                    className={cn(
+                      "transition-transform duration-300",
+                      openSection === section.id && "rotate-180"
+                    )}
+                  />
+                </button>
+                {openSection === section.id && (
+                  <div className="pb-5 text-sm text-ink-600 leading-relaxed animate-fade-in">
+                    {section.id === "description" && (
+                      <div className="space-y-3">
+                        <p>{product.description}</p>
+                        {product.tags.length > 0 && (
+                          <p>
+                            <strong className="text-ink-900">Tags:</strong>{" "}
+                            {product.tags.join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {section.id === "shipping" && (
+                      <div className="space-y-2">
+                        <p>Free islandwide shipping on orders above Rs. 10,000.</p>
+                        <p>Standard delivery: 3-5 business days · Express: 1-2 business days.</p>
+                        <p>Same-day delivery available within Colombo for orders placed before 12 PM.</p>
+                      </div>
+                    )}
+                    {section.id === "question" && (
+                      <div className="space-y-3">
+                        <p>Have a question? Reach out via WhatsApp or email:</p>
+                        <p>
+                          📱 <strong>077 339 8094</strong> · ✉️ <strong>hello@seoulaura.lk</strong>
+                        </p>
+                        <p>We reply within 24 hours, Mon–Sat.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {related.length > 0 && (
+        <section className="mt-20 lg:mt-28">
+          <h2 className="font-display text-2xl lg:text-3xl text-ink-900 mb-8">You may also like</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6">
+            {related.map((p) => (
+              <ProductCard key={p._id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {lightboxOpen && (
+        <div className="fixed inset-0 z-[100] bg-ink-900/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <button
+            onClick={() => setLightboxOpen(false)}
+            aria-label="Close"
+            className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors z-10"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="absolute top-6 left-6 text-white text-sm font-medium">
+            {selectedImage + 1} / {images.length}
+          </div>
+
+          <div className="relative w-full max-w-5xl aspect-square">
+            <Image
+              src={images[selectedImage]}
+              alt={product.name}
+              fill
+              className="object-contain"
+              sizes="100vw"
+              priority
+            />
+          </div>
+
+          {hasMultiple && (
+            <>
+              <button
+                onClick={prevImage}
+                aria-label="Previous"
+                className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                onClick={nextImage}
+                aria-label="Next"
+                className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                <ChevronRight size={22} />
+              </button>
+
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                {images.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedImage(i)}
+                    aria-label={`Go to image ${i + 1}`}
+                    className={cn(
+                      "h-1 rounded-full transition-all duration-300",
+                      i === selectedImage ? "w-10 bg-white" : "w-5 bg-white/40 hover:bg-white/60"
+                    )}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

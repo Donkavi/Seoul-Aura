@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000 --max-time 5)",
+      "Bash(rm \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\shop\\\\[id]\\\\AddToBag.tsx\")",
+      "Bash(npm install *)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\nav-menu\\\\[id]\")",
+      "Bash(npx tsx *)",
+      "Bash(npx tsc *)",
+      "Bash(dir \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\nav-menu\" /b)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\concerns\\\\[id]\" && mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\admin\\\\concerns\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\orders\\\\[id]\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\users\\\\[id]\" && mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\settings\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\subscription-plans\\\\[id]\" && mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\admin\\\\subscriptions\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\subscriptions\\\\[id]\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\shop\\[id]",
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\nav-menu",
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\concerns",
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\orders",
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\users",
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscription-plans",
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscriptions"
+    ]
+  }
+}
