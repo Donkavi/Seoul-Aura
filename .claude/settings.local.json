@@ -15,7 +15,10 @@
       "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\subscription-plans\\\\[id]\" && mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\admin\\\\subscriptions\")",
       "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\app\\\\api\\\\subscriptions\\\\[id]\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\" -Recurse -Directory)",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Remove-Item -Force \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\tsconfig.tsbuildinfo\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\.next\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Done\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\shop\\[id]",

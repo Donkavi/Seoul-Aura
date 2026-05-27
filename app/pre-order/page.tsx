@@ -431,7 +431,7 @@ function FormField({
   label,
   children,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
   label: string;
   children: React.ReactNode;
 }) {
