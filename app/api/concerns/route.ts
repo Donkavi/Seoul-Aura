@@ -16,13 +16,14 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await connectDB();
-    const { name, description } = await req.json();
+    const { name, description, image } = await req.json();
     if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
     const count = await Concern.countDocuments();
     const concern = await Concern.create({
       name: name.trim(),
       slug: slugify(name.trim()),
       description: description?.trim() ?? "",
+      image: image?.trim() ?? "",
       order: count,
     });
     return NextResponse.json(concern, { status: 201 });

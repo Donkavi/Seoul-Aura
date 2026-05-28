@@ -18,7 +18,15 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Remove-Item -Force \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\tsconfig.tsbuildinfo\" -ErrorAction SilentlyContinue)",
       "Bash(Remove-Item -Recurse -Force \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\.next\" -ErrorAction SilentlyContinue)",
-      "Bash(Write-Host \"Done\")"
+      "Bash(Write-Host \"Done\")",
+      "Bash(ls -la \"c:\\\\Users\\\\DELL\\\\Documents\\\\KC\\\\finl\\\\Seoul Aura\\\\\" 2>/dev/null | head -20)",
+      "Read(//c/Users/DELL/Documents/KC/finl/Seoul Aura\" 2>/dev/**)",
+      "Bash(xargs grep -l \"concern\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\app\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object FullName)",
+      "Bash(xargs grep -l \"login\\\\|signin\\\\|auth\\\\|session\")",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\app\\\\api\\\\auth\\\\[...nextauth]\")",
+      "Bash(mkdir -p \"c:/Users/DELL/Documents/Seoul-Aura/app/api/auth/[...nextauth]\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\shop\\[id]",
@@ -27,7 +35,8 @@
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\orders",
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\users",
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscription-plans",
-      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscriptions"
+      "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscriptions",
+      "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\auth"
     ]
   }
 }
