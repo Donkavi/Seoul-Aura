@@ -4,7 +4,7 @@ const badges = [
   {
     icon: ShieldCheck,
     title: "100% Authentic",
-    description: "Direct imports from trusted Korean & Dubai suppliers",
+    description: "Direct imports from trusted Korean suppliers",
   },
   {
     icon: Truck,

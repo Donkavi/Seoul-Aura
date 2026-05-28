@@ -20,7 +20,7 @@ export default function Header() {
     fetch("/api/nav-menu")
       .then((r) => r.json())
       .then((data) => Array.isArray(data) && setNavItems(data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const openMenu = (label: string) => {
@@ -59,7 +59,7 @@ export default function Header() {
                 Seoul<span className="text-rose-600 italic">aura</span>
               </span>
               <span className="text-[9px] tracking-[0.3em] text-ink-400 uppercase mt-1 font-body">
-                Korea · Dubai · You
+                Korea · You
               </span>
             </div>
           </Link>

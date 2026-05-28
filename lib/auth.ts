@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import Admin from "@/models/Admin";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -35,22 +36,38 @@ export const authOptions: NextAuthOptions = {
           );
         } catch (err) {
           console.error("[NextAuth] signIn upsert error:", err);
-          // Still allow sign-in even if DB write fails
         }
       }
       return true;
     },
 
-    /** Expose the MongoDB _id on the session */
+    /**
+     * On first sign-in (user object present), check the Admin collection.
+     * The result is stored in the JWT so middleware can read it without a DB call.
+     */
+    async jwt({ token, user }) {
+      if (user) {
+        // Called once at sign-in — embed isAdmin for the lifetime of this session
+        try {
+          await connectDB();
+          const email = user.email?.toLowerCase() ?? "";
+          const bootstrapAdmin = process.env.ADMIN_EMAIL?.toLowerCase();
+          const isBootstrap = !!bootstrapAdmin && email === bootstrapAdmin;
+          const dbAdmin = await Admin.findOne({ email });
+          token.isAdmin = isBootstrap || !!dbAdmin;
+        } catch {
+          token.isAdmin = false;
+        }
+      }
+      return token;
+    },
+
     async session({ session, token }) {
       if (session.user && token.sub) {
         (session.user as any).id = token.sub;
+        (session.user as any).isAdmin = token.isAdmin ?? false;
       }
       return session;
-    },
-
-    async jwt({ token }) {
-      return token;
     },
   },
 

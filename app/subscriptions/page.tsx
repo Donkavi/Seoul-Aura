@@ -1,16 +1,14 @@
 import Link from "next/link";
 import { Check, Sparkles, Gift, Crown, Calendar } from "lucide-react";
 import type { SubscriptionPlan } from "@/types";
+import { connectDB } from "@/lib/mongodb";
+import SubscriptionPlanModel from "@/models/SubscriptionPlan";
 
 async function getPlans(): Promise<SubscriptionPlan[]> {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/subscription-plans?active=true`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    await connectDB();
+    const plans = await SubscriptionPlanModel.find({ active: true }).sort({ order: 1 }).lean();
+    return JSON.parse(JSON.stringify(plans));
   } catch {
     return [];
   }

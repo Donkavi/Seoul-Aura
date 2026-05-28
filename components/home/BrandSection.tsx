@@ -2,33 +2,26 @@
 
 import { useState } from "react";
 
-interface Brand {
-  name: string;
-  domain: string;
-  origin: "Korea" | "Dubai";
-}
-
-const brands: Brand[] = [
-  { name: "COSRX", domain: "cosrx.com", origin: "Korea" },
-  { name: "ANUA", domain: "anua-global.com", origin: "Korea" },
-  { name: "Beauty of Joseon", domain: "beautyofjoseon.com", origin: "Korea" },
-  { name: "Medicube", domain: "medicube.us", origin: "Korea" },
-  { name: "Innisfree", domain: "innisfree.com", origin: "Korea" },
-  { name: "Laneige", domain: "laneige.com", origin: "Korea" },
-  { name: "Sulwhasoo", domain: "sulwhasoo.com", origin: "Korea" },
-  { name: "Bateel", domain: "bateel.com", origin: "Dubai" },
-  { name: "Patchi", domain: "patchi.com", origin: "Dubai" },
-  { name: "Mirzam", domain: "mirzam.com", origin: "Dubai" },
-  { name: "Al Nassma", domain: "al-nassma.com", origin: "Dubai" },
+const brands = [
+  { name: "COSRX",              domain: "cosrx.com" },
+  { name: "ANUA",               domain: "anua-global.com" },
+  { name: "Beauty of Joseon",   domain: "beautyofjoseon.com" },
+  { name: "Medicube",           domain: "medicube.us" },
+  { name: "Innisfree",          domain: "innisfree.com" },
+  { name: "Laneige",            domain: "laneige.com" },
+  { name: "Sulwhasoo",          domain: "sulwhasoo.com" },
+  { name: "Klairs",             domain: "klairs.com" },
+  { name: "Some By Mi",         domain: "somebymi.com" },
+  { name: "Isntree",            domain: "isntree.com" },
 ];
 
-function BrandLogo({ brand }: { brand: Brand }) {
+function BrandLogo({ brand }: { brand: { name: string; domain: string } }) {
   const [failed, setFailed] = useState(false);
   const logoUrl = `https://logo.clearbit.com/${brand.domain}?size=200`;
 
   return (
     <div className="flex flex-col items-center justify-center px-10 lg:px-16 flex-shrink-0 group cursor-pointer min-w-[180px] lg:min-w-[220px]">
-      <div className="h-16 lg:h-20 flex items-center justify-center w-full mb-2 relative">
+      <div className="h-16 lg:h-20 flex items-center justify-center w-full relative">
         {failed ? (
           <p className="font-display text-2xl lg:text-3xl font-light text-ink-700 group-hover:text-rose-600 transition-colors duration-500 whitespace-nowrap tracking-tight">
             {brand.name}
@@ -43,9 +36,6 @@ function BrandLogo({ brand }: { brand: Brand }) {
           />
         )}
       </div>
-      <p className="text-[9px] uppercase tracking-[0.4em] text-ink-400 group-hover:text-rose-400 transition-colors whitespace-nowrap">
-        {brand.origin}
-      </p>
     </div>
   );
 }
@@ -57,7 +47,7 @@ export default function BrandSection() {
     <section className="py-14 lg:py-20 border-y border-ink-100 overflow-hidden bg-white">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 mb-10 lg:mb-12">
         <p className="section-subtitle text-center text-rose-600 mb-2">Houses We Curate</p>
-        <h2 className="section-title text-center">A Lineup of Cult Labels</h2>
+        <h2 className="section-title text-center">A Lineup of Cult Korean Labels</h2>
       </div>
 
       <div className="relative">

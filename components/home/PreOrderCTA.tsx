@@ -30,8 +30,8 @@ export default function PreOrderCTA() {
             </h2>
 
             <p className="text-base lg:text-lg text-ink-300 max-w-md leading-relaxed">
-              The viral Korean drop you saw on TikTok. That premium Dubai chocolate from your trip.
-              Tell us what you want — we'll source it from authentic suppliers and import it
+              The viral Korean drop you saw on TikTok. That limited-edition formula you can't find anywhere.
+              Tell us what you want — we'll source it from authentic Korean suppliers and import it
               straight to you.
             </p>
 
