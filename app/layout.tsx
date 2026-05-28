@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 import PublicChrome from "@/components/layout/PublicChrome";
+import AuthProvider from "@/components/providers/AuthProvider";
 
 export const metadata: Metadata = {
   title: "Seoul Aura | Premium Korean & Dubai Imports",
@@ -19,9 +20,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col">
-        <CartProvider>
-          <PublicChrome>{children}</PublicChrome>
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <PublicChrome>{children}</PublicChrome>
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

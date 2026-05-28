@@ -1,19 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, Check, X, Tag } from "lucide-react";
+import Image from "next/image";
+import { Plus, Pencil, Trash2, Check, X, Tag, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Concern } from "@/types";
 
 export default function ConcernsAdminPage() {
   const [concerns, setConcerns] = useState<Concern[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [editImage, setEditImage] = useState("");
+
+  // New concern state
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newImage, setNewImage] = useState("");
   const [adding, setAdding] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -33,10 +41,17 @@ export default function ConcernsAdminPage() {
     setEditingId(c._id);
     setEditName(c.name);
     setEditDesc(c.description ?? "");
+    setEditImage(c.image ?? "");
     setError("");
   };
 
-  const cancelEdit = () => { setEditingId(null); setEditName(""); setEditDesc(""); setError(""); };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditDesc("");
+    setEditImage("");
+    setError("");
+  };
 
   const saveEdit = async (id: string) => {
     if (!editName.trim()) return;
@@ -46,7 +61,11 @@ export default function ConcernsAdminPage() {
       const res = await fetch(`/api/concerns/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editName.trim(), description: editDesc.trim() }),
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDesc.trim(),
+          image: editImage.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Error"); return; }
@@ -71,11 +90,18 @@ export default function ConcernsAdminPage() {
       const res = await fetch("/api/concerns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim(), description: newDesc.trim() }),
+        body: JSON.stringify({
+          name: newName.trim(),
+          description: newDesc.trim(),
+          image: newImage.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? "Error"); return; }
-      setNewName(""); setNewDesc(""); setAdding(false);
+      setNewName("");
+      setNewDesc("");
+      setNewImage("");
+      setAdding(false);
       await load();
     } finally {
       setSaving(false);
@@ -136,6 +162,34 @@ export default function ConcernsAdminPage() {
                 />
               </div>
             </div>
+
+            {/* Image URL row */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-ink-700 mb-1">
+                <span className="inline-flex items-center gap-1"><ImageIcon size={11} /> Image URL</span>
+                <span className="text-ink-400 font-normal ml-1">(shown on home page concern circles)</span>
+              </label>
+              <div className="flex gap-3 items-start">
+                <input
+                  value={newImage}
+                  onChange={(e) => setNewImage(e.target.value)}
+                  placeholder="https://images.unsplash.com/… or any public image URL"
+                  className="flex-1 border border-ink-200 rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-rose-300"
+                />
+                {newImage && (
+                  <div className="w-12 h-12 rounded-full overflow-hidden border border-ink-200 shrink-0 relative">
+                    <Image
+                      src={newImage}
+                      alt="Preview"
+                      fill
+                      className="object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <button
                 onClick={addConcern}
@@ -145,7 +199,7 @@ export default function ConcernsAdminPage() {
                 <Check size={12} /> {saving ? "Saving…" : "Save"}
               </button>
               <button
-                onClick={() => { setAdding(false); setNewName(""); setNewDesc(""); setError(""); }}
+                onClick={() => { setAdding(false); setNewName(""); setNewDesc(""); setNewImage(""); setError(""); }}
                 className="inline-flex items-center gap-1.5 border border-ink-200 text-ink-700 text-xs px-4 py-2 hover:bg-ink-50 transition-colors"
               >
                 <X size={12} /> Cancel
@@ -157,20 +211,22 @@ export default function ConcernsAdminPage() {
         <table className="w-full">
           <thead className="bg-ink-50 border-b border-ink-100">
             <tr>
+              <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold w-12">Image</th>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Name</th>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Slug (URL key)</th>
-              <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Description</th>
+              <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold hidden md:table-cell">Description</th>
+              <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold hidden lg:table-cell">Image URL</th>
               <th className="text-right p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="text-center py-16 text-sm text-ink-400">Loading…</td>
+                <td colSpan={6} className="text-center py-16 text-sm text-ink-400">Loading…</td>
               </tr>
             ) : concerns.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-center py-16">
+                <td colSpan={6} className="text-center py-16">
                   <Tag size={32} className="mx-auto mb-3 text-ink-300" />
                   <p className="text-sm text-ink-500">No concerns yet. Add your first one above.</p>
                 </td>
@@ -178,6 +234,25 @@ export default function ConcernsAdminPage() {
             ) : (
               concerns.map((c) => (
                 <tr key={c._id} className="border-b border-ink-50 hover:bg-rose-25/20 transition-colors">
+                  {/* Image thumbnail */}
+                  <td className="p-4">
+                    {c.image ? (
+                      <div className="w-10 h-10 rounded-full overflow-hidden border border-ink-200 relative shrink-0">
+                        <Image
+                          src={c.image}
+                          alt={c.name}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-ink-100 flex items-center justify-center shrink-0">
+                        <ImageIcon size={14} className="text-ink-400" />
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Name */}
                   <td className="p-4">
                     {editingId === c._id ? (
                       <input
@@ -185,30 +260,68 @@ export default function ConcernsAdminPage() {
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") saveEdit(c._id); if (e.key === "Escape") cancelEdit(); }}
-                        className="border border-rose-300 rounded-sm px-2.5 py-1.5 text-sm w-40 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                        className="border border-rose-300 rounded-sm px-2.5 py-1.5 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-rose-400"
                       />
                     ) : (
                       <span className="text-sm font-medium text-ink-900">{c.name}</span>
                     )}
                   </td>
+
+                  {/* Slug */}
                   <td className="p-4">
                     <code className="text-xs bg-ink-50 text-rose-700 px-2 py-1 rounded">
                       ?concern={c.slug}
                     </code>
                   </td>
-                  <td className="p-4">
+
+                  {/* Description */}
+                  <td className="p-4 hidden md:table-cell">
                     {editingId === c._id ? (
                       <input
                         value={editDesc}
                         onChange={(e) => setEditDesc(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") saveEdit(c._id); if (e.key === "Escape") cancelEdit(); }}
                         placeholder="Description"
-                        className="border border-rose-300 rounded-sm px-2.5 py-1.5 text-sm w-full max-w-xs focus:outline-none focus:ring-1 focus:ring-rose-400"
+                        className="border border-rose-300 rounded-sm px-2.5 py-1.5 text-sm w-full max-w-[180px] focus:outline-none focus:ring-1 focus:ring-rose-400"
                       />
                     ) : (
                       <span className="text-sm text-ink-500">{c.description || "—"}</span>
                     )}
                   </td>
+
+                  {/* Image URL */}
+                  <td className="p-4 hidden lg:table-cell">
+                    {editingId === c._id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={editImage}
+                          onChange={(e) => setEditImage(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveEdit(c._id); if (e.key === "Escape") cancelEdit(); }}
+                          placeholder="https://…"
+                          className="border border-rose-300 rounded-sm px-2.5 py-1.5 text-sm w-full max-w-[220px] focus:outline-none focus:ring-1 focus:ring-rose-400"
+                        />
+                        {editImage && (
+                          <div className="w-8 h-8 rounded-full overflow-hidden border border-ink-200 relative shrink-0">
+                            <Image
+                              src={editImage}
+                              alt="Preview"
+                              fill
+                              className="object-cover"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ) : c.image ? (
+                      <span className="text-xs text-ink-400 truncate max-w-[200px] inline-block" title={c.image}>
+                        {c.image}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-ink-300 italic">No image set</span>
+                    )}
+                  </td>
+
+                  {/* Actions */}
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-1">
                       {editingId === c._id ? (
@@ -257,8 +370,13 @@ export default function ConcernsAdminPage() {
       </div>
 
       <div className="mt-4 bg-ink-50 border border-ink-100 rounded-sm p-4 text-sm text-ink-600">
-        <p className="font-medium text-ink-800 mb-1">How concerns connect to products</p>
-        <p>When you add a concern here (e.g. <code className="bg-white px-1.5 py-0.5 rounded text-rose-700 text-xs">Brightening</code>), it appears as a checkbox in the product form. Tick it on any product that addresses that concern. The nav menu link <code className="bg-white px-1.5 py-0.5 rounded text-rose-700 text-xs">/shop?concern=brightening</code> will then show all those products.</p>
+        <p className="font-medium text-ink-800 mb-1">How concerns connect to products & the home page</p>
+        <p>
+          When you add a concern here (e.g. <code className="bg-white px-1.5 py-0.5 rounded text-rose-700 text-xs">Brightening</code>), it
+          appears as a checkbox in the product form. Adding an <span className="font-medium text-ink-700">Image URL</span> makes it
+          show up as a circle on the home page "Shop by Skin Concern" section. The nav link{" "}
+          <code className="bg-white px-1.5 py-0.5 rounded text-rose-700 text-xs">/shop?concern=brightening</code> will show all tagged products.
+        </p>
       </div>
     </div>
   );

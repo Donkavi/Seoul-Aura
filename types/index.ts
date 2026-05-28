@@ -121,6 +121,7 @@ export interface Concern {
   name: string;
   slug: string;
   description?: string;
+  image?: string;
   order: number;
 }
 
