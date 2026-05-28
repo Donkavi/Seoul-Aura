@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
+import Product from "@/models/Product";
 import { generateOrderNumber } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
@@ -11,8 +12,10 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const page = parseInt(searchParams.get("page") ?? "1");
 
+    const email = searchParams.get("email");
     const query: Record<string, unknown> = {};
     if (status) query.status = status;
+    if (email) query.customerEmail = { $regex: `^${email}$`, $options: "i" };
 
     const skip = (page - 1) * limit;
     const [orders, total] = await Promise.all([
@@ -34,6 +37,19 @@ export async function POST(req: NextRequest) {
       ...body,
       orderNumber: generateOrderNumber(),
     });
+
+    // Decrement stock for each ordered product
+    if (Array.isArray(body.items) && body.items.length > 0) {
+      await Product.bulkWrite(
+        body.items.map((item: { productId: string; quantity: number }) => ({
+          updateOne: {
+            filter: { _id: item.productId },
+            update: { $inc: { stock: -item.quantity } },
+          },
+        }))
+      );
+    }
+
     return NextResponse.json(order, { status: 201 });
   } catch (err) {
     console.error(err);

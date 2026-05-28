@@ -80,11 +80,15 @@ export interface Order {
   orderType: "standard" | "subscription";
   shippingAddress: {
     line1: string;
+    line2?: string;
     city: string;
+    province?: string;
+    postalCode?: string;
     country: string;
   };
   paymentMethod: string;
   paymentStatus: "pending" | "paid" | "failed" | "refunded";
+  notes?: string;
   createdAt: string;
 }
 

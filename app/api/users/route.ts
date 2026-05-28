@@ -10,9 +10,12 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const limit = parseInt(searchParams.get("limit") ?? "100");
 
+    const email = searchParams.get("email");
     const query: Record<string, unknown> = {};
     if (status && status !== "all") query.subscriptionStatus = status;
-    if (search) {
+    if (email) {
+      query.email = { $regex: `^${email}$`, $options: "i" };
+    } else if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } },

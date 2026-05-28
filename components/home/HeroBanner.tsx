@@ -61,28 +61,12 @@ const slides: Slide[] = [
     accentColor: "text-blue-600",
   },
   {
-    badge: "Dubai Exclusive",
-    title: "Taste of",
-    highlight: "Arabia",
-    subtitle: "premium dates & sweets",
-    description:
-      "Bateel, Patchi, Al Nassma and more — Dubai's finest delicacies, lovingly delivered to your doorstep.",
-    cta: "Explore Dubai Edit",
-    ctaHref: "/shop?origin=Dubai",
-    image:
-      "https://images.unsplash.com/photo-1601493700518-4f9f5a8fcb3a?w=1600&h=900&fit=crop",
-    align: "left",
-    bgGradient: "from-amber-50 via-white to-rose-50",
-    textColor: "text-ink-900",
-    accentColor: "text-amber-700",
-  },
-  {
     badge: "Monthly Subscription",
     title: "A curated",
     highlight: "surprise",
     subtitle: "on your doorstep",
     description:
-      "Hand-picked Korean beauty boxes and Dubai snack selections delivered every month.",
+      "Hand-picked Korean beauty boxes delivered every month — freshly imported and full of surprises.",
     cta: "Explore Subscriptions",
     ctaHref: "/subscriptions",
     image:
@@ -286,7 +270,7 @@ export default function HeroBanner() {
               <span className="text-rose-400">·</span>
               <span>✦ Islandwide Delivery</span>
               <span className="text-rose-400">·</span>
-              <span>✦ Direct From Seoul & Dubai</span>
+              <span>✦ Direct From Seoul</span>
               <span className="text-rose-400">·</span>
             </div>
           ))}

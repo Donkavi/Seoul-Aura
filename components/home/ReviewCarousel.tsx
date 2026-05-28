@@ -62,11 +62,11 @@ const fallbackReviews: PopulatedReview[] = [
     rating: 5,
     title: "Worth repurchasing",
     comment:
-      "Look, love, look! I have repurchased twice already. The Dubai snack box was such a delightful surprise too — Bateel dates are insanely good.",
-    images: ["https://images.unsplash.com/photo-1601493700518-4f9f5a8fcb3a?w=400&h=400&fit=crop"],
+      "Look, love, look! I have repurchased twice already. The K-Beauty box was such a delightful surprise — every product was exactly what my skin needed.",
+    images: ["https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop"],
     isVerifiedBuyer: true,
     createdAt: new Date(Date.now() - 21 * 86400000).toISOString(),
-    productId: { _id: "d3", name: "Dubai Snack Box", slug: "demo", images: [] },
+    productId: { _id: "d3", name: "Monthly K-Beauty Box", slug: "demo", images: [] },
   },
 ];
 
