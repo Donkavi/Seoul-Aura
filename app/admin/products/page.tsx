@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Plus, Pencil, Trash2, Search, X, Package } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
-import type { Product, Category, Concern } from "@/types";
+import type { Product, Category, Concern, ProductVariant } from "@/types";
+
+interface VariantRow {
+  name: string;
+  price: string;
+}
 
 interface FormState {
   name: string;
@@ -19,6 +24,7 @@ interface FormState {
   stock: string;
   tags: string;
   concerns: string[];
+  variants: VariantRow[];
   isFeatured: boolean;
   isBestSeller: boolean;
   isNewArrival: boolean;
@@ -37,6 +43,7 @@ const emptyForm: FormState = {
   stock: "",
   tags: "",
   concerns: [],
+  variants: [],
   isFeatured: false,
   isBestSeller: false,
   isNewArrival: true,
@@ -79,6 +86,9 @@ export default function AdminProductsPage() {
       images: form.images.split(",").map((s) => s.trim()).filter(Boolean),
       tags: form.tags.split(",").map((s) => s.trim()).filter(Boolean),
       concerns: form.concerns,
+      variants: form.variants
+        .filter((v) => v.name.trim() && v.price)
+        .map((v) => ({ name: v.name.trim(), price: parseFloat(v.price) })),
     };
 
     try {
@@ -114,6 +124,7 @@ export default function AdminProductsPage() {
       stock: p.stock.toString(),
       tags: p.tags.join(", "),
       concerns: p.concerns ?? [],
+      variants: (p.variants ?? []).map((v: ProductVariant) => ({ name: v.name, price: v.price.toString() })),
       isFeatured: p.isFeatured,
       isBestSeller: p.isBestSeller,
       isNewArrival: p.isNewArrival,
@@ -296,6 +307,64 @@ export default function AdminProductsPage() {
                     className="input-field"
                   />
                 </div>
+              </div>
+
+              {/* Variants */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700">
+                    Variants (optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, variants: [...form.variants, { name: "", price: "" }] })}
+                    className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 border border-rose-200 px-2.5 py-1 hover:bg-rose-50 transition-colors"
+                  >
+                    <Plus size={11} /> Add Variant
+                  </button>
+                </div>
+                <p className="text-[11px] text-ink-400 mb-3">
+                  e.g. 100ml / Rs. 4500, 200ml / Rs. 7500. When set, customers choose a variant — each with its own price.
+                </p>
+                {form.variants.length === 0 ? (
+                  <p className="text-xs text-ink-400 italic">No variants — single price product.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.variants.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input
+                          value={v.name}
+                          onChange={(e) => {
+                            const next = [...form.variants];
+                            next[i] = { ...next[i], name: e.target.value };
+                            setForm({ ...form, variants: next });
+                          }}
+                          placeholder="e.g. 100ml"
+                          className="input-field flex-1"
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={v.price}
+                          onChange={(e) => {
+                            const next = [...form.variants];
+                            next[i] = { ...next[i], price: e.target.value };
+                            setForm({ ...form, variants: next });
+                          }}
+                          placeholder="Price (LKR)"
+                          className="input-field w-36"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, variants: form.variants.filter((_, j) => j !== i) })}
+                          className="p-2 hover:bg-rose-50 text-ink-400 hover:text-rose-600 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid sm:grid-cols-3 gap-4">

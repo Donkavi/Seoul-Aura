@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import PreOrder from "@/models/PreOrder";
+import { sendPreOrderConfirmationToBuyer, sendPreOrderNotificationToAdmin } from "@/lib/email";
 
 function generateRequestNumber(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -90,6 +91,23 @@ export async function POST(req: NextRequest) {
       notes: notes?.trim(),
       status: "pending",
     });
+
+    // Fire emails in background — don't block the response
+    const emailData = {
+      requestNumber: preOrder.requestNumber,
+      customerName: preOrder.customerName,
+      customerEmail: preOrder.customerEmail,
+      productBrand: preOrder.productBrand,
+      productName: preOrder.productName,
+      productLink: preOrder.productLink,
+      quantity: preOrder.quantity,
+      origin: preOrder.origin,
+      notes: preOrder.notes,
+    };
+    Promise.all([
+      sendPreOrderConfirmationToBuyer(emailData),
+      sendPreOrderNotificationToAdmin(emailData),
+    ]).catch(console.error);
 
     return NextResponse.json(preOrder, { status: 201 });
   } catch (err) {

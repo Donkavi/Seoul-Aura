@@ -28,14 +28,6 @@ import ProductCard from "@/components/shop/ProductCard";
 import NotifyMeForm from "@/components/product/NotifyMeForm";
 import type { Product } from "@/types";
 
-const sizeOptionsFor = (product: Product): string[] => {
-  if (product.subtype === "Haircare") return ["177ml", "236ml"];
-  if (product.subtype === "Skincare") return ["30ml", "50ml", "100ml"];
-  if (product.subtype === "Sunscreen") return ["50ml"];
-  if (product.subtype === "Snacks" || product.subtype === "Sweets") return ["100g", "250g", "500g"];
-  if (product.subtype === "Dates") return ["250g", "500g", "1kg"];
-  return ["Standard"];
-};
 
 const benefitsFor = (product: Product): string[] => {
   const map: Record<string, string[]> = {
@@ -93,7 +85,7 @@ export default function ProductView({
 }) {
   const { addItem, openDrawer } = useCart();
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedSize, setSelectedSize] = useState(0);
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState(0);
   const [qty, setQty] = useState(1);
   const [openSection, setOpenSection] = useState<string | null>("description");
   const [adding, setAdding] = useState(false);
@@ -102,6 +94,11 @@ export default function ProductView({
 
   const images = product.images?.length ? product.images : [];
   const hasMultiple = images.length > 1;
+
+  const variants = product.variants?.length ? product.variants : null;
+  const activeVariant = variants ? variants[selectedVariantIdx] : null;
+  // Use variant price if a variant is selected, otherwise base product price
+  const activePrice = activeVariant ? activeVariant.price : product.price;
 
   const nextImage = () => setSelectedImage((selectedImage + 1) % images.length);
   const prevImage = () =>
@@ -122,10 +119,9 @@ export default function ProductView({
     };
   }, [lightboxOpen, selectedImage, images.length]);
 
-  const sizes = sizeOptionsFor(product);
   const benefits = benefitsFor(product);
   const discount = product.comparePrice
-    ? Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)
+    ? Math.round(((product.comparePrice - activePrice) / product.comparePrice) * 100)
     : 0;
 
   useEffect(() => {
@@ -141,17 +137,23 @@ export default function ProductView({
 
   const handleAddToCart = () => {
     setAdding(true);
-    addItem(product, qty);
+    const cartProduct = activeVariant
+      ? { ...product, name: `${product.name} · ${activeVariant.name}`, price: activeVariant.price }
+      : product;
+    addItem(cartProduct, qty);
     setTimeout(() => setAdding(false), 1200);
   };
 
   const handleBuyNow = () => {
-    addItem(product, qty);
+    const cartProduct = activeVariant
+      ? { ...product, name: `${product.name} · ${activeVariant.name}`, price: activeVariant.price }
+      : product;
+    addItem(cartProduct, qty);
     setTimeout(() => (window.location.href = "/checkout"), 200);
   };
 
   const brandName = product.tags?.[0] ?? `${product.origin} Brand`;
-  const installment = (product.price / 3).toFixed(2);
+  const installment = (activePrice / 3).toFixed(2);
 
   return (
     <div className="max-w-7xl mx-auto px-4 lg:px-8 pb-12 lg:pb-16">
@@ -302,24 +304,24 @@ export default function ProductView({
             ))}
           </ul>
 
-          {sizes.length > 1 && (
+          {variants && variants.length > 1 && (
             <div>
               <p className="text-sm text-ink-900 font-medium mb-2">
-                Size: <span className="text-ink-500 font-normal">{sizes[selectedSize]}</span>
+                Size: <span className="text-ink-500 font-normal">{activeVariant?.name}</span>
               </p>
               <div className="flex flex-wrap gap-2">
-                {sizes.map((size, i) => (
+                {variants.map((v, i) => (
                   <button
-                    key={size}
-                    onClick={() => setSelectedSize(i)}
+                    key={v.name}
+                    onClick={() => setSelectedVariantIdx(i)}
                     className={cn(
                       "px-4 py-2 border text-sm font-medium transition-all",
-                      i === selectedSize
+                      i === selectedVariantIdx
                         ? "border-ink-900 text-ink-900 bg-white"
                         : "border-ink-200 text-ink-500 bg-ink-50 hover:border-ink-400"
                     )}
                   >
-                    {size}
+                    {v.name}
                   </button>
                 ))}
               </div>
@@ -329,8 +331,8 @@ export default function ProductView({
           <div className="border-t border-ink-100 pt-5">
             <p className="text-xs text-ink-500 mb-1">Price</p>
             <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="font-display text-3xl text-ink-900">{formatPrice(product.price)}</span>
-              {product.comparePrice && product.comparePrice > product.price && (
+              <span className="font-display text-3xl text-ink-900">{formatPrice(activePrice)}</span>
+              {product.comparePrice && product.comparePrice > activePrice && (
                 <span className="text-lg text-ink-400 line-through">
                   {formatPrice(product.comparePrice)}
                 </span>
