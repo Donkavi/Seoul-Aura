@@ -1,3 +1,8 @@
+export interface ProductVariant {
+  name: string;
+  price: number;
+}
+
 export interface Product {
   _id: string;
   name: string;
@@ -13,6 +18,7 @@ export interface Product {
   stock: number;
   tags: string[];
   concerns: string[];
+  variants?: ProductVariant[];
   isFeatured: boolean;
   isBestSeller: boolean;
   isNewArrival: boolean;

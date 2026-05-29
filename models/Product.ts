@@ -1,5 +1,10 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export interface IProductVariant {
+  name: string;
+  price: number;
+}
+
 export interface IProduct extends Document {
   name: string;
   slug: string;
@@ -15,6 +20,7 @@ export interface IProduct extends Document {
   sku?: string;
   tags: string[];
   concerns: string[];
+  variants: IProductVariant[];
   isFeatured: boolean;
   isBestSeller: boolean;
   isNewArrival: boolean;
@@ -40,6 +46,12 @@ const ProductSchema = new Schema<IProduct>(
     sku: { type: String },
     tags: [{ type: String }],
     concerns: [{ type: String }],
+    variants: [
+      {
+        name: { type: String, required: true },
+        price: { type: Number, required: true, min: 0 },
+      },
+    ],
     isFeatured: { type: Boolean, default: false },
     isBestSeller: { type: Boolean, default: false },
     isNewArrival: { type: Boolean, default: true },
@@ -54,7 +66,10 @@ ProductSchema.index({ origin: 1 });
 ProductSchema.index({ isFeatured: 1 });
 ProductSchema.index({ isBestSeller: 1 });
 
-const Product: Model<IProduct> =
-  mongoose.models.Product || mongoose.model<IProduct>("Product", ProductSchema);
+// Delete cached model so Next.js hot reloads always pick up schema changes
+if (mongoose.models.Product) {
+  delete (mongoose.models as Record<string, Model<unknown>>)["Product"];
+}
+const Product = mongoose.model<IProduct>("Product", ProductSchema);
 
 export default Product;

@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import Order from "@/models/Order";
 import Product from "@/models/Product";
 import { generateOrderNumber } from "@/lib/utils";
+import { sendOrderConfirmationToBuyer, sendOrderNotificationToAdmin } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   try {
@@ -49,6 +50,28 @@ export async function POST(req: NextRequest) {
         }))
       );
     }
+
+    // Fire emails in background — don't block the response
+    const emailData = {
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerEmail: order.customerEmail,
+      items: order.items.map((i: { name: string; quantity: number; price: number; image?: string }) => ({
+        name: i.name, quantity: i.quantity, price: i.price, image: i.image,
+      })),
+      subtotal: order.subtotal,
+      shippingFee: order.shippingFee,
+      discount: order.discount,
+      total: order.total,
+      orderType: order.orderType,
+      paymentMethod: order.paymentMethod,
+      shippingAddress: order.shippingAddress,
+      notes: order.notes,
+    };
+    Promise.all([
+      sendOrderConfirmationToBuyer(emailData),
+      sendOrderNotificationToAdmin(emailData),
+    ]).catch(console.error);
 
     return NextResponse.json(order, { status: 201 });
   } catch (err) {

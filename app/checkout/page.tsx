@@ -1,11 +1,23 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, ChevronRight, CreditCard, Truck, MapPin, User, ShieldCheck } from "lucide-react";
+import { useSession, signIn } from "next-auth/react";
+import { Check, ChevronRight, CreditCard, Truck, MapPin, User, ShieldCheck, Loader2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice, cn } from "@/lib/utils";
+
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A10.99 10.99 0 0012 23z" />
+      <path fill="#FBBC05" d="M5.84 14.09a6.59 6.59 0 010-4.18V7.07H2.18a10.99 10.99 0 000 9.86l3.66-2.84z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.2 1.65l3.15-3.15C17.45 2.09 14.97 1 12 1A10.99 10.99 0 002.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z" />
+    </svg>
+  );
+}
 
 const steps = ["Information", "Shipping", "Payment", "Review"];
 
@@ -13,6 +25,7 @@ function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const subscriptionPlan = searchParams.get("plan");
+  const { data: session, status } = useSession();
 
   const { items, total, clearCart } = useCart();
   const [step, setStep] = useState(0);
@@ -39,6 +52,17 @@ function CheckoutContent() {
   const grandTotal = total + shippingFee + tax;
 
   const isSubscription = !!subscriptionPlan;
+
+  // Pre-fill from session when it loads
+  useEffect(() => {
+    if (session?.user) {
+      setForm((prev) => ({
+        ...prev,
+        customerName: prev.customerName || session.user?.name || "",
+        customerEmail: prev.customerEmail || session.user?.email || "",
+      }));
+    }
+  }, [session]);
 
   const update = (key: string, value: string) => setForm({ ...form, [key]: value });
 
@@ -121,6 +145,37 @@ function CheckoutContent() {
     );
   }
 
+  // Auth gate
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={28} className="animate-spin text-rose-500" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="bg-rose-25/30 min-h-[80vh] flex items-center">
+        <div className="max-w-md mx-auto px-4 py-16 text-center">
+          <div className="w-16 h-16 mx-auto bg-rose-50 rounded-full flex items-center justify-center mb-6 border border-rose-100">
+            <ShieldCheck size={28} className="text-rose-600" />
+          </div>
+          <h2 className="font-display text-3xl text-ink-900 mb-2">Sign in to checkout</h2>
+          <p className="text-sm text-ink-500 mb-8 leading-relaxed">
+            You need to be signed in to place an order. Your cart will be saved.
+          </p>
+          <button
+            onClick={() => signIn("google", { callbackUrl: "/checkout" })}
+            className="w-full flex items-center justify-center gap-3 border border-ink-200 hover:border-rose-300 hover:bg-rose-50/40 py-3.5 px-6 text-sm font-medium text-ink-800 transition-all rounded-sm"
+          >
+            <GoogleIcon /> Continue with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (items.length === 0 && !isSubscription) {
     return (
       <div className="bg-rose-25/30 min-h-[60vh] flex items-center justify-center text-center px-4">
@@ -195,7 +250,8 @@ function CheckoutContent() {
                         value={form.customerName}
                         onChange={(e) => update("customerName", e.target.value)}
                         required
-                        className="input-field"
+                        readOnly={!!session?.user?.name}
+                        className={cn("input-field", session?.user?.name && "bg-ink-50 text-ink-500 cursor-not-allowed")}
                       />
                     </div>
                     <div>
@@ -207,7 +263,8 @@ function CheckoutContent() {
                         value={form.customerEmail}
                         onChange={(e) => update("customerEmail", e.target.value)}
                         required
-                        className="input-field"
+                        readOnly={!!session?.user?.email}
+                        className={cn("input-field", session?.user?.email && "bg-ink-50 text-ink-500 cursor-not-allowed")}
                       />
                     </div>
                     <div className="sm:col-span-2">

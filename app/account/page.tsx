@@ -460,29 +460,68 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
   return (
     <div className="bg-rose-25/30 min-h-screen">
       {/* Profile header */}
-      <div className="bg-gradient-to-br from-rose-50 via-white to-rose-100/40 border-b border-ink-100 py-10">
+      <div className="bg-gradient-to-br from-rose-50 via-white to-rose-100/40 border-b border-ink-100 py-6 lg:py-10">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
-          <div className="flex items-center gap-4">
-            {user.image ? (
-              <Image src={user.image} alt={name} width={64} height={64}
-                className="w-16 h-16 rounded-full object-cover border-2 border-white shadow" />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white font-display text-2xl shadow">
-                {initials}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 lg:gap-4 min-w-0">
+              {user.image ? (
+                <Image src={user.image} alt={name} width={56} height={56}
+                  className="w-12 h-12 lg:w-16 lg:h-16 rounded-full object-cover border-2 border-white shadow shrink-0" />
+              ) : (
+                <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 flex items-center justify-center text-white font-display text-xl lg:text-2xl shadow shrink-0">
+                  {initials}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">Welcome back</p>
+                <h1 className="font-display text-2xl lg:text-4xl text-ink-900 truncate">{name}</h1>
+                <p className="text-xs text-ink-500 mt-0.5 truncate">{email}</p>
               </div>
-            )}
-            <div>
-              <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold">Welcome back</p>
-              <h1 className="font-display text-3xl lg:text-4xl text-ink-900">{name}</h1>
-              <p className="text-xs text-ink-500 mt-0.5">{email}</p>
             </div>
+            {/* Sign out — visible on mobile in header */}
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="lg:hidden shrink-0 flex items-center gap-1.5 text-xs text-ink-500 border border-ink-200 px-3 py-2 rounded-sm hover:text-rose-600 hover:border-rose-200 transition-colors"
+            >
+              <LogOut size={13} /> Sign Out
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-10 grid lg:grid-cols-4 gap-8">
-        {/* Sidebar */}
-        <aside className="lg:col-span-1">
+      {/* Mobile horizontal tab bar */}
+      <div className="lg:hidden bg-white border-b border-ink-100 sticky top-[72px] z-10 overflow-x-auto scrollbar-none">
+        <div className="flex min-w-max">
+          {NAV_ITEMS.map(({ key, icon: Icon, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={cn(
+                "flex flex-col items-center gap-1 px-4 py-3 text-[10px] font-medium border-b-2 transition-colors whitespace-nowrap",
+                activeTab === key
+                  ? "border-rose-600 text-rose-600"
+                  : "border-transparent text-ink-500"
+              )}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          ))}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="flex flex-col items-center gap-1 px-4 py-3 text-[10px] font-medium border-b-2 border-transparent text-rose-600 whitespace-nowrap"
+            >
+              <Shield size={16} />
+              Admin
+            </Link>
+          )}
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 py-6 lg:py-10 lg:grid lg:grid-cols-4 lg:gap-8">
+        {/* Sidebar — desktop only */}
+        <aside className="hidden lg:block lg:col-span-1">
           <nav className="bg-white border border-ink-100 rounded-sm p-3 sticky top-28">
             {NAV_ITEMS.map(({ key, icon: Icon, label }) => (
               <button
@@ -524,29 +563,29 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
 
         {/* Main content */}
         <main className="lg:col-span-3">
-          <div className="bg-white border border-ink-100 rounded-sm p-6 lg:p-8 min-h-[400px]">
-            <h2 className="font-display text-2xl text-ink-900 mb-6 pb-4 border-b border-ink-100">
+          <div className="bg-white border border-ink-100 rounded-sm p-4 lg:p-8 min-h-[400px]">
+            <h2 className="font-display text-xl lg:text-2xl text-ink-900 mb-5 pb-4 border-b border-ink-100">
               {NAV_ITEMS.find((n) => n.key === activeTab)?.label}
             </h2>
             {renderTab()}
           </div>
 
           {/* Referral */}
-          <section className="mt-6 bg-gradient-to-br from-ink-900 to-ink-800 text-white rounded-sm p-8 relative overflow-hidden">
+          <section className="mt-4 lg:mt-6 bg-gradient-to-br from-ink-900 to-ink-800 text-white rounded-sm p-6 lg:p-8 relative overflow-hidden">
             <div className="absolute -top-10 -right-10 w-64 h-64 bg-rose-600/20 rounded-full blur-3xl" />
             <div className="relative">
               <p className="text-xs uppercase tracking-widest text-rose-300 mb-2">Refer a Friend</p>
-              <h3 className="font-display text-2xl mb-2">Give Rs. 1,000 · Get Rs. 1,000</h3>
-              <p className="text-sm text-ink-300 mb-5 max-w-md">
+              <h3 className="font-display text-xl lg:text-2xl mb-2">Give Rs. 1,000 · Get Rs. 1,000</h3>
+              <p className="text-xs lg:text-sm text-ink-300 mb-4 lg:mb-5 max-w-md">
                 Share your unique code with friends. When they shop, you both score Rs. 1,000 store credit.
               </p>
               <div className="flex items-center gap-2 max-w-sm">
-                <code className="flex-1 bg-white/10 backdrop-blur border border-white/20 px-4 py-2.5 text-sm font-mono">
+                <code className="flex-1 min-w-0 bg-white/10 backdrop-blur border border-white/20 px-3 lg:px-4 py-2.5 text-xs lg:text-sm font-mono truncate">
                   AURA-{initials}-2026
                 </code>
                 <button
                   onClick={() => navigator.clipboard.writeText(`AURA-${initials}-2026`)}
-                  className="bg-white text-ink-900 px-4 py-2.5 text-sm font-medium hover:bg-rose-50 transition-colors"
+                  className="shrink-0 bg-white text-ink-900 px-3 lg:px-4 py-2.5 text-xs lg:text-sm font-medium hover:bg-rose-50 transition-colors"
                 >
                   Copy
                 </button>
