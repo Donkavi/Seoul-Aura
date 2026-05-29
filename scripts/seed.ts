@@ -12,6 +12,7 @@ import NavMenu from "../models/NavMenu";
 import Concern from "../models/Concern";
 import SubscriptionPlan from "../models/SubscriptionPlan";
 import Subscription from "../models/Subscription";
+import Admin from "../models/Admin";
 import { slugify } from "../lib/utils";
 
 const MONGODB_URI = process.env.MONGODB_URI!;
@@ -376,7 +377,7 @@ async function seed() {
   const db = mongoose.connection.db!;
   const collections = await db.listCollections().toArray();
   const existing = collections.map((c) => c.name);
-  for (const name of ["categories", "products", "reviews", "users", "navmenuitems", "concerns", "subscriptionplans", "subscriptions"]) {
+  for (const name of ["categories", "products", "reviews", "users", "navmenuitems", "concerns", "subscriptionplans", "subscriptions", "admins"]) {
     if (existing.includes(name)) await db.dropCollection(name);
   }
 
@@ -558,6 +559,13 @@ async function seed() {
     { name: "Soothing", slug: "soothing", description: "Calm redness and irritation", order: 8 },
     { name: "Whitening", slug: "whitening", description: "Brighten and even complexion", order: 9 },
   ]);
+
+  console.log("Seeding admin users…");
+  await Admin.create({
+    email: "kavinduchamith01@gmail.com",
+    name: "Kavindu",
+    addedBy: "seed",
+  });
 
   console.log("Seeding nav menu…");
   const navMenuData = [
