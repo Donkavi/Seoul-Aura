@@ -99,7 +99,7 @@ export default function Header() {
             >
               <Search size={20} className="text-ink-700" />
             </button>
-            <Link href="/account" className="hidden sm:block p-2 hover:text-rose-600">
+            <Link href="/account" className="p-2 hover:text-rose-600">
               <User size={20} className="text-ink-700" />
             </Link>
             <Link href="/wishlist" className="hidden sm:block p-2 hover:text-rose-600">
