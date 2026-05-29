@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       productName: preOrder.productName,
       productLink: preOrder.productLink,
       quantity: preOrder.quantity,
-      origin: preOrder.origin,
+      origin: preOrder.origin ?? "Other",
       notes: preOrder.notes,
     };
     Promise.all([
