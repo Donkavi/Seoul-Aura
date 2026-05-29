@@ -7,7 +7,7 @@ import Link from "next/link";
 import {
   Package, MapPin, Heart, CreditCard, Bell, LogOut,
   ChevronRight, Sparkles, Calendar, Loader2, ShoppingBag,
-  Plus, Trash2, Check, X, Shield,
+  Plus, Trash2, Check, X, Shield, Plane,
 } from "lucide-react";
 import { cn, formatPrice, relativeDate } from "@/lib/utils";
 import type { Order, Subscription } from "@/types";
@@ -212,6 +212,104 @@ function SubscriptionsTab({ email }: { email: string }) {
   );
 }
 
+// ─── Tab: Pre-Orders ─────────────────────────────────────────────────────────
+const PRE_ORDER_STATUS: Record<string, string> = {
+  pending:   "bg-gold-50 text-gold-700",
+  reviewing: "bg-blue-50 text-blue-700",
+  confirmed: "bg-rose-50 text-rose-700",
+  rejected:  "bg-ink-100 text-ink-500",
+  fulfilled: "bg-green-50 text-green-700",
+};
+
+interface PreOrder {
+  _id: string;
+  requestNumber: string;
+  productBrand: string;
+  productName: string;
+  productLink?: string;
+  quantity: number;
+  origin?: string;
+  notes?: string;
+  status: string;
+  estimatedPrice?: number;
+  estimatedAvailability?: string;
+  adminNotes?: string;
+  createdAt: string;
+}
+
+function PreOrdersTab({ email }: { email: string }) {
+  const [preOrders, setPreOrders] = useState<PreOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/pre-orders?search=${encodeURIComponent(email)}&limit=50`)
+      .then((r) => r.json())
+      .then((d) => {
+        const all = d.preOrders ?? [];
+        setPreOrders(all.filter((p: PreOrder) => p.requestNumber || true));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [email]);
+
+  if (loading) return <TabLoader />;
+
+  if (preOrders.length === 0) return (
+    <EmptyState icon={Plane} message="No pre-order requests yet.">
+      <Link href="/pre-order" className="btn-primary mt-4 inline-block px-6 py-2 text-sm">Submit a Pre-Order</Link>
+    </EmptyState>
+  );
+
+  return (
+    <div className="space-y-4">
+      {preOrders.map((p) => (
+        <div key={p._id} className="bg-white border border-ink-100 rounded-sm p-5 hover:border-rose-200 transition-colors">
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+            <div>
+              <p className="text-xs font-mono text-ink-500">{p.requestNumber}</p>
+              <p className="text-xs text-ink-400 mt-0.5">{relativeDate(p.createdAt)}</p>
+            </div>
+            <span className={cn("text-xs px-3 py-1 rounded-full font-medium capitalize", PRE_ORDER_STATUS[p.status] ?? "bg-ink-100 text-ink-500")}>
+              {p.status}
+            </span>
+          </div>
+
+          <div className="mb-3">
+            <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold mb-0.5">{p.productBrand}</p>
+            <p className="text-sm font-medium text-ink-900">{p.productName}</p>
+            <p className="text-xs text-ink-500 mt-0.5">Qty: {p.quantity}{p.origin && ` · ${p.origin}`}</p>
+            {p.productLink && (
+              <a href={p.productLink} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-rose-600 hover:underline mt-1 inline-block truncate max-w-xs">
+                View product link →
+              </a>
+            )}
+          </div>
+
+          {(p.estimatedPrice || p.estimatedAvailability || p.adminNotes) && (
+            <div className="border-t border-ink-100 pt-3 space-y-1">
+              {p.estimatedPrice && (
+                <p className="text-xs text-ink-600">
+                  <span className="text-ink-400">Estimated price:</span>{" "}
+                  <span className="font-semibold text-ink-900">{formatPrice(p.estimatedPrice)}</span>
+                </p>
+              )}
+              {p.estimatedAvailability && (
+                <p className="text-xs text-ink-600">
+                  <span className="text-ink-400">ETA:</span> {p.estimatedAvailability}
+                </p>
+              )}
+              {p.adminNotes && (
+                <p className="text-xs text-ink-600 italic">"{p.adminNotes}"</p>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Tab: Wishlist ────────────────────────────────────────────────────────────
 function WishlistTab() {
   const [items, setItems] = useState<{ id: string; name: string; price: number; image: string; slug: string }[]>([]);
@@ -272,7 +370,7 @@ interface Address {
   isDefault: boolean;
 }
 
-function AddressesTab({ email, userId }: { email: string; userId?: string }) {
+function AddressesTab({ email }: { email: string; userId?: string }) {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -427,10 +525,11 @@ function EmptyState({ icon: Icon, message, children }: {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-type TabKey = "orders" | "subscriptions" | "wishlist" | "addresses" | "payments" | "notifications";
+type TabKey = "orders" | "pre-orders" | "subscriptions" | "wishlist" | "addresses" | "payments" | "notifications";
 
 const NAV_ITEMS: { key: TabKey; icon: React.ElementType; label: string }[] = [
   { key: "orders",        icon: Package,       label: "Orders" },
+  { key: "pre-orders",   icon: Plane,         label: "Pre-Orders" },
   { key: "subscriptions", icon: Calendar,      label: "Subscriptions" },
   { key: "wishlist",      icon: Heart,         label: "Wishlist" },
   { key: "addresses",     icon: MapPin,        label: "Addresses" },
@@ -449,6 +548,7 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
   const renderTab = () => {
     switch (activeTab) {
       case "orders":        return <OrdersTab email={email} />;
+      case "pre-orders":   return <PreOrdersTab email={email} />;
       case "subscriptions": return <SubscriptionsTab email={email} />;
       case "wishlist":      return <WishlistTab />;
       case "addresses":     return <AddressesTab email={email} userId={user.id} />;

@@ -502,35 +502,20 @@ const PRE_ORDER_STATUS_MESSAGES: Record<string, { headline: string; detail: stri
     headline: "We're reviewing your pre-order",
     detail: "Our team is looking into sourcing this product for you. We'll update you soon.",
   },
-  quoted: {
-    emoji: "💬",
-    headline: "Your pre-order quote is ready",
-    detail: "We've found your product and have a quote ready. Log in to your account to review pricing and confirm.",
-  },
   confirmed: {
     emoji: "✅",
     headline: "Pre-order confirmed!",
-    detail: "Your pre-order has been confirmed and we've started the sourcing process.",
+    detail: "Your pre-order has been confirmed and we've started the sourcing process. We'll keep you updated every step of the way.",
   },
-  arrived: {
-    emoji: "📦",
-    headline: "Your pre-order has arrived in Sri Lanka!",
-    detail: "Great news — your product has arrived! We'll have your order ready for dispatch shortly.",
-  },
-  shipped: {
-    emoji: "🚚",
-    headline: "Your pre-order is on its way!",
-    detail: "Your pre-ordered product is now on its way to you.",
-  },
-  delivered: {
+  fulfilled: {
     emoji: "🎁",
-    headline: "Pre-order delivered!",
-    detail: "Your pre-order has been delivered. We hope you love it!",
+    headline: "Your pre-order has been fulfilled!",
+    detail: "Great news — your pre-ordered product is ready and on its way to you. Thank you for your patience!",
   },
-  cancelled: {
-    emoji: "❌",
-    headline: "Pre-order request cancelled",
-    detail: "Unfortunately we couldn't fulfill this pre-order request. Please contact us for more details.",
+  rejected: {
+    emoji: "😔",
+    headline: "We couldn't fulfill your pre-order",
+    detail: "Unfortunately we were unable to source this product at this time. We're sorry for the inconvenience — please reach out if you'd like us to try again or suggest an alternative.",
   },
 };
 
