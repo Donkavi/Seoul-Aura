@@ -4,9 +4,18 @@ import { NextResponse } from "next/server";
 export default withAuth(
   function middleware(req) {
     const { pathname } = req.nextUrl;
+    const token = req.nextauth.token as { isAdmin?: boolean; phoneVerified?: boolean } | null;
+
     // Admin routes additionally require isAdmin; redirect non-admins to home
-    if (pathname.startsWith("/admin") && !req.nextauth.token?.isAdmin) {
+    if (pathname.startsWith("/admin") && !token?.isAdmin) {
       return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    // Customer flows require a verified phone number
+    if ((pathname === "/checkout" || pathname === "/pre-order") && !token?.phoneVerified) {
+      const url = new URL("/verify-phone", req.url);
+      url.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(url);
     }
   },
   {
@@ -22,6 +31,6 @@ export default withAuth(
 );
 
 export const config = {
-  // /admin/* requires admin, /checkout and /pre-order require any logged-in user
-  matcher: ["/admin/:path*", "/checkout", "/pre-order"],
+  // /admin/* requires admin; /checkout & /pre-order require a verified phone; /verify-phone requires login
+  matcher: ["/admin/:path*", "/checkout", "/pre-order", "/verify-phone"],
 };

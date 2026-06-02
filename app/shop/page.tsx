@@ -71,6 +71,7 @@ function ShopContent() {
   );
 
   const pageTitle = useMemo(() => {
+    if (filters.brand === "all") return "Shop by Brand";
     if (filters.brand) return filters.brand;
     if (filters.concern)
       return filters.concern.charAt(0).toUpperCase() + filters.concern.slice(1).replace("-", " ");
@@ -94,18 +95,14 @@ function ShopContent() {
     if (filters.concern) params.set("concern", filters.concern);
     if (filters.filter === "bestseller") params.set("bestSeller", "true");
     if (filters.filter === "new") params.set("newArrival", "true");
+    if (filters.brand) params.set("brand", filters.brand); // handled by API (all = no filter)
     if (search) params.set("search", search);
-    params.set("limit", "60");
+    params.set("limit", "100");
 
     fetch(`/api/products?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        let list: Product[] = data.products ?? [];
-
-        if (filters.brand) {
-          list = list.filter((p) => extractBrand(p.name) === filters.brand);
-        }
-
+        const list: Product[] = data.products ?? [];
         setProducts(list);
         const prices = list.map((p) => p.price);
         if (prices.length) {
@@ -123,7 +120,7 @@ function ShopContent() {
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     products.forEach((p) => {
-      const b = extractBrand(p.name);
+      const b = p.brand || extractBrand(p.name);
       counts[b] = (counts[b] ?? 0) + 1;
     });
     return Object.entries(counts)

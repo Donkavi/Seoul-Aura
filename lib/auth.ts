@@ -1,5 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import CredentialsProvider from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import Admin from "@/models/Admin";
@@ -10,10 +12,31 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    CredentialsProvider({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+        await connectDB();
+        const user = await User.findOne({ email: credentials.email.toLowerCase() });
+        if (!user || !user.passwordHash) return null;
+        const ok = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!ok) return null;
+        return {
+          id: (user._id as { toString(): string }).toString(),
+          name: user.name,
+          email: user.email,
+          image: user.image ?? null,
+        };
+      },
+    }),
   ],
 
   callbacks: {
-    /** Upsert the Google user into MongoDB on every sign-in */
+    /** Upsert the Google user into MongoDB on every Google sign-in */
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
@@ -26,6 +49,7 @@ export const authOptions: NextAuthOptions = {
                 email: user.email,
                 subscriptionStatus: "none",
                 addresses: [],
+                phoneVerified: false,
               },
               $set: {
                 googleId: account.providerAccountId,
@@ -42,21 +66,27 @@ export const authOptions: NextAuthOptions = {
     },
 
     /**
-     * On first sign-in (user object present), check the Admin collection.
-     * The result is stored in the JWT so middleware can read it without a DB call.
+     * Runs at sign-in (user present) and whenever the client calls session update()
+     * (trigger === "update"). We refresh isAdmin, phone, and phoneVerified from the DB
+     * so the OTP verification result propagates into the session without a re-login.
      */
-    async jwt({ token, user }) {
-      if (user) {
-        // Called once at sign-in — embed isAdmin for the lifetime of this session
+    async jwt({ token, user, trigger }) {
+      if (user || trigger === "update") {
         try {
           await connectDB();
-          const email = user.email?.toLowerCase() ?? "";
+          const email = (user?.email ?? token.email)?.toLowerCase() ?? "";
           const bootstrapAdmin = process.env.ADMIN_EMAIL?.toLowerCase();
           const isBootstrap = !!bootstrapAdmin && email === bootstrapAdmin;
-          const dbAdmin = await Admin.findOne({ email });
+          const [dbUser, dbAdmin] = await Promise.all([
+            User.findOne({ email }),
+            Admin.findOne({ email }),
+          ]);
           token.isAdmin = isBootstrap || !!dbAdmin;
+          token.phone = dbUser?.phone ?? "";
+          token.phoneVerified = dbUser?.phoneVerified ?? false;
         } catch {
-          token.isAdmin = false;
+          token.isAdmin = token.isAdmin ?? false;
+          token.phoneVerified = token.phoneVerified ?? false;
         }
       }
       return token;
@@ -66,6 +96,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user && token.sub) {
         (session.user as any).id = token.sub;
         (session.user as any).isAdmin = token.isAdmin ?? false;
+        (session.user as any).phone = token.phone ?? "";
+        (session.user as any).phoneVerified = token.phoneVerified ?? false;
       }
       return session;
     },

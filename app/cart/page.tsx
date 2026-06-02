@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Trash2, Plus, Minus, ArrowRight } from "lucide-react";
+import { ShoppingBag, Trash2, Plus, Minus, ArrowRight, Plane } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";
 
 export default function CartPage() {
-  const { items, removeItem, updateQty, total, itemCount } = useCart();
+  const { cartItems: items, removeItem, updateQty, total, itemCount, preOrderCount } = useCart();
 
   return (
     <div className="bg-rose-25/30 min-h-[70vh]">
@@ -19,6 +19,21 @@ export default function CartPage() {
           </h1>
         </div>
 
+        {preOrderCount > 0 && (
+          <Link
+            href="/pre-order"
+            className="flex items-center justify-between gap-3 bg-rose-50 border border-rose-100 rounded-sm px-5 py-3.5 mb-6 hover:border-rose-300 transition-colors group"
+          >
+            <span className="flex items-center gap-2.5 text-sm text-ink-700">
+              <Plane size={16} className="text-rose-600" />
+              You have <strong>{preOrderCount}</strong> pre-order item{preOrderCount !== 1 ? "s" : ""} waiting to be requested.
+            </span>
+            <span className="text-sm font-medium text-rose-600 flex items-center gap-1 group-hover:gap-2 transition-all">
+              Request now <ArrowRight size={14} />
+            </span>
+          </Link>
+        )}
+
         {items.length === 0 ? (
           <div className="bg-white border border-ink-100 rounded-sm p-16 text-center max-w-xl mx-auto">
             <div className="w-20 h-20 mx-auto bg-rose-50 rounded-full flex items-center justify-center mb-6">
@@ -26,7 +41,7 @@ export default function CartPage() {
             </div>
             <h2 className="font-display text-3xl text-ink-900 mb-3">Your bag is empty</h2>
             <p className="text-sm text-ink-500 mb-8">
-              Discover our curated Korean beauty and Dubai food collections.
+              Discover our curated Korean beauty collections.
             </p>
             <Link href="/shop" className="btn-primary inline-block">
               Start Shopping

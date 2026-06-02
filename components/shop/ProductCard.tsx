@@ -20,7 +20,8 @@ export default function ProductCard({ product, priority = false }: { product: Pr
     ? Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)
     : 0;
 
-  const soldOut = product.stock === 0;
+  const isPreOrder = product.isPreOrder ?? false;
+  const soldOut = !isPreOrder && product.stock === 0;
 
   return (
     <Link href={`/shop/${product.slug ?? product._id}`} className="card-product block group">
@@ -39,21 +40,24 @@ export default function ProductCard({ product, priority = false }: { product: Pr
         )}
 
         <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
-          {soldOut && (
-            <span className="badge-origin bg-rose-600 text-white">Sold Out</span>
+          {isPreOrder && (
+            <span className="badge-origin bg-rose-600 text-white">Pre-Order</span>
           )}
-          {!soldOut && product.isBestSeller && (
+          {soldOut && !isPreOrder && (
+            <span className="badge-origin bg-ink-900 text-white">Sold Out</span>
+          )}
+          {!soldOut && !isPreOrder && product.isBestSeller && (
             <span className="badge-origin bg-ink-900 text-white">Bestseller</span>
           )}
-          {!soldOut && product.isNewArrival && !product.isBestSeller && (
+          {!soldOut && !isPreOrder && product.isNewArrival && !product.isBestSeller && (
             <span className="badge-origin bg-rose-600 text-white">New</span>
           )}
-          {!soldOut && discount > 0 && (
+          {!soldOut && !isPreOrder && discount > 0 && (
             <span className="badge-origin bg-gold-500 text-white">-{discount}%</span>
           )}
         </div>
 
-        {soldOut && (
+        {soldOut && !isPreOrder && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
             <span className="bg-ink-900 text-white text-[10px] uppercase tracking-[0.3em] font-semibold px-4 py-2 -rotate-6">
               Notify Me
@@ -69,7 +73,11 @@ export default function ProductCard({ product, priority = false }: { product: Pr
           <Heart size={15} className="text-ink-700" />
         </button>
 
-        {!soldOut ? (
+        {isPreOrder ? (
+          <div className="absolute bottom-0 left-0 right-0 bg-rose-600 text-white py-3 text-xs font-semibold uppercase tracking-widest translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex items-center justify-center gap-2">
+            Pre-Order Now
+          </div>
+        ) : !soldOut ? (
           <button
             onClick={handleAdd}
             className="absolute bottom-0 left-0 right-0 bg-ink-900 text-white py-3 text-xs font-semibold uppercase tracking-widest translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex items-center justify-center gap-2 hover:bg-rose-600"

@@ -211,11 +211,20 @@ export default function AdminPreOrdersPage() {
                     </td>
                     <td className="p-4">
                       <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">
-                        {p.productBrand}
+                        {p.items?.[0]?.productBrand ?? p.productBrand}
                       </p>
-                      <p className="text-sm text-ink-900 line-clamp-1 max-w-xs">{p.productName}</p>
+                      <p className="text-sm text-ink-900 line-clamp-1 max-w-xs">
+                        {p.items?.[0]?.productName ?? p.productName}
+                        {(p.items?.length ?? 0) > 1 && (
+                          <span className="text-ink-400 font-normal"> +{p.items.length - 1} more</span>
+                        )}
+                      </p>
                     </td>
-                    <td className="p-4 text-sm">×{p.quantity}</td>
+                    <td className="p-4 text-sm">
+                      {p.items?.length
+                        ? `×${p.items.reduce((s, it) => s + it.quantity, 0)}`
+                        : `×${p.quantity}`}
+                    </td>
                     <td className="p-4">
                       <span
                         className={cn(
@@ -354,34 +363,39 @@ function PreOrderDrawer({
 
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
-              Product
+              Products {(preOrder.items?.length ?? 0) > 0 && `(${preOrder.items.length})`}
             </h3>
-            <div className="bg-rose-25/40 border border-ink-100 rounded-sm p-4 space-y-2 text-sm">
-              <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">
-                {preOrder.productBrand} · {preOrder.origin}
-              </p>
-              <p className="font-display text-xl text-ink-900 leading-snug">
-                {preOrder.productName}
-              </p>
-              <p className="text-xs text-ink-500">
-                Quantity: <strong>×{preOrder.quantity}</strong>
-              </p>
-              {preOrder.productLink && (
-                <a
-                  href={preOrder.productLink}
-                  target="_blank"
-                  rel="noopener"
-                  className="inline-flex items-center gap-1 text-xs text-rose-600 hover:underline"
-                >
-                  Reference link <ExternalLink size={11} />
-                </a>
-              )}
+            <div className="bg-rose-25/40 border border-ink-100 rounded-sm p-4 space-y-3 text-sm">
+              {(preOrder.items?.length
+                ? preOrder.items
+                : [{ productBrand: preOrder.productBrand, productName: preOrder.productName, productLink: preOrder.productLink, quantity: preOrder.quantity }]
+              ).map((it, i) => (
+                <div key={i} className={i > 0 ? "pt-3 border-t border-ink-100" : ""}>
+                  <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">
+                    {it.productBrand}
+                  </p>
+                  <p className="font-display text-lg text-ink-900 leading-snug">{it.productName}</p>
+                  <p className="text-xs text-ink-500">
+                    Quantity: <strong>×{it.quantity}</strong>
+                  </p>
+                  {it.productLink && (
+                    <a
+                      href={it.productLink}
+                      target="_blank"
+                      rel="noopener"
+                      className="inline-flex items-center gap-1 text-xs text-rose-600 hover:underline mt-0.5"
+                    >
+                      Reference link <ExternalLink size={11} />
+                    </a>
+                  )}
+                </div>
+              ))}
               {preOrder.notes && (
                 <div className="pt-3 border-t border-ink-100">
                   <p className="text-[10px] uppercase tracking-widest text-ink-500 font-semibold mb-1">
                     Customer note
                   </p>
-                  <p className="text-sm text-ink-700 italic">"{preOrder.notes}"</p>
+                  <p className="text-sm text-ink-700 italic">&quot;{preOrder.notes}&quot;</p>
                 </div>
               )}
             </div>

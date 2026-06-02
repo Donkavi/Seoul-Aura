@@ -6,6 +6,11 @@ export interface IUser extends Document {
   passwordHash?: string;
   googleId?: string;
   image?: string;
+  phone?: string;
+  phoneVerified: boolean;
+  otpHash?: string;
+  otpExpires?: Date;
+  otpAttempts?: number;
   subscriptionStatus: "none" | "active" | "paused" | "cancelled";
   subscriptionPlan?: string;
   subscriptionStartDate?: Date;
@@ -31,6 +36,11 @@ const UserSchema = new Schema<IUser>(
     passwordHash: { type: String },
     googleId: { type: String },
     image: { type: String },
+    phone: { type: String, trim: true },
+    phoneVerified: { type: Boolean, default: false },
+    otpHash: { type: String },
+    otpExpires: { type: Date },
+    otpAttempts: { type: Number, default: 0 },
     subscriptionStatus: {
       type: String,
       enum: ["none", "active", "paused", "cancelled"],
@@ -55,7 +65,9 @@ const UserSchema = new Schema<IUser>(
   { timestamps: true }
 );
 
-const User: Model<IUser> =
-  mongoose.models.User || mongoose.model<IUser>("User", UserSchema);
+if (mongoose.models.User) {
+  delete (mongoose.models as Record<string, Model<unknown>>)["User"];
+}
+const User = mongoose.model<IUser>("User", UserSchema);
 
 export default User;

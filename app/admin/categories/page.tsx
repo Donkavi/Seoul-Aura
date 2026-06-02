@@ -56,6 +56,15 @@ export default function AdminCategoriesPage() {
     await load();
   };
 
+  const handleRemoveSubtype = async (categoryId: string, slug: string) => {
+    await fetch(`/api/categories/${categoryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ removeSlug: slug }),
+    });
+    await load();
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this category and all its subtypes?")) return;
     await fetch(`/api/categories/${id}`, { method: "DELETE" });
@@ -162,9 +171,16 @@ export default function AdminCategoriesPage() {
                 {cat.subtypes.map((s) => (
                   <span
                     key={s.slug}
-                    className="text-xs px-3 py-1 bg-rose-50 text-rose-700 rounded-full font-medium"
+                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-rose-50 text-rose-700 rounded-full font-medium group"
                   >
                     {s.name}
+                    <button
+                      onClick={() => handleRemoveSubtype(cat._id, s.slug)}
+                      className="ml-0.5 opacity-0 group-hover:opacity-100 hover:text-rose-900 transition-opacity"
+                      aria-label={`Remove ${s.name}`}
+                    >
+                      <X size={10} strokeWidth={2.5} />
+                    </button>
                   </span>
                 ))}
               </div>

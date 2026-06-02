@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSession, signIn } from "next-auth/react";
 import {
@@ -19,11 +19,14 @@ import {
   Package,
   Link2,
   Hash,
-  Globe,
+  Plus,
+  Trash2,
+  ShoppingBag,
   Loader2,
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/context/CartContext";
 
 function GoogleIcon() {
   return (
@@ -36,40 +39,35 @@ function GoogleIcon() {
   );
 }
 
-interface FormState {
-  customerName: string;
-  customerEmail: string;
-  phoneNumber: string;
+interface ProductRow {
   productBrand: string;
   productName: string;
   productLink: string;
   quantity: string;
-  origin: "Korea" | "Dubai" | "Other";
-  notes: string;
+  origin: string;        // kept internally, not shown
+  fromCart: boolean;     // sourced from the pre-order bag
+  productId?: string;    // cart product id, so we can sync removals
 }
 
-const emptyForm: FormState = {
-  customerName: "",
-  customerEmail: "",
-  phoneNumber: "",
+const blankRow = (): ProductRow => ({
   productBrand: "",
   productName: "",
   productLink: "",
   quantity: "1",
-  origin: "Korea",
-  notes: "",
-};
+  origin: "Other",
+  fromCart: false,
+});
 
 const steps = [
   {
     icon: MessageSquare,
     title: "Submit your wish",
-    text: "Tell us the brand, product, and how many you want — takes 30 seconds.",
+    text: "Tell us the brand, product, and how many you want — add as many items as you like.",
   },
   {
     icon: Search,
     title: "We hunt the source",
-    text: "Our buyers ping verified suppliers in Korea & Dubai to confirm authenticity and price.",
+    text: "Our buyers ping verified suppliers in Korea to confirm authenticity and price.",
   },
   {
     icon: PackageCheck,
@@ -90,7 +88,7 @@ const faqs = [
   },
   {
     q: "How long does the whole process take?",
-    a: "Most Korean items arrive in 2–3 weeks from confirmation; Dubai items in 1–2 weeks. We'll always give you an honest ETA upfront.",
+    a: "Most Korean items arrive in 2–3 weeks from confirmation. We'll always give you an honest ETA upfront.",
   },
   {
     q: "What if the product isn't available?",
@@ -104,21 +102,66 @@ const faqs = [
 
 export default function PreOrderPage() {
   const { data: session, status: authStatus } = useSession();
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const { preOrderItems, removeItem, clearPreOrders } = useCart();
+
+  const [contact, setContact] = useState({
+    customerName: "",
+    customerEmail: "",
+    phoneNumber: "",
+    notes: "",
+  });
+  const [products, setProducts] = useState<ProductRow[]>([blankRow()]);
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [error, setError] = useState("");
-  const [requestNumber, setRequestNumber] = useState("");
+  const [refs, setRefs] = useState<string[]>([]);
 
-  // Pre-fill from session
+  // Pre-fill contact from session
   useEffect(() => {
     if (session?.user) {
-      setForm((prev) => ({
+      setContact((prev) => ({
         ...prev,
         customerName: prev.customerName || session.user?.name || "",
         customerEmail: prev.customerEmail || session.user?.email || "",
       }));
     }
   }, [session]);
+
+  // Seed product rows from the pre-order bag (once)
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current) return;
+    if (preOrderItems.length > 0) {
+      seeded.current = true;
+      setProducts(
+        preOrderItems.map((i) => ({
+          productBrand: i.product.brand || "",
+          productName: i.product.name,
+          productLink:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/shop/${i.product.slug ?? i.product._id}`
+              : "",
+          quantity: String(i.quantity),
+          origin: i.product.origin || "Other",
+          fromCart: true,
+          productId: i.product._id,
+        }))
+      );
+    }
+  }, [preOrderItems]);
+
+  const updateContact = (key: string, value: string) =>
+    setContact((prev) => ({ ...prev, [key]: value }));
+
+  const updateRow = (idx: number, key: keyof ProductRow, value: string) =>
+    setProducts((rows) => rows.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
+
+  const addRow = () => setProducts((rows) => [...rows, blankRow()]);
+
+  const removeRow = (idx: number) => {
+    const row = products[idx];
+    if (row?.fromCart && row.productId) removeItem(row.productId); // keep the bag in sync
+    setProducts((rows) => (rows.length === 1 ? [blankRow()] : rows.filter((_, i) => i !== idx)));
+  };
 
   // Auth gate
   if (authStatus === "loading") {
@@ -151,21 +194,18 @@ export default function PreOrderPage() {
     );
   }
 
-  const update = (key: keyof FormState, value: string) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (
-      !form.customerName.trim() ||
-      !form.customerEmail.trim() ||
-      !form.phoneNumber.trim() ||
-      !form.productBrand.trim() ||
-      !form.productName.trim()
-    ) {
-      setError("Please fill in all required fields.");
+    if (!contact.customerName.trim() || !contact.customerEmail.trim() || !contact.phoneNumber.trim()) {
+      setError("Please fill in your name, email, and phone number.");
+      return;
+    }
+
+    const validRows = products.filter((p) => p.productBrand.trim() && p.productName.trim());
+    if (validRows.length === 0) {
+      setError("Add at least one product with a brand and product name.");
       return;
     }
 
@@ -174,17 +214,30 @@ export default function PreOrderPage() {
       const res = await fetch("/api/pre-orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          customerName: contact.customerName,
+          customerEmail: contact.customerEmail,
+          phoneNumber: contact.phoneNumber,
+          notes: contact.notes,
+          items: validRows.map((row) => ({
+            productBrand: row.productBrand,
+            productName: row.productName,
+            productLink: row.productLink,
+            quantity: row.quantity,
+          })),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
 
-      setRequestNumber(data.requestNumber);
+      setRefs(data.requestNumber ? [data.requestNumber] : []);
+      clearPreOrders();
+      setProducts([blankRow()]);
+      seeded.current = false;
       setStatus("success");
-      setForm(emptyForm);
     } catch (err) {
       setStatus("error");
-      setError((err as Error).message);
+      setError((err as Error).message || "Something went wrong. Please try again.");
     }
   };
 
@@ -196,32 +249,27 @@ export default function PreOrderPage() {
             <Check size={36} className="text-white" />
           </div>
           <p className="section-subtitle text-rose-600 mb-3">Request Received</p>
-          <h1 className="font-display text-4xl lg:text-5xl text-ink-900 mb-4">
-            We're on the hunt!
-          </h1>
+          <h1 className="font-display text-4xl lg:text-5xl text-ink-900 mb-4">We&apos;re on the hunt!</h1>
           <p className="text-base text-ink-600 mb-2">
-            Your pre-order reference:{" "}
-            <span className="font-mono font-semibold text-ink-900">{requestNumber}</span>
+            {refs.length} request{refs.length !== 1 ? "s" : ""} received
+            {refs.length > 0 && (
+              <>: <span className="font-mono font-semibold text-ink-900">{refs.join(", ")}</span></>
+            )}
           </p>
           <p className="text-sm text-ink-500 mb-8 max-w-md mx-auto leading-relaxed">
-            Our team will email you a price quote and ETA within <strong>48 hours</strong>. Keep
-            an eye on your inbox (and spam folder, just in case).
+            Our team will email you a price quote and ETA within <strong>48 hours</strong>. Track everything under
+            Pre-Orders in your account.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <button
-              onClick={() => setStatus("idle")}
-              className="btn-primary"
-            >
-              Submit Another Request
-            </button>
-            <Link href="/shop" className="btn-outline">
-              Continue Shopping
-            </Link>
+            <Link href="/account" className="btn-primary">View My Pre-Orders</Link>
+            <button onClick={() => setStatus("idle")} className="btn-outline">Submit Another</button>
           </div>
         </div>
       </div>
     );
   }
+
+  const cartCount = products.filter((p) => p.fromCart).length;
 
   return (
     <>
@@ -231,16 +279,14 @@ export default function PreOrderPage() {
         <div className="relative max-w-4xl mx-auto px-4 lg:px-8 text-center">
           <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur px-4 py-2 rounded-full border border-rose-200 mb-6">
             <Sparkles size={14} className="text-rose-600" />
-            <span className="text-xs font-medium tracking-widest uppercase text-ink-700">
-              Pre-Order Concierge
-            </span>
+            <span className="text-xs font-medium tracking-widest uppercase text-ink-700">Pre-Order Concierge</span>
           </div>
           <h1 className="font-display text-5xl lg:text-7xl font-medium text-ink-900 mb-5 leading-[1.05]">
-            Can't find it? <span className="italic text-rose-600">We'll find it.</span>
+            Can&apos;t find it? <span className="italic text-rose-600">We&apos;ll find it.</span>
           </h1>
           <p className="text-base lg:text-lg text-ink-600 max-w-2xl mx-auto leading-relaxed">
-            Got a viral K-Beauty drop in mind? A Dubai delicacy your mum loves? Drop us the
-            details — we'll source it from authentic suppliers and import it just for you.
+            Got a viral K-Beauty drop in mind? Add as many products as you like — we&apos;ll source them from
+            authentic suppliers and import them just for you.
           </p>
         </div>
       </section>
@@ -288,20 +334,17 @@ export default function PreOrderPage() {
               <header className="pb-5 border-b border-ink-100">
                 <p className="section-subtitle text-rose-600 mb-1">Your request</p>
                 <h2 className="font-display text-3xl text-ink-900">Tell us what you want</h2>
-                <p className="text-sm text-ink-500 mt-1">
-                  We'll get back to you within 48 hours.
-                </p>
+                <p className="text-sm text-ink-500 mt-1">We&apos;ll get back to you within 48 hours.</p>
               </header>
 
+              {/* Contact */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-3">
-                  Your Details
-                </p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-3">Your Details</p>
                 <div className="space-y-3">
                   <FormField icon={User} label="Full Name *">
                     <input
-                      value={form.customerName}
-                      onChange={(e) => update("customerName", e.target.value)}
+                      value={contact.customerName}
+                      onChange={(e) => updateContact("customerName", e.target.value)}
                       required
                       placeholder="Jane Doe"
                       readOnly={!!session?.user?.name}
@@ -312,8 +355,8 @@ export default function PreOrderPage() {
                     <FormField icon={Mail} label="Email *">
                       <input
                         type="email"
-                        value={form.customerEmail}
-                        onChange={(e) => update("customerEmail", e.target.value)}
+                        value={contact.customerEmail}
+                        onChange={(e) => updateContact("customerEmail", e.target.value)}
                         required
                         placeholder="you@example.com"
                         readOnly={!!session?.user?.email}
@@ -323,8 +366,8 @@ export default function PreOrderPage() {
                     <FormField icon={Phone} label="Phone *">
                       <input
                         type="tel"
-                        value={form.phoneNumber}
-                        onChange={(e) => update("phoneNumber", e.target.value)}
+                        value={contact.phoneNumber}
+                        onChange={(e) => updateContact("phoneNumber", e.target.value)}
                         required
                         placeholder="077 123 4567"
                         className="flex-1 bg-transparent outline-none text-sm"
@@ -334,76 +377,106 @@ export default function PreOrderPage() {
                 </div>
               </div>
 
+              {/* Products */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-3">
-                  Product Details
-                </p>
-                <div className="space-y-3">
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <FormField icon={Sparkles} label="Brand *">
-                      <input
-                        value={form.productBrand}
-                        onChange={(e) => update("productBrand", e.target.value)}
-                        required
-                        placeholder="e.g. COSRX"
-                        className="flex-1 bg-transparent outline-none text-sm"
-                      />
-                    </FormField>
-                    <FormField icon={Package} label="Product Name *">
-                      <input
-                        value={form.productName}
-                        onChange={(e) => update("productName", e.target.value)}
-                        required
-                        placeholder="e.g. Advanced Snail 96 Mucin Power Essence"
-                        className="flex-1 bg-transparent outline-none text-sm"
-                      />
-                    </FormField>
-                  </div>
-
-                  <FormField icon={Link2} label="Product Link (optional)">
-                    <input
-                      type="url"
-                      value={form.productLink}
-                      onChange={(e) => update("productLink", e.target.value)}
-                      placeholder="https://... (Olive Young, Amazon, Instagram post, etc.)"
-                      className="flex-1 bg-transparent outline-none text-sm"
-                    />
-                  </FormField>
-
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <FormField icon={Hash} label="Quantity">
-                      <input
-                        type="number"
-                        min={1}
-                        value={form.quantity}
-                        onChange={(e) => update("quantity", e.target.value)}
-                        className="flex-1 bg-transparent outline-none text-sm"
-                      />
-                    </FormField>
-                    <FormField icon={Globe} label="Origin">
-                      <select
-                        value={form.origin}
-                        onChange={(e) =>
-                          update("origin", e.target.value as FormState["origin"])
-                        }
-                        className="flex-1 bg-transparent outline-none text-sm"
-                      >
-                        <option value="Korea">Korea 🇰🇷</option>
-                        <option value="Dubai">Dubai 🇦🇪</option>
-                        <option value="Other">Other / Not sure</option>
-                      </select>
-                    </FormField>
-                  </div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-ink-700">
+                    Products {products.length > 1 && <span className="text-ink-400 normal-case tracking-normal">({products.length})</span>}
+                  </p>
+                  {cartCount > 0 && (
+                    <span className="inline-flex items-center gap-1.5 text-[11px] text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full">
+                      <ShoppingBag size={11} /> {cartCount} from your bag
+                    </span>
+                  )}
                 </div>
+
+                <div className="space-y-4">
+                  {products.map((row, idx) => (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "rounded-sm border p-4 space-y-3 relative",
+                        row.fromCart ? "border-rose-100 bg-rose-25/30" : "border-ink-100 bg-white"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-ink-500 uppercase tracking-widest">
+                          Item {idx + 1}
+                          {row.fromCart && <span className="ml-2 text-rose-600 normal-case tracking-normal">· from bag</span>}
+                        </span>
+                        {(products.length > 1 || row.fromCart) && (
+                          <button
+                            type="button"
+                            onClick={() => removeRow(idx)}
+                            className="p-1 text-ink-400 hover:text-rose-600 transition-colors"
+                            aria-label="Remove item"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <FormField icon={Sparkles} label="Brand *">
+                          <input
+                            value={row.productBrand}
+                            onChange={(e) => updateRow(idx, "productBrand", e.target.value)}
+                            placeholder="e.g. COSRX"
+                            className="flex-1 bg-transparent outline-none text-sm"
+                          />
+                        </FormField>
+                        <FormField icon={Package} label="Product Name *">
+                          <input
+                            value={row.productName}
+                            onChange={(e) => updateRow(idx, "productName", e.target.value)}
+                            placeholder="e.g. Advanced Snail 96 Mucin Essence"
+                            className="flex-1 bg-transparent outline-none text-sm"
+                          />
+                        </FormField>
+                      </div>
+
+                      <FormField icon={Link2} label="Product Link (optional)">
+                        <input
+                          type="url"
+                          value={row.productLink}
+                          onChange={(e) => updateRow(idx, "productLink", e.target.value)}
+                          placeholder="https://... (Olive Young, Amazon, Instagram, etc.)"
+                          className="flex-1 bg-transparent outline-none text-sm"
+                        />
+                      </FormField>
+
+                      <div className="sm:w-1/2">
+                        <FormField icon={Hash} label="Quantity">
+                          <input
+                            type="number"
+                            min={1}
+                            value={row.quantity}
+                            onChange={(e) => updateRow(idx, "quantity", e.target.value)}
+                            className="flex-1 bg-transparent outline-none text-sm"
+                          />
+                        </FormField>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addRow}
+                  className="mt-3 inline-flex items-center gap-1.5 text-sm text-rose-600 hover:text-rose-700 font-medium border border-dashed border-rose-200 hover:border-rose-400 rounded-sm w-full justify-center py-2.5 transition-colors"
+                >
+                  <Plus size={14} /> Add Another Product
+                </button>
               </div>
 
+              {/* Notes */}
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
                   Anything we should know? (optional)
                 </label>
                 <textarea
-                  value={form.notes}
-                  onChange={(e) => update("notes", e.target.value)}
+                  value={contact.notes}
+                  onChange={(e) => updateContact("notes", e.target.value)}
                   rows={3}
                   placeholder="Specific size, shade, batch preference, gift wrapping, etc."
                   className="input-field resize-none"
@@ -421,8 +494,8 @@ export default function PreOrderPage() {
                 <p className="text-xs text-ink-500">
                   By submitting, you agree to our{" "}
                   <Link href="/terms" className="underline">Terms</Link> &{" "}
-                  <Link href="/privacy" className="underline">Privacy Policy</Link>. No payment is
-                  taken until you confirm the quote.
+                  <Link href="/privacy" className="underline">Privacy Policy</Link>. No payment is taken until you
+                  confirm the quote.
                 </p>
                 <button
                   type="submit"
@@ -430,11 +503,9 @@ export default function PreOrderPage() {
                   className="btn-primary w-full inline-flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {status === "submitting" ? (
-                    "Submitting…"
+                    <><Loader2 size={14} className="animate-spin" /> Submitting…</>
                   ) : (
-                    <>
-                      <Send size={14} /> Submit Pre-Order Request
-                    </>
+                    <><Send size={14} /> Submit Pre-Order Request</>
                   )}
                 </button>
               </div>
@@ -459,9 +530,7 @@ export default function PreOrderPage() {
               >
                 <summary className="font-medium cursor-pointer flex items-center justify-between list-none gap-3">
                   <span>{f.q}</span>
-                  <span className="text-rose-300 group-open:rotate-45 transition-transform text-2xl leading-none">
-                    +
-                  </span>
+                  <span className="text-rose-300 group-open:rotate-45 transition-transform text-2xl leading-none">+</span>
                 </summary>
                 <p className="text-sm text-ink-300 mt-3 leading-relaxed">{f.a}</p>
               </details>
@@ -496,9 +565,7 @@ function FormField({
 }) {
   return (
     <label className="block">
-      <span className="text-[10px] uppercase tracking-widest text-ink-600 font-semibold block mb-1">
-        {label}
-      </span>
+      <span className="text-[10px] uppercase tracking-widest text-ink-600 font-semibold block mb-1">{label}</span>
       <div className="flex items-center gap-2 border border-ink-200 px-3.5 py-2.5 focus-within:border-rose-400 transition-colors bg-white">
         <Icon size={13} className="text-ink-400 flex-shrink-0" />
         {children}

@@ -18,10 +18,16 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     await connectDB();
-    const { subtypeName } = await req.json();
+    const { subtypeName, removeSlug } = await req.json();
     const category = await Category.findById(params.id);
     if (!category) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    category.subtypes.push({ name: subtypeName, slug: slugify(subtypeName) });
+
+    if (removeSlug) {
+      category.subtypes = category.subtypes.filter((s: { slug: string }) => s.slug !== removeSlug);
+    } else if (subtypeName) {
+      category.subtypes.push({ name: subtypeName, slug: slugify(subtypeName) });
+    }
+
     await category.save();
     return NextResponse.json(category);
   } catch {
