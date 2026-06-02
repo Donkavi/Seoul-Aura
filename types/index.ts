@@ -1,3 +1,13 @@
+export interface Brand {
+  _id: string;
+  name: string;
+  slug: string;
+  logo?: string;
+  origin: "Korea" | "Dubai" | "Other";
+  description?: string;
+  active: boolean;
+}
+
 export interface ProductVariant {
   name: string;
   price: number;
@@ -16,9 +26,11 @@ export interface Product {
   subtype: string;
   images: string[];
   stock: number;
+  brand?: string;
   tags: string[];
   concerns: string[];
   variants?: ProductVariant[];
+  isPreOrder?: boolean;
   isFeatured: boolean;
   isBestSeller: boolean;
   isNewArrival: boolean;
@@ -185,12 +197,21 @@ export interface Subscription {
   createdAt: string;
 }
 
+export interface PreOrderItem {
+  productBrand: string;
+  productName: string;
+  productLink?: string;
+  quantity: number;
+}
+
 export interface PreOrder {
   _id: string;
   requestNumber: string;
   customerName: string;
   customerEmail: string;
   phoneNumber: string;
+  items: PreOrderItem[];
+  // Legacy single-product fields (mirror the first item, kept for older records)
   productBrand: string;
   productName: string;
   productLink?: string;

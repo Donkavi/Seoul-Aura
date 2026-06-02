@@ -14,17 +14,20 @@ import {
   Star,
   GripVertical,
   Edit2,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { NavMenuItem, NavColumn, NavLink } from "@/types";
+import type { NavMenuItem, NavColumn, NavLink, Brand } from "@/types";
 
 const emptyFeature = { title: "", description: "", image: "", href: "", cta: "" };
 
 export default function NavMenuAdminPage() {
   const [items, setItems] = useState<NavMenuItem[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showBrandPicker, setShowBrandPicker] = useState(false);
 
   // Editor state — mirrors the currently selected item
   const [draft, setDraft] = useState<Partial<NavMenuItem> | null>(null);
@@ -35,9 +38,14 @@ export default function NavMenuAdminPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/nav-menu");
-      const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
+      const [navRes, brandRes] = await Promise.all([
+        fetch("/api/nav-menu"),
+        fetch("/api/brands"),
+      ]);
+      const navData = await navRes.json();
+      const brandData = await brandRes.json();
+      setItems(Array.isArray(navData) ? navData : []);
+      setBrands(Array.isArray(brandData) ? brandData.filter((b: Brand) => b.active) : []);
     } catch (err) {
       console.error("[nav-menu load]", err);
       setItems([]);
@@ -139,6 +147,19 @@ export default function NavMenuAdminPage() {
     setDraft((d) =>
       d ? { ...d, columns: [...(d.columns ?? []), { heading: "New Group", links: [] } as any] } : d
     );
+
+  const addBrandColumn = (selectedBrands: Brand[]) => {
+    if (!selectedBrands.length) return;
+    const newCol = {
+      heading: "Shop by Brand",
+      links: selectedBrands.map((b) => ({
+        label: b.name,
+        href: `/shop?brand=${encodeURIComponent(b.name)}`,
+      })),
+    };
+    setDraft((d) => d ? { ...d, columns: [...(d.columns ?? []), newCol as any] } : d);
+    setShowBrandPicker(false);
+  };
 
   const removeColumn = (ci: number) =>
     setDraft((d) => {
@@ -351,12 +372,22 @@ export default function NavMenuAdminPage() {
                     )}
                   </p>
                 </div>
-                <button
-                  onClick={addColumn}
-                  className="inline-flex items-center gap-1.5 text-xs bg-ink-900 text-white px-3 py-1.5 hover:bg-rose-600 transition-colors"
-                >
-                  <Plus size={11} /> Add Group
-                </button>
+                <div className="flex items-center gap-2">
+                  {brands.length > 0 && (
+                    <button
+                      onClick={() => setShowBrandPicker(true)}
+                      className="inline-flex items-center gap-1.5 text-xs border border-ink-200 text-ink-700 px-3 py-1.5 hover:border-rose-300 hover:text-rose-600 transition-colors"
+                    >
+                      <Store size={11} /> From Brands
+                    </button>
+                  )}
+                  <button
+                    onClick={addColumn}
+                    className="inline-flex items-center gap-1.5 text-xs bg-ink-900 text-white px-3 py-1.5 hover:bg-rose-600 transition-colors"
+                  >
+                    <Plus size={11} /> Add Group
+                  </button>
+                </div>
               </div>
 
               {!draft.columns?.length ? (
@@ -519,6 +550,72 @@ export default function NavMenuAdminPage() {
             </p>
           </div>
         )}
+      </div>
+
+      {/* Brand Picker Modal */}
+      {showBrandPicker && (
+        <BrandPickerModal
+          brands={brands}
+          onConfirm={addBrandColumn}
+          onClose={() => setShowBrandPicker(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+
+function BrandPickerModal({
+  brands,
+  onConfirm,
+  onClose,
+}: {
+  brands: Brand[];
+  onConfirm: (selected: Brand[]) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<string[]>(brands.map((b) => b._id));
+
+  const toggle = (id: string) =>
+    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-ink-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-sm max-w-sm w-full">
+        <header className="border-b border-ink-100 px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold mb-0.5">Nav Menu</p>
+            <h3 className="font-display text-xl text-ink-900">Add Brand Group</h3>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-ink-50 rounded"><X size={16} /></button>
+        </header>
+        <div className="p-5">
+          <p className="text-xs text-ink-500 mb-3">Select the brands to include in this group. A new dropdown column will be created with links to each brand's shop page.</p>
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {brands.map((b) => (
+              <label key={b._id} className="flex items-center gap-3 p-2 hover:bg-rose-25/30 rounded cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(b._id)}
+                  onChange={() => toggle(b._id)}
+                  className="accent-rose-600"
+                />
+                <span className="text-sm text-ink-900 flex-1">{b.name}</span>
+                <span className="text-[10px] text-ink-400 bg-ink-50 px-2 py-0.5 rounded-full">{b.origin}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <footer className="border-t border-ink-100 px-5 py-3 flex gap-2 justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm border border-ink-200 text-ink-700 hover:bg-ink-50 rounded-sm transition-colors">Cancel</button>
+          <button
+            onClick={() => onConfirm(brands.filter((b) => selected.includes(b._id)))}
+            disabled={!selected.length}
+            className="px-4 py-2 text-sm bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60 rounded-sm transition-colors inline-flex items-center gap-1.5"
+          >
+            <Store size={13} /> Add {selected.length} Brand{selected.length !== 1 ? "s" : ""}
+          </button>
+        </footer>
       </div>
     </div>
   );

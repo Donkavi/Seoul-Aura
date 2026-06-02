@@ -27,7 +27,9 @@
       "Bash(xargs grep -l \"login\\\\|signin\\\\|auth\\\\|session\")",
       "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\app\\\\api\\\\auth\\\\[...nextauth]\")",
       "Bash(mkdir -p \"c:/Users/DELL/Documents/Seoul-Aura/app/api/auth/[...nextauth]\")",
-      "Bash(mkdir -p \"c:/Users/DELL/Documents/Seoul-Aura/app/api/admins/[id]\")"
+      "Bash(mkdir -p \"c:/Users/DELL/Documents/Seoul-Aura/app/api/admins/[id]\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\app\\\\api\\\\brands\\\\[id]\")",
+      "PowerShell(npm run build 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\shop\\[id]",
@@ -38,7 +40,8 @@
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscription-plans",
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscriptions",
       "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\auth",
-      "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\admins"
+      "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\admins",
+      "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\brands"
     ]
   }
 }

@@ -7,9 +7,10 @@ import Link from "next/link";
 import {
   Package, MapPin, Heart, CreditCard, Bell, LogOut,
   ChevronRight, Sparkles, Calendar, Loader2, ShoppingBag,
-  Plus, Trash2, Check, X, Shield, Plane,
+  Plus, Trash2, Check, X, Shield, Plane, Mail, Lock, User, Phone,
 } from "lucide-react";
 import { cn, formatPrice, relativeDate } from "@/lib/utils";
+import VerifyPhone from "@/components/auth/VerifyPhone";
 import type { Order, Subscription } from "@/types";
 
 // ─── Google Icon ─────────────────────────────────────────────────────────────
@@ -26,6 +27,42 @@ function GoogleIcon() {
 
 // ─── Sign-in page ─────────────────────────────────────────────────────────────
 function SignInPage() {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [form, setForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      if (mode === "register") {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(form),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Could not create account");
+      }
+      // Sign in (for both register and login). Gating then sends to phone verification.
+      const result = await signIn("credentials", {
+        email: form.email,
+        password: form.password,
+        redirect: false,
+      });
+      if (result?.error) throw new Error("Invalid email or password");
+      // session updates automatically — the page root re-renders into verify / dashboard
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="bg-rose-25/30 min-h-screen flex items-center py-12 lg:py-20">
       <div className="max-w-6xl mx-auto px-4 lg:px-8 w-full">
@@ -55,17 +92,68 @@ function SignInPage() {
               </ul>
             </div>
           </div>
+
           <div className="p-8 lg:p-12 flex flex-col justify-center">
-            <h2 className="font-display text-3xl lg:text-4xl text-ink-900 mb-2">Welcome</h2>
-            <p className="text-sm text-ink-500 mb-10 leading-relaxed">
-              Sign in to manage your orders and subscriptions.<br />New here? Your account is created automatically.
+            <h2 className="font-display text-3xl lg:text-4xl text-ink-900 mb-2">
+              {mode === "login" ? "Welcome back" : "Create your account"}
+            </h2>
+            <p className="text-sm text-ink-500 mb-8 leading-relaxed">
+              {mode === "login"
+                ? "Sign in to manage your orders and subscriptions."
+                : "Join Seoul Aura — we'll verify your phone with a quick code."}
             </p>
+
             <button
               onClick={() => signIn("google", { callbackUrl: "/account" })}
               className="w-full flex items-center justify-center gap-3 border border-ink-200 hover:border-rose-300 hover:bg-rose-25/40 py-3.5 px-6 text-sm font-medium text-ink-800 transition-all duration-200 rounded-sm"
             >
               <GoogleIcon />Continue with Google
             </button>
+
+            <div className="flex items-center gap-3 my-6">
+              <span className="flex-1 h-px bg-ink-100" />
+              <span className="text-[11px] uppercase tracking-widest text-ink-400">or</span>
+              <span className="flex-1 h-px bg-ink-100" />
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {mode === "register" && (
+                <Field icon={User} type="text" placeholder="Full name" value={form.name}
+                  onChange={(v) => set("name", v)} required />
+              )}
+              <Field icon={Mail} type="email" placeholder="Email address" value={form.email}
+                onChange={(v) => set("email", v)} required />
+              <Field icon={Lock} type="password" placeholder="Password" value={form.password}
+                onChange={(v) => set("password", v)} required />
+              {mode === "register" && (
+                <Field icon={Phone} type="tel" placeholder="Phone number (e.g. 077 123 4567)" value={form.phone}
+                  onChange={(v) => set("phone", v)} required />
+              )}
+
+              {error && (
+                <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-sm p-2.5">{error}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full inline-flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {loading ? <Loader2 size={15} className="animate-spin" /> : null}
+                {mode === "login" ? "Sign In" : "Create Account"}
+              </button>
+            </form>
+
+            <p className="text-sm text-ink-500 text-center mt-5">
+              {mode === "login" ? "New to Seoul Aura?" : "Already have an account?"}{" "}
+              <button
+                onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
+                className="text-rose-600 font-medium hover:underline"
+              >
+                {mode === "login" ? "Create an account" : "Sign in"}
+              </button>
+            </p>
+
             <p className="text-[11px] text-center text-ink-400 mt-6">
               By continuing you agree to our{" "}
               <Link href="/terms" className="underline hover:text-ink-700">Terms</Link>{" "}&amp;{" "}
@@ -74,6 +162,27 @@ function SignInPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Field({
+  icon: Icon, type, placeholder, value, onChange, required,
+}: {
+  icon: React.ElementType; type: string; placeholder: string;
+  value: string; onChange: (v: string) => void; required?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2 border border-ink-200 rounded-sm px-3.5 focus-within:border-rose-400 transition-colors">
+      <Icon size={15} className="text-ink-400 flex-shrink-0" />
+      <input
+        type={type}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className="flex-1 py-3 text-sm bg-transparent outline-none"
+      />
     </div>
   );
 }
@@ -221,9 +330,17 @@ const PRE_ORDER_STATUS: Record<string, string> = {
   fulfilled: "bg-green-50 text-green-700",
 };
 
+interface PreOrderItem {
+  productBrand: string;
+  productName: string;
+  productLink?: string;
+  quantity: number;
+}
+
 interface PreOrder {
   _id: string;
   requestNumber: string;
+  items?: PreOrderItem[];
   productBrand: string;
   productName: string;
   productLink?: string;
@@ -274,16 +391,23 @@ function PreOrdersTab({ email }: { email: string }) {
             </span>
           </div>
 
-          <div className="mb-3">
-            <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold mb-0.5">{p.productBrand}</p>
-            <p className="text-sm font-medium text-ink-900">{p.productName}</p>
-            <p className="text-xs text-ink-500 mt-0.5">Qty: {p.quantity}{p.origin && ` · ${p.origin}`}</p>
-            {p.productLink && (
-              <a href={p.productLink} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-rose-600 hover:underline mt-1 inline-block truncate max-w-xs">
-                View product link →
-              </a>
-            )}
+          <div className="mb-3 space-y-3">
+            {(p.items?.length
+              ? p.items
+              : [{ productBrand: p.productBrand, productName: p.productName, productLink: p.productLink, quantity: p.quantity }]
+            ).map((it, i) => (
+              <div key={i} className={i > 0 ? "pt-3 border-t border-ink-50" : ""}>
+                <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold mb-0.5">{it.productBrand}</p>
+                <p className="text-sm font-medium text-ink-900">{it.productName}</p>
+                <p className="text-xs text-ink-500 mt-0.5">Qty: {it.quantity}</p>
+                {it.productLink && (
+                  <a href={it.productLink} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-rose-600 hover:underline mt-1 inline-block truncate max-w-xs">
+                    View product link →
+                  </a>
+                )}
+              </div>
+            ))}
           </div>
 
           {(p.estimatedPrice || p.estimatedAvailability || p.adminNotes) && (
@@ -711,6 +835,10 @@ export default function AccountPage() {
   }
 
   if (session?.user) {
+    // Phone must be verified before the account is usable
+    if (!(session.user as any).phoneVerified) {
+      return <VerifyPhone redirectTo="/account" />;
+    }
     return <Dashboard user={{
       ...session.user,
       id: (session.user as any).id,

@@ -274,11 +274,15 @@ export default function ProductView({
               <h1 className="font-display text-3xl lg:text-4xl font-medium text-ink-900 leading-tight">
                 {product.name}
               </h1>
-              {product.stock === 0 && (
+              {product.isPreOrder ? (
                 <span className="badge-origin bg-rose-600 text-white whitespace-nowrap mt-1">
+                  Pre-Order
+                </span>
+              ) : product.stock === 0 ? (
+                <span className="badge-origin bg-ink-900 text-white whitespace-nowrap mt-1">
                   Sold Out
                 </span>
-              )}
+              ) : null}
             </div>
 
             <a href="#reviews" className="inline-flex items-center gap-2 mt-3 hover:text-rose-600">
@@ -358,7 +362,48 @@ export default function ProductView({
             </p>
           </div>
 
-          {product.stock > 0 ? (
+          {product.isPreOrder ? (
+            <>
+              <div className="flex items-center gap-3 pt-2">
+                <div className="flex items-center border border-ink-300 h-12">
+                  <button
+                    onClick={() => setQty(Math.max(1, qty - 1))}
+                    className="px-3 h-full hover:bg-ink-50"
+                    aria-label="Decrease"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="w-10 text-center font-medium">{qty}</span>
+                  <button
+                    onClick={() => setQty(qty + 1)}
+                    className="px-3 h-full hover:bg-ink-50"
+                    aria-label="Increase"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+                <button
+                  className="w-12 h-12 border border-ink-300 hover:border-rose-400 hover:text-rose-600 flex items-center justify-center transition-colors"
+                  aria-label="Wishlist"
+                >
+                  <Heart size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <button
+                  onClick={handleAddToCart}
+                  disabled={adding}
+                  className="w-full bg-rose-600 hover:bg-rose-700 text-white font-medium py-3.5 text-sm tracking-wide transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {adding ? "Added to Pre-Order Bag ✓" : "Pre-Order This Item"}
+                </button>
+                <p className="text-xs text-ink-500 text-center leading-relaxed">
+                  Added to your <strong>Pre-Order</strong> bag. Our team confirms pricing &amp; availability within 48 hours — no payment until you approve.
+                </p>
+              </div>
+            </>
+          ) : product.stock > 0 ? (
             <>
               <div className="flex items-center gap-3 pt-2">
                 <div className="flex items-center border border-ink-300 h-12">

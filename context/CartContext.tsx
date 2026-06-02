@@ -51,7 +51,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ),
       };
     case "CLEAR":
-      return { ...state, items: [] };
+      // Clearing the cart (e.g. after a regular order) keeps pre-order items intact
+      return { ...state, items: state.items.filter((i) => i.product.isPreOrder) };
     case "TOGGLE_DRAWER":
       return { ...state, isOpen: !state.isOpen };
     case "OPEN_DRAWER":
@@ -68,11 +69,17 @@ interface CartContextValue extends CartState {
   removeItem: (productId: string) => void;
   updateQty: (productId: string, quantity: number) => void;
   clearCart: () => void;
+  clearPreOrders: () => void;
   toggleDrawer: () => void;
   openDrawer: () => void;
   closeDrawer: () => void;
+  // Regular (in-stock) items
+  cartItems: CartItem[];
   total: number;
   itemCount: number;
+  // Pre-order items
+  preOrderItems: CartItem[];
+  preOrderCount: number;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -92,19 +99,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("sa-cart", JSON.stringify(state.items));
   }, [state.items]);
 
-  const total = state.items.reduce((s, i) => s + i.product.price * i.quantity, 0);
-  const itemCount = state.items.reduce((s, i) => s + i.quantity, 0);
+  const cartItems = state.items.filter((i) => !i.product.isPreOrder);
+  const preOrderItems = state.items.filter((i) => i.product.isPreOrder);
+
+  // Regular cart totals only — pre-orders are quoted separately, never in the checkout total
+  const total = cartItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
+  const itemCount = cartItems.reduce((s, i) => s + i.quantity, 0);
+  const preOrderCount = preOrderItems.reduce((s, i) => s + i.quantity, 0);
 
   return (
     <CartContext.Provider
       value={{
         ...state,
+        cartItems,
+        preOrderItems,
         total,
         itemCount,
+        preOrderCount,
         addItem: (p, q) => dispatch({ type: "ADD_ITEM", product: p, quantity: q }),
         removeItem: (id) => dispatch({ type: "REMOVE_ITEM", productId: id }),
         updateQty: (id, q) => dispatch({ type: "UPDATE_QTY", productId: id, quantity: q }),
         clearCart: () => dispatch({ type: "CLEAR" }),
+        clearPreOrders: () =>
+          preOrderItems.forEach((i) => dispatch({ type: "REMOVE_ITEM", productId: i.product._id })),
         toggleDrawer: () => dispatch({ type: "TOGGLE_DRAWER" }),
         openDrawer: () => dispatch({ type: "OPEN_DRAWER" }),
         closeDrawer: () => dispatch({ type: "CLOSE_DRAWER" }),

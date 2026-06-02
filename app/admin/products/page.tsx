@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Plus, Pencil, Trash2, Search, X, Package } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
-import type { Product, Category, Concern, ProductVariant } from "@/types";
+import { Plus, Pencil, Trash2, Search, X, Package, Check } from "lucide-react";
+import { formatPrice, cn } from "@/lib/utils";
+import type { Product, Category, Concern, ProductVariant, Brand } from "@/types";
 
 interface VariantRow {
   name: string;
@@ -15,6 +15,7 @@ interface FormState {
   name: string;
   description: string;
   shortDescription: string;
+  brand: string;
   price: string;
   comparePrice: string;
   origin: "Korea" | "Dubai" | "Other";
@@ -25,6 +26,7 @@ interface FormState {
   tags: string;
   concerns: string[];
   variants: VariantRow[];
+  isPreOrder: boolean;
   isFeatured: boolean;
   isBestSeller: boolean;
   isNewArrival: boolean;
@@ -34,6 +36,7 @@ const emptyForm: FormState = {
   name: "",
   description: "",
   shortDescription: "",
+  brand: "",
   price: "",
   comparePrice: "",
   origin: "Korea",
@@ -44,6 +47,7 @@ const emptyForm: FormState = {
   tags: "",
   concerns: [],
   variants: [],
+  isPreOrder: false,
   isFeatured: false,
   isBestSeller: false,
   isNewArrival: true,
@@ -53,21 +57,49 @@ export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [concerns, setConcerns] = useState<Concern[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  // Inline new brand
+  const [addingBrand, setAddingBrand] = useState(false);
+  const [newBrandName, setNewBrandName] = useState("");
+  const [newBrandOrigin, setNewBrandOrigin] = useState<"Korea" | "Dubai" | "Other">("Korea");
+  const [savingBrand, setSavingBrand] = useState(false);
 
   const loadData = async () => {
-    const [pRes, cRes, concRes] = await Promise.all([
+    const [pRes, cRes, concRes, bRes] = await Promise.all([
       fetch("/api/products?limit=100").then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
       fetch("/api/concerns").then((r) => r.json()),
+      fetch("/api/brands").then((r) => r.json()),
     ]);
     setProducts(pRes.products ?? []);
     setCategories(Array.isArray(cRes) ? cRes : []);
     setConcerns(Array.isArray(concRes) ? concRes : []);
+    setBrands(Array.isArray(bRes) ? bRes : []);
+  };
+
+  const saveNewBrand = async () => {
+    if (!newBrandName.trim()) return;
+    setSavingBrand(true);
+    try {
+      const res = await fetch("/api/brands", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newBrandName.trim(), origin: newBrandOrigin }),
+      });
+      const created = await res.json();
+      setBrands((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setForm((f) => ({ ...f, brand: created.name }));
+      setNewBrandName("");
+      setNewBrandOrigin("Korea");
+      setAddingBrand(false);
+    } finally {
+      setSavingBrand(false);
+    }
   };
 
   useEffect(() => {
@@ -115,6 +147,7 @@ export default function AdminProductsPage() {
       name: p.name,
       description: p.description,
       shortDescription: p.shortDescription,
+      brand: p.brand ?? "",
       price: p.price.toString(),
       comparePrice: p.comparePrice?.toString() ?? "",
       origin: p.origin,
@@ -125,6 +158,7 @@ export default function AdminProductsPage() {
       tags: p.tags.join(", "),
       concerns: p.concerns ?? [],
       variants: (p.variants ?? []).map((v: ProductVariant) => ({ name: v.name, price: v.price.toString() })),
+      isPreOrder: p.isPreOrder ?? false,
       isFeatured: p.isFeatured,
       isBestSeller: p.isBestSeller,
       isNewArrival: p.isNewArrival,
@@ -269,6 +303,36 @@ export default function AdminProductsPage() {
             </header>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {/* Product Type */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-2 block">Product Type *</label>
+                <div className="flex gap-4">
+                  {[
+                    { val: false, label: "Regular Order", desc: "In-stock product with quantity tracking" },
+                    { val: true,  label: "Pre-Order",     desc: "No stock — customer requests import" },
+                  ].map(({ val, label, desc }) => (
+                    <label
+                      key={label}
+                      className={cn(
+                        "flex-1 flex items-start gap-3 border rounded-sm p-3 cursor-pointer transition-colors",
+                        form.isPreOrder === val ? "border-rose-600 bg-rose-25/40" : "border-ink-200 hover:border-ink-300"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        checked={form.isPreOrder === val}
+                        onChange={() => setForm({ ...form, isPreOrder: val })}
+                        className="accent-rose-600 mt-0.5 shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-ink-900">{label}</p>
+                        <p className="text-[11px] text-ink-400 mt-0.5">{desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
                   Product Name *
@@ -279,6 +343,60 @@ export default function AdminProductsPage() {
                   required
                   className="input-field"
                 />
+              </div>
+
+              {/* Brand */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700">Brand</label>
+                  <button type="button" onClick={() => setAddingBrand((v) => !v)}
+                    className="text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1">
+                    <Plus size={11} /> Add new brand
+                  </button>
+                </div>
+                <select
+                  value={form.brand}
+                  onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                  className="input-field"
+                >
+                  <option value="">— No brand —</option>
+                  {brands.map((b) => (
+                    <option key={b._id} value={b.name}>{b.name} ({b.origin})</option>
+                  ))}
+                </select>
+                {addingBrand && (
+                  <div className="mt-2 p-3 bg-rose-25/40 border border-rose-100 rounded-sm space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">New Brand</p>
+                    <div className="flex gap-2">
+                      <input
+                        value={newBrandName}
+                        onChange={(e) => setNewBrandName(e.target.value)}
+                        placeholder="Brand name"
+                        className="input-field flex-1"
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), saveNewBrand())}
+                      />
+                      <select
+                        value={newBrandOrigin}
+                        onChange={(e) => setNewBrandOrigin(e.target.value as "Korea" | "Dubai" | "Other")}
+                        className="input-field w-28"
+                      >
+                        <option value="Korea">Korea</option>
+                        <option value="Dubai">Dubai</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={saveNewBrand} disabled={savingBrand || !newBrandName.trim()}
+                        className="inline-flex items-center gap-1 bg-rose-600 text-white text-xs px-3 py-1.5 hover:bg-rose-700 disabled:opacity-60 transition-colors">
+                        <Check size={11} /> {savingBrand ? "Saving…" : "Save Brand"}
+                      </button>
+                      <button type="button" onClick={() => { setAddingBrand(false); setNewBrandName(""); }}
+                        className="inline-flex items-center gap-1 border border-ink-200 text-ink-600 text-xs px-3 py-1.5 hover:bg-ink-50 transition-colors">
+                        <X size={11} /> Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">
@@ -419,18 +537,20 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
-                  Stock Quantity *
-                </label>
-                <input
-                  type="number"
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                  required
-                  className="input-field"
-                />
-              </div>
+              {!form.isPreOrder && (
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
+                    Stock Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    value={form.stock}
+                    onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                    required
+                    className="input-field"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
@@ -518,7 +638,7 @@ export default function AdminProductsPage() {
 
               <div className="flex flex-wrap gap-4 pt-2">
                 {[
-                  { key: "isFeatured", label: "Featured" },
+                  { key: "isFeatured",  label: "Featured" },
                   { key: "isBestSeller", label: "Best Seller" },
                   { key: "isNewArrival", label: "New Arrival" },
                 ].map((f) => (

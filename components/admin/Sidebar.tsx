@@ -18,12 +18,14 @@ import {
   Box,
   UserCheck,
   Shield,
+  Store,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/products", label: "Products", icon: Package },
+  { href: "/admin/brands", label: "Brands", icon: Store },
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/concerns", label: "Concerns", icon: Sparkles },
   { href: "/admin/reviews", label: "Reviews", icon: MessageSquare },

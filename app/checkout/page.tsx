@@ -27,7 +27,7 @@ function CheckoutContent() {
   const subscriptionPlan = searchParams.get("plan");
   const { data: session, status } = useSession();
 
-  const { items, total, clearCart } = useCart();
+  const { cartItems: items, total, clearCart } = useCart();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);

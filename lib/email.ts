@@ -352,16 +352,32 @@ export async function sendOrderStatusUpdateToBuyer(data: OrderStatusEmailData) {
 }
 
 // ─── 4. Pre-order confirmation → Buyer ───────────────────────────────────────
-interface PreOrderEmailData {
-  requestNumber: string;
-  customerName: string;
-  customerEmail: string;
+interface PreOrderItemData {
   productBrand: string;
   productName: string;
   productLink?: string;
   quantity: number;
+}
+
+interface PreOrderEmailData {
+  requestNumber: string;
+  customerName: string;
+  customerEmail: string;
+  items: PreOrderItemData[];
   origin: string;
   notes?: string;
+}
+
+function preOrderItemsBlock(items: PreOrderItemData[]) {
+  const rows = items.map((it) => `
+    <div style="padding:12px 0;border-bottom:1px solid #f5f0ee;">
+      <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#e11d48;font-weight:600;">${it.productBrand}</p>
+      <p style="margin:3px 0 0;font-size:14px;color:#1c1917;">${it.productName}</p>
+      <p style="margin:5px 0 0;font-size:12px;color:#78716c;">Qty: <strong>${it.quantity}</strong>${
+        it.productLink ? ` · <a href="${it.productLink}" style="color:#e11d48;">reference link</a>` : ""
+      }</p>
+    </div>`).join("");
+  return `<div style="border-top:1px solid #f5f0ee;">${rows}</div>`;
 }
 
 export async function sendPreOrderConfirmationToBuyer(data: PreOrderEmailData) {
@@ -378,29 +394,11 @@ export async function sendPreOrderConfirmationToBuyer(data: PreOrderEmailData) {
       <p style="margin:4px 0 0;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
     </div>
 
-    <h3 style="margin:0 0 12px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Product Details</h3>
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;">
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:5px 0;width:100px;">Brand</td>
-        <td style="font-size:14px;font-weight:600;color:#1c1917;">${data.productBrand}</td>
-      </tr>
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:5px 0;">Product</td>
-        <td style="font-size:14px;color:#1c1917;">${data.productName}</td>
-      </tr>
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:5px 0;">Quantity</td>
-        <td style="font-size:14px;color:#1c1917;">${data.quantity}</td>
-      </tr>
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:5px 0;">Origin</td>
-        <td style="font-size:14px;color:#1c1917;">${data.origin}</td>
-      </tr>
-      ${data.productLink ? `<tr>
-        <td style="font-size:12px;color:#78716c;padding:5px 0;">Link</td>
-        <td style="font-size:13px;"><a href="${data.productLink}" style="color:#e11d48;word-break:break-all;">${data.productLink}</a></td>
-      </tr>` : ""}
-    </table>
+    <h3 style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">
+      Products Requested (${data.items.length})
+    </h3>
+    ${preOrderItemsBlock(data.items)}
+    <div style="height:20px;"></div>
 
     ${data.notes ? `
     <div style="background:#faf9f8;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
@@ -452,27 +450,13 @@ export async function sendPreOrderNotificationToAdmin(data: PreOrderEmailData) {
         <td style="font-size:12px;color:#78716c;padding:4px 0;">Email</td>
         <td style="font-size:13px;color:#e11d48;">${data.customerEmail}</td>
       </tr>
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:4px 0;">Brand</td>
-        <td style="font-size:13px;font-weight:600;color:#1c1917;">${data.productBrand}</td>
-      </tr>
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:4px 0;">Product</td>
-        <td style="font-size:13px;color:#1c1917;">${data.productName}</td>
-      </tr>
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:4px 0;">Quantity</td>
-        <td style="font-size:13px;color:#1c1917;">${data.quantity}</td>
-      </tr>
-      <tr>
-        <td style="font-size:12px;color:#78716c;padding:4px 0;">Origin</td>
-        <td style="font-size:13px;color:#1c1917;">${data.origin}</td>
-      </tr>
-      ${data.productLink ? `<tr>
-        <td style="font-size:12px;color:#78716c;padding:4px 0;">Product Link</td>
-        <td style="font-size:13px;"><a href="${data.productLink}" style="color:#e11d48;word-break:break-all;">${data.productLink}</a></td>
-      </tr>` : ""}
     </table>
+
+    <h3 style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">
+      Products Requested (${data.items.length})
+    </h3>
+    ${preOrderItemsBlock(data.items)}
+    <div style="height:20px;"></div>
 
     ${data.notes ? `
     <div style="background:#faf9f8;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
@@ -490,7 +474,7 @@ export async function sendPreOrderNotificationToAdmin(data: PreOrderEmailData) {
   return resend.emails.send({
     from: FROM,
     to: ADMIN_TO,
-    subject: `[Pre-order] ${data.productBrand} ${data.productName} · ${data.customerName}`,
+    subject: `[Pre-order] ${data.items.length} item${data.items.length !== 1 ? "s" : ""} · ${data.customerName}`,
     html,
   });
 }

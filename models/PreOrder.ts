@@ -7,11 +7,20 @@ export type PreOrderStatus =
   | "rejected"
   | "fulfilled";
 
+export interface IPreOrderItem {
+  productBrand: string;
+  productName: string;
+  productLink?: string;
+  quantity: number;
+}
+
 export interface IPreOrder extends Document {
   requestNumber: string;
   customerName: string;
   customerEmail: string;
   phoneNumber: string;
+  items: IPreOrderItem[];
+  // Legacy single-product fields (mirror the first item)
   productBrand: string;
   productName: string;
   productLink?: string;
@@ -26,14 +35,26 @@ export interface IPreOrder extends Document {
   updatedAt: Date;
 }
 
+const PreOrderItemSchema = new Schema<IPreOrderItem>(
+  {
+    productBrand: { type: String, required: true, trim: true },
+    productName: { type: String, required: true, trim: true },
+    productLink: { type: String, trim: true },
+    quantity: { type: Number, default: 1, min: 1 },
+  },
+  { _id: false }
+);
+
 const PreOrderSchema = new Schema<IPreOrder>(
   {
     requestNumber: { type: String, required: true, unique: true },
     customerName: { type: String, required: true, trim: true },
     customerEmail: { type: String, required: true, lowercase: true, trim: true },
     phoneNumber: { type: String, required: true, trim: true },
-    productBrand: { type: String, required: true, trim: true },
-    productName: { type: String, required: true, trim: true },
+    items: { type: [PreOrderItemSchema], default: [] },
+    // Legacy single-product fields — mirror items[0] for list views & old records
+    productBrand: { type: String, trim: true },
+    productName: { type: String, trim: true },
     productLink: { type: String, trim: true },
     quantity: { type: Number, default: 1, min: 1 },
     origin: { type: String, enum: ["Korea", "Dubai", "Other"], default: "Other" },
@@ -53,7 +74,9 @@ const PreOrderSchema = new Schema<IPreOrder>(
 PreOrderSchema.index({ status: 1, createdAt: -1 });
 PreOrderSchema.index({ customerEmail: 1 });
 
-const PreOrder: Model<IPreOrder> =
-  mongoose.models.PreOrder || mongoose.model<IPreOrder>("PreOrder", PreOrderSchema);
+if (mongoose.models.PreOrder) {
+  delete (mongoose.models as Record<string, Model<unknown>>)["PreOrder"];
+}
+const PreOrder = mongoose.model<IPreOrder>("PreOrder", PreOrderSchema);
 
 export default PreOrder;

@@ -18,9 +18,11 @@ export interface IProduct extends Document {
   images: string[];
   stock: number;
   sku?: string;
+  brand?: string;
   tags: string[];
   concerns: string[];
   variants: IProductVariant[];
+  isPreOrder: boolean;
   isFeatured: boolean;
   isBestSeller: boolean;
   isNewArrival: boolean;
@@ -45,6 +47,7 @@ const ProductSchema = new Schema<IProduct>(
     stock: { type: Number, default: 0, min: 0 },
     sku: { type: String },
     tags: [{ type: String }],
+    brand: { type: String, trim: true },
     concerns: [{ type: String }],
     variants: [
       {
@@ -52,6 +55,7 @@ const ProductSchema = new Schema<IProduct>(
         price: { type: Number, required: true, min: 0 },
       },
     ],
+    isPreOrder: { type: Boolean, default: false },
     isFeatured: { type: Boolean, default: false },
     isBestSeller: { type: Boolean, default: false },
     isNewArrival: { type: Boolean, default: true },

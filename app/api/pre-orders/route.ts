@@ -48,45 +48,58 @@ export async function GET(req: NextRequest) {
   }
 }
 
+interface IncomingItem {
+  productBrand?: string;
+  productName?: string;
+  productLink?: string;
+  quantity?: string | number;
+}
+
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
     const body = await req.json();
 
-    const {
-      customerName,
-      customerEmail,
-      phoneNumber,
-      productBrand,
-      productName,
-      productLink,
-      quantity,
-      origin,
-      notes,
-    } = body;
+    const { customerName, customerEmail, phoneNumber, origin, notes } = body;
 
-    if (
-      !customerName?.trim() ||
-      !customerEmail?.trim() ||
-      !phoneNumber?.trim() ||
-      !productBrand?.trim() ||
-      !productName?.trim()
-    ) {
+    // Accept either a multi-item `items` array or legacy single-product fields
+    const rawItems: IncomingItem[] = Array.isArray(body.items) && body.items.length
+      ? body.items
+      : [{
+          productBrand: body.productBrand,
+          productName: body.productName,
+          productLink: body.productLink,
+          quantity: body.quantity,
+        }];
+
+    const items = rawItems
+      .filter((it) => it.productBrand?.toString().trim() && it.productName?.toString().trim())
+      .map((it) => ({
+        productBrand: it.productBrand!.toString().trim(),
+        productName: it.productName!.toString().trim(),
+        productLink: it.productLink?.toString().trim(),
+        quantity: Math.max(1, parseInt(String(it.quantity ?? "1")) || 1),
+      }));
+
+    if (!customerName?.trim() || !customerEmail?.trim() || !phoneNumber?.trim() || items.length === 0) {
       return NextResponse.json(
-        { error: "All required fields must be filled" },
+        { error: "Customer details and at least one product are required" },
         { status: 400 }
       );
     }
 
+    const first = items[0];
     const preOrder = await PreOrder.create({
       requestNumber: generateRequestNumber(),
       customerName: customerName.trim(),
       customerEmail: customerEmail.trim().toLowerCase(),
       phoneNumber: phoneNumber.trim(),
-      productBrand: productBrand.trim(),
-      productName: productName.trim(),
-      productLink: productLink?.trim(),
-      quantity: Math.max(1, parseInt(quantity ?? "1")),
+      items,
+      // Mirror first item into legacy fields for list views
+      productBrand: first.productBrand,
+      productName: first.productName,
+      productLink: first.productLink,
+      quantity: first.quantity,
       origin: origin ?? "Other",
       notes: notes?.trim(),
       status: "pending",
@@ -97,10 +110,7 @@ export async function POST(req: NextRequest) {
       requestNumber: preOrder.requestNumber,
       customerName: preOrder.customerName,
       customerEmail: preOrder.customerEmail,
-      productBrand: preOrder.productBrand,
-      productName: preOrder.productName,
-      productLink: preOrder.productLink,
-      quantity: preOrder.quantity,
+      items: preOrder.items,
       origin: preOrder.origin ?? "Other",
       notes: preOrder.notes,
     };

@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     const tag = searchParams.get("tag");
     const concern = searchParams.get("concern");
+    const brand = searchParams.get("brand");
 
     const query: Record<string, unknown> = {};
     if (type) query.type = type;
@@ -29,6 +30,8 @@ export async function GET(req: NextRequest) {
     if (search) query.name = { $regex: search, $options: "i" };
     if (tag) query.tags = { $in: [new RegExp(tag, "i")] };
     if (concern) query.concerns = { $in: [new RegExp(concern, "i")] };
+    // brand=all → no brand filter (show everything); brand=X → filter by brand field
+    if (brand && brand !== "all") query.brand = { $regex: `^${brand}$`, $options: "i" };
 
     const skip = (page - 1) * limit;
     const [products, total] = await Promise.all([
