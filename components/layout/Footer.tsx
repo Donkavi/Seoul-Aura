@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { Instagram, Facebook, Mail, Phone } from "lucide-react";
+import { useEffect, useState } from "react";
 
 function TikTokIcon({ size = 16 }: { size?: number }) {
   return (
@@ -9,13 +12,53 @@ function TikTokIcon({ size = 16 }: { size?: number }) {
   );
 }
 
-const SOCIAL_LINKS = [
-  { href: "https://www.instagram.com/seoul_aura.lk?utm_source=qr", Icon: Instagram },
-  { href: "https://www.facebook.com/share/1HG2QjnAx2/?mibextid=wwXIfr", Icon: Facebook },
-  { href: "https://www.tiktok.com/@seoul_aura.lk?_r=1&_t=ZS-96cI4KjvXb6", Icon: TikTokIcon },
-];
+interface FooterSettings {
+  storePhone: string;
+  whatsappNumber: string;
+  storeEmail: string;
+  instagramUrl: string;
+  facebookUrl: string;
+  tiktokUrl: string;
+}
+
+const DEFAULTS: FooterSettings = {
+  storePhone: "074 166 7016",
+  whatsappNumber: "077 904 4891",
+  storeEmail: "seoulaurateam@gmail.com",
+  instagramUrl: "https://www.instagram.com/seoul_aura.lk?utm_source=qr",
+  facebookUrl: "https://www.facebook.com/share/1HG2QjnAx2/?mibextid=wwXIfr",
+  tiktokUrl: "https://www.tiktok.com/@seoul_aura.lk?_r=1&_t=ZS-96cI4KjvXb6",
+};
 
 export default function Footer() {
+  const [info, setInfo] = useState<FooterSettings>(DEFAULTS);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && !data.error) {
+          setInfo({
+            storePhone: data.storePhone || DEFAULTS.storePhone,
+            whatsappNumber: data.whatsappNumber || DEFAULTS.whatsappNumber,
+            storeEmail: data.storeEmail || DEFAULTS.storeEmail,
+            instagramUrl: data.instagramUrl || DEFAULTS.instagramUrl,
+            facebookUrl: data.facebookUrl || DEFAULTS.facebookUrl,
+            tiktokUrl: data.tiktokUrl || DEFAULTS.tiktokUrl,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const socialLinks = [
+    { href: info.instagramUrl, Icon: Instagram },
+    { href: info.facebookUrl, Icon: Facebook },
+    { href: info.tiktokUrl, Icon: TikTokIcon },
+  ].filter((s) => s.href);
+
+  const phones = [info.storePhone, info.whatsappNumber].filter(Boolean);
+
   return (
     <footer className="bg-ink-900 text-ink-100">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-16">
@@ -28,7 +71,7 @@ export default function Footer() {
               Curated Korean beauty and Dubai specialty foods, delivered with care to your doorstep.
             </p>
             <div className="flex gap-3">
-              {SOCIAL_LINKS.map(({ href, Icon }) => (
+              {socialLinks.map(({ href, Icon }) => (
                 <a
                   key={href}
                   href={href}
@@ -71,16 +114,23 @@ export default function Footer() {
               Get In Touch
             </h4>
             <ul className="space-y-2.5 text-sm text-ink-300">
-              <li className="flex items-center gap-2"><Phone size={14} /> 074 166 7016</li>
-              <li className="flex items-center gap-2"><Phone size={14} /> 077 904 4891</li>
-              <li className="flex items-center gap-2"><Mail size={14} /> seoulaurateam@gmail.com</li>
+              {phones.map((p) => (
+                <li key={p} className="flex items-center gap-2">
+                  <Phone size={14} /> {p}
+                </li>
+              ))}
+              {info.storeEmail && (
+                <li className="flex items-center gap-2">
+                  <Mail size={14} /> {info.storeEmail}
+                </li>
+              )}
             </ul>
           </div>
         </div>
 
         <div className="pt-8 border-t border-ink-800 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-xs text-ink-400">
-            © 2026 Seoul Aura · Crafted with care · All rights reserved
+            © {new Date().getFullYear()} Seoul Aura · Crafted with care · All rights reserved
           </p>
           <div className="flex gap-6 text-xs text-ink-400">
             <Link href="/privacy" className="hover:text-rose-300">Privacy Policy</Link>

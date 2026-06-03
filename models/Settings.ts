@@ -26,6 +26,7 @@ export interface ISettings extends Document {
   storeAddress: string;
   announcementText: string;
   announcementEnabled: boolean;
+  marqueeItems: string[];
   currencyCode: string;
   currencySymbol: string;
   shippingFee: number;
@@ -71,6 +72,10 @@ const SettingsSchema = new Schema<ISettings>(
     storeAddress: { type: String, default: "" },
     announcementText: { type: String, default: "FREE SAMPLE WITH EVERY ORDER · ISLANDWIDE DELIVERY" },
     announcementEnabled: { type: Boolean, default: true },
+    marqueeItems: {
+      type: [String],
+      default: ["100% Authentic K-Beauty", "Free Shipping Over Rs. 10,000", "Free Sample with Every Order", "Islandwide Delivery", "Direct From Seoul"],
+    },
     currencyCode: { type: String, default: "LKR" },
     currencySymbol: { type: String, default: "Rs." },
     shippingFee: { type: Number, default: 350 },

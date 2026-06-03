@@ -64,6 +64,7 @@ export default function AdminProductsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "regular" | "preorder">("all");
   const [loading, setLoading] = useState(false);
   // Inline new brand
   const [addingBrand, setAddingBrand] = useState(false);
@@ -176,9 +177,12 @@ export default function AdminProductsPage() {
     await loadData();
   };
 
-  const filtered = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = products.filter((p) => {
+    if (!p.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (typeFilter === "preorder" && !p.isPreOrder) return false;
+    if (typeFilter === "regular" && p.isPreOrder) return false;
+    return true;
+  });
 
   const selectedCategory = categories.find((c) => c.type === form.type);
 
@@ -206,15 +210,37 @@ export default function AdminProductsPage() {
         </button>
       </header>
 
-      <div className="bg-white border border-ink-100 rounded-sm p-4 mb-6 flex items-center gap-3">
-        <Search size={16} className="text-ink-400" />
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 outline-none text-sm bg-transparent"
-        />
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="bg-white border border-ink-100 rounded-sm p-4 flex items-center gap-3 flex-1">
+          <Search size={16} className="text-ink-400" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 outline-none text-sm bg-transparent"
+          />
+        </div>
+        <div className="flex items-center bg-white border border-ink-100 rounded-sm p-1 gap-1">
+          {([
+            { val: "all",      label: "All" },
+            { val: "regular",  label: "Regular" },
+            { val: "preorder", label: "Pre-Order" },
+          ] as const).map(({ val, label }) => (
+            <button
+              key={val}
+              onClick={() => setTypeFilter(val)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-sm transition-colors",
+                typeFilter === val
+                  ? "bg-rose-600 text-white"
+                  : "text-ink-500 hover:text-ink-900"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="bg-white border border-ink-100 rounded-sm overflow-hidden">
@@ -222,6 +248,7 @@ export default function AdminProductsPage() {
           <thead className="bg-ink-50 border-b border-ink-100">
             <tr>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Product</th>
+              <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Type</th>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Category</th>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Origin</th>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Price</th>
@@ -233,7 +260,7 @@ export default function AdminProductsPage() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-16 text-sm text-ink-400">
+                <td colSpan={8} className="text-center py-16 text-sm text-ink-400">
                   <Package size={32} className="mx-auto mb-3 opacity-40" />
                   No products yet. Add your first product to get started.
                 </td>
@@ -253,6 +280,17 @@ export default function AdminProductsPage() {
                         <p className="text-xs text-ink-400">SKU-{p._id.slice(-6)}</p>
                       </div>
                     </div>
+                  </td>
+                  <td className="p-4">
+                    {p.isPreOrder ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">
+                        Pre-Order
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Regular
+                      </span>
+                    )}
                   </td>
                   <td className="p-4 text-sm text-ink-700">{p.type} / {p.subtype}</td>
                   <td className="p-4">

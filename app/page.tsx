@@ -8,6 +8,7 @@ import Newsletter from "@/components/home/Newsletter";
 import VideoShowcase from "@/components/home/VideoShowcase";
 import TrendingSection from "@/components/home/TrendingSection";
 import PreOrderCTA from "@/components/home/PreOrderCTA";
+import CommunityStats from "@/components/home/CommunityStats";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 import type { Product as ProductType } from "@/types";
@@ -22,21 +23,27 @@ async function getProducts(): Promise<{
 }> {
   try {
     await connectDB();
-    const [newArrivals, bestSellers, kBeauty, hairCare] = await Promise.all([
-      Product.find({ isNewArrival: true }).sort({ createdAt: -1 }).limit(5).lean(),
-      Product.find({ isBestSeller: true }).limit(5).lean(),
-      Product.find({ origin: "Korea", type: "Cosmetics" }).limit(5).lean(),
-      Product.find({ subtype: "Haircare" }).limit(5).lean(),
+    const activeFilter = { active: { $ne: false } };
+
+    // For each section: try the specific flag first, fall back to any active products
+    const [rawNew, rawBest, rawKBeauty, rawHair, allActive] = await Promise.all([
+      Product.find({ isNewArrival: true, ...activeFilter }).sort({ createdAt: -1 }).limit(5).lean(),
+      Product.find({ isBestSeller: true, ...activeFilter }).limit(5).lean(),
+      Product.find({ origin: "Korea", type: "Cosmetics", ...activeFilter }).limit(5).lean(),
+      Product.find({ subtype: "Haircare", ...activeFilter }).limit(5).lean(),
+      Product.find(activeFilter).sort({ createdAt: -1 }).limit(10).lean(),
     ]);
 
     const serialize = (p: unknown[]): ProductType[] =>
       JSON.parse(JSON.stringify(p)) as ProductType[];
 
+    const fallback = serialize(allActive);
+
     return {
-      newArrivals: serialize(newArrivals),
-      bestSellers: serialize(bestSellers),
-      kBeauty: serialize(kBeauty),
-      hairCare: serialize(hairCare),
+      newArrivals: rawNew.length ? serialize(rawNew) : fallback.slice(0, 5),
+      bestSellers: rawBest.length ? serialize(rawBest) : fallback.slice(0, 5),
+      kBeauty: rawKBeauty.length ? serialize(rawKBeauty) : fallback.slice(0, 5),
+      hairCare: rawHair.length ? serialize(rawHair) : fallback.slice(0, 5),
     };
   } catch {
     return { newArrivals: [], bestSellers: [], kBeauty: [], hairCare: [] };
@@ -61,8 +68,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: true,
     isBestSeller: false,
     isNewArrival: true,
-    averageRating: 4.7,
-    reviewCount: 38,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -82,8 +89,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: true,
     isBestSeller: true,
     isNewArrival: true,
-    averageRating: 4.9,
-    reviewCount: 142,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -103,8 +110,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: false,
     isBestSeller: true,
     isNewArrival: true,
-    averageRating: 4.8,
-    reviewCount: 89,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -124,8 +131,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: false,
     isBestSeller: false,
     isNewArrival: true,
-    averageRating: 4.6,
-    reviewCount: 156,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -146,8 +153,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: true,
     isBestSeller: true,
     isNewArrival: true,
-    averageRating: 4.9,
-    reviewCount: 211,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -167,8 +174,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: false,
     isBestSeller: false,
     isNewArrival: true,
-    averageRating: 4.5,
-    reviewCount: 92,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -188,8 +195,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: false,
     isBestSeller: true,
     isNewArrival: true,
-    averageRating: 4.7,
-    reviewCount: 178,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
   {
@@ -209,8 +216,8 @@ const sampleProducts: ProductType[] = [
     isFeatured: false,
     isBestSeller: false,
     isNewArrival: true,
-    averageRating: 4.6,
-    reviewCount: 56,
+    averageRating: 0,
+    reviewCount: 0,
     createdAt: new Date().toISOString(),
   },
 ];
@@ -218,10 +225,12 @@ const sampleProducts: ProductType[] = [
 export default async function HomePage() {
   const { newArrivals, bestSellers, kBeauty, hairCare } = await getProducts();
 
+  // Only use sample data if DB returned nothing at all (empty catalog)
   const arrivals = newArrivals.length ? newArrivals : sampleProducts.slice(0, 5);
   const best = bestSellers.length ? bestSellers : sampleProducts.filter((p) => p.isBestSeller).slice(0, 5);
   const beauty = kBeauty.length ? kBeauty : sampleProducts.slice(0, 5);
   const hair = hairCare.length ? hairCare : sampleProducts.filter((p) => p.subtype === "Haircare");
+
 
   return (
     <>
@@ -233,6 +242,8 @@ export default async function HomePage() {
         viewAllHref="/shop?filter=new"
         products={arrivals}
       />
+
+      <CommunityStats />
 
       <SkinConcerns />
 

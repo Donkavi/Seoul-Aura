@@ -33,6 +33,7 @@ interface Settings {
   storeAddress: string;
   announcementText: string;
   announcementEnabled: boolean;
+  marqueeItems: string[];
   currencyCode: string;
   currencySymbol: string;
   shippingFee: number;
@@ -52,6 +53,7 @@ const defaultSettings: Settings = {
   storeAddress: "",
   announcementText: "FREE SAMPLE WITH EVERY ORDER · ISLANDWIDE DELIVERY",
   announcementEnabled: true,
+  marqueeItems: ["100% Authentic K-Beauty", "Free Shipping Over Rs. 10,000", "Free Sample with Every Order", "Islandwide Delivery", "Direct From Seoul"],
   currencyCode: "LKR",
   currencySymbol: "Rs.",
   shippingFee: 350,
@@ -101,6 +103,7 @@ export default function AdminSettingsPage() {
             ...defaultSettings,
             ...data,
             heroSlides: data.heroSlides ?? [],
+            marqueeItems: data.marqueeItems?.length ? data.marqueeItems : defaultSettings.marqueeItems,
             videoShowcase: { ...defaultSettings.videoShowcase, ...(data.videoShowcase ?? {}) },
           });
       })
@@ -269,6 +272,49 @@ export default function AdminSettingsPage() {
                 Use · to separate items. Keep it short.
               </p>
             </Field>
+          </Section>
+
+          {/* Marquee Strip */}
+          <Section icon={Megaphone} title="Hero Marquee Strip">
+            <p className="text-xs text-ink-500 mb-3">
+              Items scroll across the dark strip below the hero banner. Add, edit or remove each item.
+            </p>
+            <div className="space-y-2 mb-3">
+              {settings.marqueeItems.map((item, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    value={item}
+                    onChange={(e) => {
+                      const next = [...settings.marqueeItems];
+                      next[i] = e.target.value;
+                      set("marqueeItems", next);
+                    }}
+                    className="input-field flex-1"
+                    placeholder="e.g. Free Shipping Over Rs. 10,000"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => set("marqueeItems", settings.marqueeItems.filter((_, j) => j !== i))}
+                    className="p-2 hover:bg-rose-50 text-ink-400 hover:text-rose-600 transition-colors rounded"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => set("marqueeItems", [...settings.marqueeItems, ""])}
+              className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 border border-rose-200 px-3 py-1.5 hover:bg-rose-50 transition-colors"
+            >
+              <Plus size={11} /> Add Item
+            </button>
+            <div className="mt-3 p-2 bg-ink-900 rounded-sm overflow-hidden">
+              <p className="text-[10px] text-ink-400 uppercase tracking-widest mb-1.5 px-1">Preview</p>
+              <p className="text-xs text-white font-medium tracking-widest uppercase truncate px-1">
+                {settings.marqueeItems.map((item) => `✦ ${item}`).join(" · ")}
+              </p>
+            </div>
           </Section>
 
           {/* Shipping & Currency */}

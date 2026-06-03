@@ -82,6 +82,8 @@ export default function HeroBanner() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, duration: 28 });
   const [selected, setSelected] = useState(0);
   const [heroMedia, setHeroMedia] = useState<HeroMedia[]>([]);
+  const DEFAULT_MARQUEE = ["100% Authentic K-Beauty", "Free Shipping Over Rs. 10,000", "Free Sample with Every Order", "Islandwide Delivery", "Direct From Seoul"];
+  const [marqueeItems, setMarqueeItems] = useState<string[]>(DEFAULT_MARQUEE);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -89,6 +91,9 @@ export default function HeroBanner() {
       .then((data) => {
         if (Array.isArray(data?.heroSlides) && data.heroSlides.length > 0) {
           setHeroMedia(data.heroSlides.slice(0, slides.length));
+        }
+        if (Array.isArray(data?.marqueeItems) && data.marqueeItems.length > 0) {
+          setMarqueeItems(data.marqueeItems);
         }
       })
       .catch(() => {});
@@ -262,16 +267,12 @@ export default function HeroBanner() {
         <div className="marquee-track marquee-fast">
           {Array.from({ length: 2 }).map((_, idx) => (
             <div key={idx} className="flex items-center gap-12 text-xs uppercase tracking-[0.3em] font-medium whitespace-nowrap pr-12">
-              <span>✦ 100% Authentic K-Beauty</span>
-              <span className="text-rose-400">·</span>
-              <span>✦ Free Shipping Over Rs. 10,000</span>
-              <span className="text-rose-400">·</span>
-              <span>✦ Free Sample with Every Order</span>
-              <span className="text-rose-400">·</span>
-              <span>✦ Islandwide Delivery</span>
-              <span className="text-rose-400">·</span>
-              <span>✦ Direct From Seoul</span>
-              <span className="text-rose-400">·</span>
+              {marqueeItems.map((item, i) => (
+                <span key={i} className="flex items-center gap-12">
+                  <span>✦ {item}</span>
+                  <span className="text-rose-400">·</span>
+                </span>
+              ))}
             </div>
           ))}
         </div>

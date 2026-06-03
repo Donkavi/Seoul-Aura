@@ -69,11 +69,13 @@ export default function ReviewSection({
   }, [lightbox]);
 
   const distribution = ratingDistribution(reviews);
-  const total = reviews.length || initialCount;
-  const average =
-    reviews.length > 0
-      ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
-      : initialAverage;
+  // Use live fetched data once loaded; only use initialCount/Average before first load completes
+  const total = loading ? initialCount : reviews.length;
+  const average = loading
+    ? initialAverage
+    : reviews.length > 0
+    ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+    : 0;
 
   let filtered = filter !== null ? reviews.filter((r) => Math.round(r.rating) === filter) : reviews;
   if (withPhotos) filtered = filtered.filter((r) => (r.images?.length ?? 0) > 0);
