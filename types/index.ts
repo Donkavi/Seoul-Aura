@@ -30,6 +30,7 @@ export interface Product {
   tags: string[];
   concerns: string[];
   variants?: ProductVariant[];
+  active?: boolean;
   isPreOrder?: boolean;
   isFeatured: boolean;
   isBestSeller: boolean;

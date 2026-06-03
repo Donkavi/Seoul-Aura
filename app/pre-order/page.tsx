@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useSession, signIn } from "next-auth/react";
 import {
@@ -24,9 +24,91 @@ import {
   ShoppingBag,
   Loader2,
   ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
+
+interface DbBrand { _id: string; name: string; }
+interface DbProduct { _id: string; name: string; slug: string; images: string[]; }
+
+// ─── Combobox ─────────────────────────────────────────────────────────────────
+function Combobox({
+  value, onChange, options, placeholder, disabled = false,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // keep local query in sync when value changes externally (e.g. cart seed)
+  useEffect(() => { setQuery(value); }, [value]);
+
+  // close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filtered = options.filter((o) => o.toLowerCase().includes(query.toLowerCase()));
+  const exactMatch = options.some((o) => o.toLowerCase() === query.toLowerCase());
+
+  const select = (v: string) => {
+    setQuery(v);
+    onChange(v);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative flex-1">
+      <div className="flex items-center gap-1.5">
+        <input
+          value={query}
+          disabled={disabled}
+          onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          className="flex-1 bg-transparent outline-none text-sm disabled:text-ink-400"
+        />
+        {options.length > 0 && (
+          <button type="button" tabIndex={-1} onClick={() => setOpen((o) => !o)}
+            className="text-ink-300 hover:text-ink-600 flex-shrink-0">
+            <ChevronDown size={13} className={cn("transition-transform", open && "rotate-180")} />
+          </button>
+        )}
+      </div>
+
+      {open && (filtered.length > 0 || (!exactMatch && query.trim())) && (
+        <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-ink-200 rounded-sm shadow-card-hover max-h-52 overflow-y-auto">
+          {filtered.slice(0, 20).map((o) => (
+            <li key={o}>
+              <button type="button" onMouseDown={() => select(o)}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-rose-50 hover:text-rose-700 transition-colors">
+                {o}
+              </button>
+            </li>
+          ))}
+          {!exactMatch && query.trim() && (
+            <li>
+              <button type="button" onMouseDown={() => select(query.trim())}
+                className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 border-t border-ink-100 flex items-center gap-1.5 font-medium">
+                <Plus size={12} /> Use &ldquo;{query.trim()}&rdquo;
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function GoogleIcon() {
   return (
@@ -115,6 +197,27 @@ export default function PreOrderPage() {
   const [error, setError] = useState("");
   const [refs, setRefs] = useState<string[]>([]);
 
+  // DB data for comboboxes
+  const [dbBrands, setDbBrands] = useState<DbBrand[]>([]);
+  const [dbProductsCache, setDbProductsCache] = useState<Record<string, DbProduct[]>>({});
+
+  // Fetch brands once
+  useEffect(() => {
+    fetch("/api/brands").then((r) => r.json()).then((d) => {
+      if (Array.isArray(d)) setDbBrands(d);
+    }).catch(() => {});
+  }, []);
+
+  // Fetch products for a brand (cached)
+  const fetchBrandProducts = useCallback(async (brand: string) => {
+    if (!brand.trim() || dbProductsCache[brand]) return;
+    try {
+      const res = await fetch(`/api/products?brand=${encodeURIComponent(brand)}&limit=100`);
+      const data = await res.json();
+      setDbProductsCache((prev) => ({ ...prev, [brand]: data.products ?? [] }));
+    } catch { /* ignore */ }
+  }, [dbProductsCache]);
+
   // Pre-fill contact from session
   useEffect(() => {
     if (session?.user) {
@@ -132,28 +235,51 @@ export default function PreOrderPage() {
     if (seeded.current) return;
     if (preOrderItems.length > 0) {
       seeded.current = true;
-      setProducts(
-        preOrderItems.map((i) => ({
-          productBrand: i.product.brand || "",
-          productName: i.product.name,
-          productLink:
-            typeof window !== "undefined"
-              ? `${window.location.origin}/shop/${i.product.slug ?? i.product._id}`
-              : "",
-          quantity: String(i.quantity),
-          origin: i.product.origin || "Other",
-          fromCart: true,
-          productId: i.product._id,
-        }))
-      );
+      const rows = preOrderItems.map((i) => ({
+        productBrand: i.product.brand || "",
+        productName: i.product.name,
+        productLink:
+          typeof window !== "undefined"
+            ? `${window.location.origin}/shop/${i.product.slug ?? i.product._id}`
+            : "",
+        quantity: String(i.quantity),
+        origin: i.product.origin || "Other",
+        fromCart: true,
+        productId: i.product._id,
+      }));
+      setProducts(rows);
+      // Pre-fetch products for each brand that's already set
+      rows.forEach((r) => { if (r.productBrand) fetchBrandProducts(r.productBrand); });
     }
-  }, [preOrderItems]);
+  }, [preOrderItems, fetchBrandProducts]);
 
   const updateContact = (key: string, value: string) =>
     setContact((prev) => ({ ...prev, [key]: value }));
 
   const updateRow = (idx: number, key: keyof ProductRow, value: string) =>
     setProducts((rows) => rows.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
+
+  const onBrandChange = (idx: number, brand: string) => {
+    setProducts((rows) => rows.map((r, i) =>
+      i === idx ? { ...r, productBrand: brand, productName: "", productLink: "" } : r
+    ));
+    fetchBrandProducts(brand);
+  };
+
+  const onProductChange = (idx: number, name: string) => {
+    const brand = products[idx].productBrand;
+    const cached = dbProductsCache[brand] ?? [];
+    const matched = cached.find((p) => p.name === name);
+    setProducts((rows) => rows.map((r, i) =>
+      i === idx ? {
+        ...r,
+        productName: name,
+        productLink: matched
+          ? `${typeof window !== "undefined" ? window.location.origin : ""}/shop/${matched.slug ?? matched._id}`
+          : r.productLink,
+      } : r
+    ));
+  };
 
   const addRow = () => setProducts((rows) => [...rows, blankRow()]);
 
@@ -418,19 +544,20 @@ export default function PreOrderPage() {
 
                       <div className="grid sm:grid-cols-2 gap-3">
                         <FormField icon={Sparkles} label="Brand *">
-                          <input
+                          <Combobox
                             value={row.productBrand}
-                            onChange={(e) => updateRow(idx, "productBrand", e.target.value)}
+                            onChange={(v) => onBrandChange(idx, v)}
+                            options={dbBrands.map((b) => b.name)}
                             placeholder="e.g. COSRX"
-                            className="flex-1 bg-transparent outline-none text-sm"
                           />
                         </FormField>
                         <FormField icon={Package} label="Product Name *">
-                          <input
+                          <Combobox
                             value={row.productName}
-                            onChange={(e) => updateRow(idx, "productName", e.target.value)}
-                            placeholder="e.g. Advanced Snail 96 Mucin Essence"
-                            className="flex-1 bg-transparent outline-none text-sm"
+                            onChange={(v) => onProductChange(idx, v)}
+                            options={(dbProductsCache[row.productBrand] ?? []).map((p) => p.name)}
+                            placeholder={row.productBrand ? "Select or type a product" : "Enter brand first"}
+                            disabled={false}
                           />
                         </FormField>
                       </div>

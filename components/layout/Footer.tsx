@@ -1,5 +1,19 @@
 import Link from "next/link";
-import { Instagram, Facebook, Twitter, Mail, Phone } from "lucide-react";
+import { Instagram, Facebook, Mail, Phone } from "lucide-react";
+
+function TikTokIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.78a4.85 4.85 0 0 1-1.01-.09z" />
+    </svg>
+  );
+}
+
+const SOCIAL_LINKS = [
+  { href: "https://www.instagram.com/seoul_aura.lk?utm_source=qr", Icon: Instagram },
+  { href: "https://www.facebook.com/share/1HG2QjnAx2/?mibextid=wwXIfr", Icon: Facebook },
+  { href: "https://www.tiktok.com/@seoul_aura.lk?_r=1&_t=ZS-96cI4KjvXb6", Icon: TikTokIcon },
+];
 
 export default function Footer() {
   return (
@@ -7,17 +21,19 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-16">
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
           <div className="col-span-2 lg:col-span-2">
-            <h3 className="font-display text-3xl text-white mb-3">
-              Seoul<span className="text-rose-400 italic">aura</span>
+            <h3 className="font-display text-2xl lg:text-3xl text-white mb-3 tracking-[0.2em] uppercase font-normal">
+              Seoul <span className="text-[#C08A98]">Aura</span>
             </h3>
             <p className="text-sm text-ink-300 leading-relaxed mb-6 max-w-xs">
               Curated Korean beauty and Dubai specialty foods, delivered with care to your doorstep.
             </p>
             <div className="flex gap-3">
-              {[Instagram, Facebook, Twitter].map((Icon, i) => (
+              {SOCIAL_LINKS.map(({ href, Icon }) => (
                 <a
-                  key={i}
-                  href="#"
+                  key={href}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="w-10 h-10 border border-ink-700 rounded-full flex items-center justify-center hover:bg-rose-600 hover:border-rose-600 transition-all"
                 >
                   <Icon size={16} />
@@ -55,8 +71,9 @@ export default function Footer() {
               Get In Touch
             </h4>
             <ul className="space-y-2.5 text-sm text-ink-300">
-              <li className="flex items-center gap-2"><Phone size={14} /> 077 339 8094</li>
-              <li className="flex items-center gap-2"><Mail size={14} /> hello@seoulaura.lk</li>
+              <li className="flex items-center gap-2"><Phone size={14} /> 074 166 7016</li>
+              <li className="flex items-center gap-2"><Phone size={14} /> 077 904 4891</li>
+              <li className="flex items-center gap-2"><Mail size={14} /> seoulaurateam@gmail.com</li>
             </ul>
           </div>
         </div>

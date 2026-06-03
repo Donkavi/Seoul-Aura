@@ -28,10 +28,9 @@ function layout(content: string) {
           <tr>
             <td style="background:linear-gradient(135deg,#e11d48,#be123c);padding:28px 40px;text-align:center;border-radius:6px 6px 0 0;">
               <a href="${SITE}" style="text-decoration:none;">
-                <span style="font-family:Georgia,serif;font-size:30px;font-weight:400;color:#ffffff;letter-spacing:-0.5px;">
-                  Seoul<em style="color:#fda4af;">aura</em>
+                <span style="font-family:Georgia,serif;font-size:26px;font-weight:400;color:#ffffff;letter-spacing:4px;text-transform:uppercase;">
+                  Seoul <span style="color:#fbcfda;">Aura</span>
                 </span>
-                <div style="font-size:9px;letter-spacing:4px;color:#fda4af;text-transform:uppercase;margin-top:2px;">Korea · You</div>
               </a>
             </td>
           </tr>
