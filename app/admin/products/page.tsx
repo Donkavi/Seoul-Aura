@@ -26,6 +26,7 @@ interface FormState {
   tags: string;
   concerns: string[];
   variants: VariantRow[];
+  active: boolean;
   isPreOrder: boolean;
   isFeatured: boolean;
   isBestSeller: boolean;
@@ -47,6 +48,7 @@ const emptyForm: FormState = {
   tags: "",
   concerns: [],
   variants: [],
+  active: true,
   isPreOrder: false,
   isFeatured: false,
   isBestSeller: false,
@@ -71,7 +73,7 @@ export default function AdminProductsPage() {
 
   const loadData = async () => {
     const [pRes, cRes, concRes, bRes] = await Promise.all([
-      fetch("/api/products?limit=100").then((r) => r.json()),
+      fetch("/api/products?limit=100&admin=true").then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
       fetch("/api/concerns").then((r) => r.json()),
       fetch("/api/brands").then((r) => r.json()),
@@ -158,6 +160,7 @@ export default function AdminProductsPage() {
       tags: p.tags.join(", "),
       concerns: p.concerns ?? [],
       variants: (p.variants ?? []).map((v: ProductVariant) => ({ name: v.name, price: v.price.toString() })),
+      active: p.active ?? true,
       isPreOrder: p.isPreOrder ?? false,
       isFeatured: p.isFeatured,
       isBestSeller: p.isBestSeller,
@@ -223,6 +226,7 @@ export default function AdminProductsPage() {
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Origin</th>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Price</th>
               <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Stock</th>
+              <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Status</th>
               <th className="text-right p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Actions</th>
             </tr>
           </thead>
@@ -259,6 +263,23 @@ export default function AdminProductsPage() {
                     <span className={`text-sm font-medium ${p.stock < 5 ? "text-rose-600" : "text-ink-700"}`}>
                       {p.stock}
                     </span>
+                  </td>
+                  <td className="p-4">
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await fetch(`/api/products/${p._id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ active: !(p.active ?? true) }),
+                        });
+                        await loadData();
+                      }}
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${(p.active ?? true) ? "bg-green-500" : "bg-ink-300"}`}
+                      title={(p.active ?? true) ? "Active — click to deactivate" : "Inactive — click to activate"}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${(p.active ?? true) ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </button>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center justify-end gap-2">
@@ -634,6 +655,23 @@ export default function AdminProductsPage() {
                   </div>
                 )}
                 <p className="text-[11px] text-ink-400 mt-1">Manage concerns in <a href="/admin/concerns" target="_blank" className="text-rose-600 underline">Admin → Concerns</a></p>
+              </div>
+
+              {/* Active toggle — prominent at top of flags */}
+              <div className="flex items-center justify-between bg-ink-50 border border-ink-200 rounded-sm px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-ink-900">Product Status</p>
+                  <p className="text-xs text-ink-500 mt-0.5">
+                    {form.active ? "Visible in shop" : "Hidden from shop"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, active: !form.active })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.active ? "bg-green-500" : "bg-ink-300"}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.active ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
               </div>
 
               <div className="flex flex-wrap gap-4 pt-2">

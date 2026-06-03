@@ -22,6 +22,7 @@ export interface IProduct extends Document {
   tags: string[];
   concerns: string[];
   variants: IProductVariant[];
+  active: boolean;
   isPreOrder: boolean;
   isFeatured: boolean;
   isBestSeller: boolean;
@@ -55,6 +56,7 @@ const ProductSchema = new Schema<IProduct>(
         price: { type: Number, required: true, min: 0 },
       },
     ],
+    active: { type: Boolean, default: true },
     isPreOrder: { type: Boolean, default: false },
     isFeatured: { type: Boolean, default: false },
     isBestSeller: { type: Boolean, default: false },

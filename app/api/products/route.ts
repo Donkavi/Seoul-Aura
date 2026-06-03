@@ -20,7 +20,10 @@ export async function GET(req: NextRequest) {
     const concern = searchParams.get("concern");
     const brand = searchParams.get("brand");
 
+    const adminView = searchParams.get("admin") === "true";
     const query: Record<string, unknown> = {};
+    // Only show active products in the shop; admin view sees all
+    if (!adminView) query.active = true;
     if (type) query.type = type;
     if (subtype) query.subtype = subtype;
     if (origin) query.origin = origin;

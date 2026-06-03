@@ -54,14 +54,9 @@ export default function Header() {
           </button>
 
           <Link href="/" className="flex items-center group">
-            <div className="flex flex-col items-center">
-              <span className="font-display text-3xl font-medium tracking-tight text-ink-900 leading-none">
-                Seoul<span className="text-rose-600 italic">aura</span>
-              </span>
-              <span className="text-[9px] tracking-[0.3em] text-ink-400 uppercase mt-1 font-body">
-                Korea · You
-              </span>
-            </div>
+            <span className="font-display text-xl sm:text-2xl lg:text-[1.7rem] font-normal tracking-[0.2em] text-ink-900 leading-none uppercase whitespace-nowrap">
+              Seoul <span className="text-[#C08A98]">Aura</span>
+            </span>
           </Link>
 
           <nav className="hidden lg:flex items-center gap-7" onMouseLeave={scheduleClose}>

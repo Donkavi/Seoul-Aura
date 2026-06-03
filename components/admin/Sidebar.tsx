@@ -47,10 +47,10 @@ export default function Sidebar() {
     <aside className="w-64 bg-ink-900 text-ink-100 flex-shrink-0 min-h-screen flex flex-col">
       <div className="p-6 border-b border-ink-800">
         <Link href="/admin" className="block">
-          <div className="font-display text-2xl text-white leading-none">
-            Seoul<span className="text-rose-400 italic">aura</span>
+          <div className="font-display text-xl text-white leading-none tracking-[0.18em] uppercase font-normal">
+            Seoul <span className="text-[#C08A98]">Aura</span>
           </div>
-          <p className="text-[10px] uppercase tracking-widest text-ink-400 mt-1.5">Admin Console</p>
+          <p className="text-[10px] uppercase tracking-widest text-ink-400 mt-2">Admin Console</p>
         </Link>
       </div>
 
