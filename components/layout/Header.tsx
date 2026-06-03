@@ -15,11 +15,27 @@ export default function Header() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const closeTimer = useRef<NodeJS.Timeout | null>(null);
+  const [announcement, setAnnouncement] = useState({
+    text: "FREE SAMPLE WITH EVERY ORDER · ISLANDWIDE DELIVERY",
+    enabled: true,
+  });
 
   useEffect(() => {
     fetch("/api/nav-menu")
       .then((r) => r.json())
       .then((data) => Array.isArray(data) && setNavItems(data))
+      .catch(() => { });
+
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && !data.error) {
+          setAnnouncement({
+            text: data.announcementText ?? "FREE SAMPLE WITH EVERY ORDER · ISLANDWIDE DELIVERY",
+            enabled: data.announcementEnabled ?? true,
+          });
+        }
+      })
       .catch(() => { });
   }, []);
 
@@ -35,13 +51,15 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-ink-100">
-      <div className="bg-gradient-to-r from-rose-500 via-rose-600 to-rose-500 text-white text-xs py-2 text-center font-body tracking-wider">
-        <span className="inline-flex items-center gap-2">
-          <Sparkles size={12} />
-          FREE SAMPLE WITH EVERY ORDER · ISLANDWIDE DELIVERY
-          <Sparkles size={12} />
-        </span>
-      </div>
+      {announcement.enabled && (
+        <div className="bg-gradient-to-r from-rose-500 via-rose-600 to-rose-500 text-white text-xs py-2 text-center font-body tracking-wider">
+          <span className="inline-flex items-center gap-2">
+            <Sparkles size={12} />
+            {announcement.text}
+            <Sparkles size={12} />
+          </span>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         <div className="flex items-center justify-between h-20">

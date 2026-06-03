@@ -91,6 +91,7 @@ export default function ProductView({
   const [adding, setAdding] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [zoom, setZoom] = useState(false);
+  const [liveRating, setLiveRating] = useState({ avg: 0, count: 0, ready: false });
 
   const images = product.images?.length ? product.images : [];
   const hasMultiple = images.length > 1;
@@ -123,6 +124,20 @@ export default function ProductView({
   const discount = product.comparePrice
     ? Math.round(((product.comparePrice - activePrice) / product.comparePrice) * 100)
     : 0;
+
+  // Fetch real approved-review stats; don't trust the stored product fields
+  useEffect(() => {
+    fetch(`/api/reviews?productId=${product._id}&approved=true&limit=500`)
+      .then((r) => r.json())
+      .then((data: { rating?: number }[]) => {
+        const list = Array.isArray(data) ? data : [];
+        const avg = list.length
+          ? list.reduce((s, r) => s + (r.rating ?? 0), 0) / list.length
+          : 0;
+        setLiveRating({ avg: Math.round(avg * 10) / 10, count: list.length, ready: true });
+      })
+      .catch(() => setLiveRating({ avg: 0, count: 0, ready: true }));
+  }, [product._id]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -286,10 +301,12 @@ export default function ProductView({
             </div>
 
             <a href="#reviews" className="inline-flex items-center gap-2 mt-3 hover:text-rose-600">
-              <StarRating value={Math.round(product.averageRating)} readOnly size={14} />
+              <StarRating value={Math.round(liveRating.avg)} readOnly size={14} />
               <span className="text-xs text-ink-500">
-                {product.averageRating > 0
-                  ? `${product.averageRating.toFixed(1)} (${product.reviewCount} reviews)`
+                {!liveRating.ready
+                  ? "Loading…"
+                  : liveRating.count > 0
+                  ? `${liveRating.avg.toFixed(1)} (${liveRating.count} reviews)`
                   : "No reviews yet"}
               </span>
             </a>

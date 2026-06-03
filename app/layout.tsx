@@ -9,6 +9,10 @@ export const metadata: Metadata = {
   description:
     "Discover authentic Korean beauty products and Dubai specialty foods. Curated imports, subscription boxes, and more.",
   keywords: ["korean cosmetics", "dubai food", "k-beauty", "import shop", "subscription box"],
+  icons: {
+    icon: "/icon-512.png",
+    apple: "/icon-512.png",
+  },
   openGraph: {
     title: "Seoul Aura | Premium Korean & Dubai Imports",
     description: "Curated Korean beauty & Dubai specialty imports delivered to your door.",

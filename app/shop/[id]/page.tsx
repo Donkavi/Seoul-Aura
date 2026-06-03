@@ -59,8 +59,8 @@ const sampleProduct: Product = {
   isFeatured: false,
   isBestSeller: true,
   isNewArrival: true,
-  averageRating: 5.0,
-  reviewCount: 1,
+  averageRating: 0,
+  reviewCount: 0,
   createdAt: new Date().toISOString(),
 };
 

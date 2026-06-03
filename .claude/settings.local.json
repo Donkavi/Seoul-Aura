@@ -29,7 +29,8 @@
       "Bash(mkdir -p \"c:/Users/DELL/Documents/Seoul-Aura/app/api/auth/[...nextauth]\")",
       "Bash(mkdir -p \"c:/Users/DELL/Documents/Seoul-Aura/app/api/admins/[id]\")",
       "Bash(mkdir -p \"c:\\\\Users\\\\DELL\\\\Documents\\\\Seoul-Aura\\\\app\\\\api\\\\brands\\\\[id]\")",
-      "PowerShell(npm run build 2>&1)"
+      "PowerShell(npm run build 2>&1)",
+      "Bash(curl -s -X POST http://localhost:3000/api/admin/recalc-ratings)"
     ],
     "additionalDirectories": [
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\shop\\[id]",
