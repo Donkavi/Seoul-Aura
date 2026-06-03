@@ -15,29 +15,8 @@ import ProductCard from "@/components/shop/ProductCard";
 import { cn, formatPrice } from "@/lib/utils";
 import type { Product } from "@/types";
 
-const KNOWN_BRANDS = [
-  "COSRX",
-  "ANUA",
-  "Beauty of Joseon",
-  "Medicube",
-  "Innisfree",
-  "Laneige",
-  "Sulwhasoo",
-  "Mielle",
-  "Bateel",
-  "Patchi",
-  "Al Nassma",
-  "Mirzam",
-  "Shin Ramyun",
-  "Pepero",
-];
-
-function extractBrand(name: string): string {
-  const match = KNOWN_BRANDS.find((b) => name.toLowerCase().includes(b.toLowerCase()));
-  return match ?? name.split(/[·\s]/)[0] ?? "Other";
-}
-
 type ViewMode = "grid-large" | "grid" | "list";
+type OrderType = "pre-order" | "regular";
 
 function ShopContent() {
   const router = useRouter();
@@ -53,6 +32,7 @@ function ShopContent() {
     new Set()
   );
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
+  const [selectedOrderTypes, setSelectedOrderTypes] = useState<Set<OrderType>>(new Set());
   const [priceMin, setPriceMin] = useState(0);
   const [priceMax, setPriceMax] = useState(50000);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 50000]);
@@ -120,12 +100,19 @@ function ShopContent() {
   const brandCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     products.forEach((p) => {
-      const b = p.brand || extractBrand(p.name);
-      counts[b] = (counts[b] ?? 0) + 1;
+      if (!p.brand) return; // skip products with no brand set
+      counts[p.brand] = (counts[p.brand] ?? 0) + 1;
     });
     return Object.entries(counts)
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([brand, count]) => ({ brand, count }));
+  }, [products]);
+
+  const orderTypeCounts = useMemo(() => {
+    let preOrder = 0;
+    let regular = 0;
+    products.forEach((p) => (p.isPreOrder ? preOrder++ : regular++));
+    return { preOrder, regular };
   }, [products]);
 
   const availabilityCounts = useMemo(() => {
@@ -147,13 +134,21 @@ function ShopContent() {
     }
 
     if (selectedBrands.size > 0) {
-      result = result.filter((p) => selectedBrands.has(extractBrand(p.name)));
+      result = result.filter((p) => p.brand && selectedBrands.has(p.brand));
+    }
+
+    if (selectedOrderTypes.size > 0) {
+      result = result.filter((p) => {
+        if (selectedOrderTypes.has("pre-order") && p.isPreOrder) return true;
+        if (selectedOrderTypes.has("regular") && !p.isPreOrder) return true;
+        return false;
+      });
     }
 
     result = result.filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1]);
 
     return result;
-  }, [products, availability, selectedBrands, priceRange]);
+  }, [products, availability, selectedBrands, selectedOrderTypes, priceRange]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -184,12 +179,14 @@ function ShopContent() {
   const resetFilters = () => {
     setAvailability(new Set());
     setSelectedBrands(new Set());
+    setSelectedOrderTypes(new Set());
     setPriceRange([priceMin, priceMax]);
   };
 
   const hasActiveFilters =
     availability.size > 0 ||
     selectedBrands.size > 0 ||
+    selectedOrderTypes.size > 0 ||
     priceRange[0] !== priceMin ||
     priceRange[1] !== priceMax;
 
@@ -328,6 +325,27 @@ function ShopContent() {
                     />
                   </div>
                 </div>
+              </FilterGroup>
+
+              <FilterGroup title="Product Type">
+                <ul className="space-y-2.5">
+                  <li>
+                    <Checkbox
+                      checked={selectedOrderTypes.has("regular")}
+                      onChange={() => setSelectedOrderTypes(toggleSet(selectedOrderTypes, "regular"))}
+                      label="Regular Order"
+                      count={orderTypeCounts.regular}
+                    />
+                  </li>
+                  <li>
+                    <Checkbox
+                      checked={selectedOrderTypes.has("pre-order")}
+                      onChange={() => setSelectedOrderTypes(toggleSet(selectedOrderTypes, "pre-order"))}
+                      label="Pre-Order"
+                      count={orderTypeCounts.preOrder}
+                    />
+                  </li>
+                </ul>
               </FilterGroup>
 
               {brandCounts.length > 0 && (
