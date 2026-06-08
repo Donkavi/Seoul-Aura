@@ -23,10 +23,10 @@ const DEFAULT_SECTION_ORDER = [
 interface SiteSettings {
   homeSections: { id: string; enabled: boolean; order: number }[];
   heroSlides: {
-    url: string; type: string; label: string;
+    url: string; type: "image" | "video"; label: string;
     badge: string; title: string; highlight: string;
     subtitle: string; description: string;
-    cta: string; ctaHref: string; align: string;
+    cta: string; ctaHref: string; align: "left" | "right";
     showText: boolean; showButton: boolean;
   }[];
   marqueeItems: string[];
@@ -48,7 +48,11 @@ async function getSettings(): Promise<SiteSettings> {
     if (!s) return defaults;
     return {
       homeSections: s.homeSections?.length ? s.homeSections : defaults.homeSections,
-      heroSlides: s.heroSlides ?? [],
+      heroSlides: (s.heroSlides ?? []).map((sl) => ({
+        ...sl,
+        type: (sl.type === "video" ? "video" : "image") as "image" | "video",
+        align: (sl.align === "right" ? "right" : "left") as "left" | "right",
+      })),
       marqueeItems: s.marqueeItems ?? [],
       sliderShowArrows: s.sliderShowArrows ?? true,
       sliderShowDots: s.sliderShowDots ?? true,
