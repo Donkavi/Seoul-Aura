@@ -8,7 +8,7 @@ import type { Brand } from "@/types";
 interface FormState {
   name: string;
   logo: string;
-  origin: "Korea" | "Dubai" | "Other";
+  origin: "Korea" | "Dubai" | "Global" | "Other";
   description: string;
   active: boolean;
 }
@@ -157,6 +157,7 @@ export default function AdminBrandsPage() {
                 <select value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value as FormState["origin"] })} className="input-field">
                   <option value="Korea">Korea 🇰🇷</option>
                   <option value="Dubai">Dubai 🇦🇪</option>
+                  <option value="Global">Global 🌐</option>
                   <option value="Other">Other</option>
                 </select>
               </div>

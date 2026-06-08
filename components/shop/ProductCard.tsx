@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useState } from "react";
 import { ShoppingBag, Heart, Star } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
@@ -11,6 +12,7 @@ import type { Product } from "@/types";
 export default function ProductCard({ product, priority = false }: { product: Product; priority?: boolean }) {
   const { addItem } = useCart();
   const { has: inWishlist, toggle: toggleWishlist } = useWishlist();
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -33,15 +35,23 @@ export default function ProductCard({ product, priority = false }: { product: Pr
 
   return (
     <Link href={`/shop/${product.slug ?? product._id}`} className="card-product block group">
-      <div className="relative aspect-[3/4] bg-rose-25 overflow-hidden">
+      <div className="relative aspect-[3/4] bg-ink-100 overflow-hidden">
+        {/* Shimmer skeleton shown until image loads */}
+        {!imgLoaded && (
+          <div className="absolute inset-0 z-10 bg-gradient-to-r from-ink-100 via-ink-50 to-ink-100 animate-shimmer bg-[length:200%_100%]" />
+        )}
         {product.images?.[0] ? (
           <Image
             src={product.images[0]}
             alt={product.name}
             fill
-            className="object-cover group-hover:scale-105 transition-transform duration-700"
+            className={cn(
+              "object-cover group-hover:scale-105 transition-transform duration-700",
+              imgLoaded ? "opacity-100" : "opacity-0"
+            )}
             sizes="(max-width: 768px) 50vw, 20vw"
             priority={priority}
+            onLoad={() => setImgLoaded(true)}
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-rose-100 to-rose-200" />
