@@ -315,8 +315,8 @@ export default function ProductView({
                 {!liveRating.ready
                   ? "Loading…"
                   : liveRating.count > 0
-                  ? `${liveRating.avg.toFixed(1)} (${liveRating.count} reviews)`
-                  : "No reviews yet"}
+                    ? `${liveRating.avg.toFixed(1)} (${liveRating.count} reviews)`
+                    : "No reviews yet"}
               </span>
             </a>
           </div>
@@ -395,8 +395,7 @@ export default function ProductView({
               </div>
             )}
             <p className="text-xs text-ink-500 mt-2">
-              <Link href="/shipping" className="underline hover:text-rose-600">Shipping</Link>{" "}
-              calculated at checkout.
+              Shipping calculated at checkout.
             </p>
           </div>
 
