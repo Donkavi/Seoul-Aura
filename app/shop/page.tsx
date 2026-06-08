@@ -23,7 +23,7 @@ function ShopContent() {
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [sort, setSort] = useState("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -50,7 +50,10 @@ function ShopContent() {
     [searchParams]
   );
 
+  const searchQuery = searchParams.get("search") ?? "";
+
   const pageTitle = useMemo(() => {
+    if (searchQuery) return `Search: "${searchQuery}"`;
     if (filters.brand === "all") return "Shop by Brand";
     if (filters.brand) return filters.brand;
     if (filters.concern)
@@ -63,7 +66,12 @@ function ShopContent() {
     if (filters.filter === "bestseller") return "Bestsellers";
     if (filters.filter === "new") return "New Arrivals";
     return "Shop All";
-  }, [filters]);
+  }, [filters, searchQuery]);
+
+  // Keep search in sync when the URL ?search= changes (e.g. header search)
+  useEffect(() => {
+    setSearch(searchParams.get("search") ?? "");
+  }, [searchParams]);
 
   useEffect(() => {
     setLoading(true);

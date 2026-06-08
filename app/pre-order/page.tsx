@@ -567,7 +567,7 @@ export default function PreOrderPage() {
                           type="url"
                           value={row.productLink}
                           onChange={(e) => updateRow(idx, "productLink", e.target.value)}
-                          placeholder="https://... (Olive Young, Amazon, Instagram, etc.)"
+                          placeholder="https://... (Nolimit, Waxworks, Glam Lanka, House of Makeup, etc.)"
                           className="flex-1 bg-transparent outline-none text-sm"
                         />
                       </FormField>

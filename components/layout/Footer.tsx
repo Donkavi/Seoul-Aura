@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Instagram, Facebook, Mail, Phone } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -62,12 +63,19 @@ export default function Footer() {
   return (
     <footer className="bg-ink-900 text-ink-100">
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-16">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
-          <div className="col-span-2 lg:col-span-2">
-            <h3 className="font-display text-2xl lg:text-3xl text-white mb-3 tracking-[0.2em] uppercase font-normal">
-              Seoul <span className="text-[#C08A98]">Aura</span>
-            </h3>
-            <p className="text-sm text-ink-300 leading-relaxed mb-6 max-w-xs">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12 items-start">
+          {/* Logo + Tagline + Social */}
+          <div className="md:col-span-2">
+            <Link href="/" className="inline-block">
+              <Image
+                src="/logo_white.png"
+                alt="Seoul Aura"
+                width={300}
+                height={150}
+                className="h-44 w-auto object-contain -mt-10 -mb-8 -ml-4"
+              />
+            </Link>
+            <p className="text-sm text-ink-300 leading-relaxed mb-5 max-w-xs">
               Curated Korean beauty and Dubai specialty foods, delivered with care to your doorstep.
             </p>
             <div className="flex gap-3">
@@ -85,6 +93,7 @@ export default function Footer() {
             </div>
           </div>
 
+          {/* Discover */}
           <div>
             <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
               Discover
@@ -97,18 +106,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          <div>
-            <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
-              Shipping
-            </h4>
-            <ul className="space-y-2.5 text-sm text-ink-300">
-              <li><Link href="/shipping" className="hover:text-rose-300 transition-colors">Shipping Policy</Link></li>
-              <li><Link href="/returns" className="hover:text-rose-300 transition-colors">Returns</Link></li>
-              <li><Link href="/tracking" className="hover:text-rose-300 transition-colors">Track Order</Link></li>
-              <li><Link href="/subscriptions" className="hover:text-rose-300 transition-colors">Subscriptions</Link></li>
-            </ul>
-          </div>
-
+          {/* Get In Touch */}
           <div>
             <h4 className="text-sm font-semibold text-white uppercase tracking-wider mb-4">
               Get In Touch

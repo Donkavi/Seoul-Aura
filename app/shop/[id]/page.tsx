@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { connectDB } from "@/lib/mongodb";
 import ProductModel from "@/models/Product";
+import Settings from "@/models/Settings";
 import ReviewSection from "@/components/product/ReviewSection";
 import ProductView from "./ProductView";
 import RecentlyViewed from "./RecentlyViewed";
@@ -18,6 +19,53 @@ async function getProduct(id: string): Promise<Product | null> {
     return JSON.parse(JSON.stringify(product));
   } catch {
     return null;
+  }
+}
+
+const DEFAULT_BADGES = [
+  { icon: "truck", text: "Delivery Charge LKR 350", enabled: true },
+  { icon: "shield", text: "Guaranteed 100% Authentic Products", enabled: true },
+  { icon: "globe", text: "Imported From {origin}", enabled: true },
+  { icon: "lock", text: "Secure Payments", enabled: true },
+];
+
+const DEFAULT_ACCORDIONS = [
+  {
+    label: "Shipping Information",
+    content:
+      "Free islandwide shipping on orders above Rs. 5,000.\nStandard delivery: 3-5 business days · Express: 1-2 business days.\nSame-day delivery available within Colombo for orders placed before 12 PM.",
+    enabled: true,
+  },
+  {
+    label: "Ask a Question",
+    content:
+      "Have a question? Reach out via WhatsApp or email:\n📱 074 166 7016 · ✉️ seoulaurateam@gmail.com\nWe reply within 24 hours, Mon–Sat.",
+    enabled: true,
+  },
+];
+
+async function getProductPageSettings(): Promise<{
+  showMintpay: boolean;
+  showKoko: boolean;
+  productBadges: { icon: string; text: string; enabled: boolean }[];
+  productAccordions: { label: string; content: string; enabled: boolean }[];
+}> {
+  try {
+    await connectDB();
+    const s = await Settings.findOne().lean() as {
+      showMintpay?: boolean;
+      showKoko?: boolean;
+      productBadges?: { icon: string; text: string; enabled: boolean }[];
+      productAccordions?: { label: string; content: string; enabled: boolean }[];
+    } | null;
+    return {
+      showMintpay: s?.showMintpay ?? true,
+      showKoko: s?.showKoko ?? true,
+      productBadges: s?.productBadges?.length ? s.productBadges : DEFAULT_BADGES,
+      productAccordions: s?.productAccordions?.length ? s.productAccordions : DEFAULT_ACCORDIONS,
+    };
+  } catch {
+    return { showMintpay: true, showKoko: true, productBadges: DEFAULT_BADGES, productAccordions: DEFAULT_ACCORDIONS };
   }
 }
 
@@ -70,7 +118,10 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
   if (!product) notFound();
 
-  const related = fetched ? await getRelated(fetched) : [];
+  const [related, productPageSettings] = await Promise.all([
+    fetched ? getRelated(fetched) : Promise.resolve([]),
+    getProductPageSettings(),
+  ]);
 
   return (
     <div className="bg-white">
@@ -84,7 +135,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
         <span className="text-ink-900 truncate">{product.name}</span>
       </nav>
 
-      <ProductView product={product} related={related} />
+      <ProductView
+        product={product}
+        related={related}
+        showMintpay={productPageSettings.showMintpay}
+        showKoko={productPageSettings.showKoko}
+        productBadges={productPageSettings.productBadges}
+        productAccordions={productPageSettings.productAccordions}
+      />
 
       <ReviewSection
         productId={product._id}

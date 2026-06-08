@@ -30,7 +30,16 @@ export async function GET(req: NextRequest) {
     if (featured === "true") query.isFeatured = true;
     if (bestSeller === "true") query.isBestSeller = true;
     if (newArrival === "true") query.isNewArrival = true;
-    if (search) query.name = { $regex: search, $options: "i" };
+    if (search) {
+      const rx = { $regex: search, $options: "i" };
+      query.$or = [
+        { name: rx },
+        { brand: rx },
+        { description: rx },
+        { shortDescription: rx },
+        { tags: { $in: [new RegExp(search, "i")] } },
+      ];
+    }
     if (tag) query.tags = { $in: [new RegExp(tag, "i")] };
     if (concern) query.concerns = { $in: [new RegExp(concern, "i")] };
     // brand=all → no brand filter (show everything); brand=X → filter by brand field
