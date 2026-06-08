@@ -1,14 +1,28 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import { Search, ShoppingBag, User, Heart, Menu, X, Sparkles, ChevronDown } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { cn } from "@/lib/utils";
 import type { NavMenuItem } from "@/types";
 
 export default function Header() {
+  const router = useRouter();
   const { itemCount, openDrawer } = useCart();
+  const { count: wishlistCount } = useWishlist();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    setSearchOpen(false);
+    router.push(`/shop?search=${encodeURIComponent(q)}`);
+  };
   const [navItems, setNavItems] = useState<NavMenuItem[]>([]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -72,9 +86,14 @@ export default function Header() {
           </button>
 
           <Link href="/" className="flex items-center group">
-            <span className="font-display text-xl sm:text-2xl lg:text-[1.7rem] font-normal tracking-[0.2em] text-ink-900 leading-none uppercase whitespace-nowrap">
-              Seoul <span className="text-[#C08A98]">Aura</span>
-            </span>
+            <Image
+              src="/logo.png"
+              alt="Seoul Aura"
+              width={700}
+              height={350}
+              className="h-52 w-auto object-contain"
+              priority
+            />
           </Link>
 
           <nav className="hidden lg:flex items-center gap-7" onMouseLeave={scheduleClose}>
@@ -115,8 +134,13 @@ export default function Header() {
             <Link href="/account" className="p-2 hover:text-rose-600">
               <User size={20} className="text-ink-700" />
             </Link>
-            <Link href="/wishlist" className="hidden sm:block p-2 hover:text-rose-600">
+            <Link href="/wishlist" className="hidden sm:block relative p-2 hover:text-rose-600">
               <Heart size={20} className="text-ink-700" />
+              {wishlistCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-rose-600 text-white text-[10px] font-semibold w-5 h-5 rounded-full flex items-center justify-center">
+                  {wishlistCount}
+                </span>
+              )}
             </Link>
             <button
               className="relative p-2 hover:text-rose-600 transition-colors"
@@ -134,23 +158,26 @@ export default function Header() {
         </div>
 
         {searchOpen && (
-          <div className="border-t border-ink-100 py-4 animate-fade-in">
+          <form onSubmit={submitSearch} className="border-t border-ink-100 py-4 animate-fade-in">
             <div className="relative max-w-2xl mx-auto">
               <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400" />
               <input
                 type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search products, brands, ingredients..."
                 className="w-full bg-ink-50 border-0 rounded-sm pl-12 pr-12 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-200"
                 autoFocus
               />
               <button
-                onClick={() => setSearchOpen(false)}
+                type="button"
+                onClick={() => { setSearchOpen(false); setSearchQuery(""); }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1"
               >
                 <X size={18} className="text-ink-400" />
               </button>
             </div>
-          </div>
+          </form>
         )}
       </div>
 

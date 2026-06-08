@@ -4,16 +4,24 @@ import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, Heart, Star } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
 export default function ProductCard({ product, priority = false }: { product: Product; priority?: boolean }) {
   const { addItem } = useCart();
+  const { has: inWishlist, toggle: toggleWishlist } = useWishlist();
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     addItem(product, 1);
+  };
+
+  const handleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleWishlist(product);
   };
 
   const discount = product.comparePrice
@@ -66,11 +74,17 @@ export default function ProductCard({ product, priority = false }: { product: Pr
         )}
 
         <button
-          className="absolute top-3 right-3 w-9 h-9 bg-white/90 backdrop-blur rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-rose-50"
-          aria-label="Add to wishlist"
-          onClick={(e) => e.preventDefault()}
+          className={cn(
+            "absolute top-3 right-3 w-9 h-9 bg-white/90 backdrop-blur rounded-full flex items-center justify-center transition-opacity duration-300 hover:bg-rose-50",
+            inWishlist(product._id) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}
+          aria-label={inWishlist(product._id) ? "Remove from wishlist" : "Add to wishlist"}
+          onClick={handleWishlist}
         >
-          <Heart size={15} className="text-ink-700" />
+          <Heart
+            size={15}
+            className={cn(inWishlist(product._id) ? "fill-rose-600 text-rose-600" : "text-ink-700")}
+          />
         </button>
 
         {isPreOrder ? (

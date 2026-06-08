@@ -11,7 +11,50 @@ import PreOrderCTA from "@/components/home/PreOrderCTA";
 import CommunityStats from "@/components/home/CommunityStats";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
+import Settings from "@/models/Settings";
 import type { Product as ProductType } from "@/types";
+
+const DEFAULT_SECTION_ORDER = [
+  "hero", "new-arrivals", "community-stats", "skin-concerns", "k-beauty",
+  "video-showcase", "best-sellers", "hair-care", "trending", "pre-order",
+  "brands", "trust-badges", "reviews", "newsletter",
+];
+
+interface SiteSettings {
+  homeSections: { id: string; enabled: boolean; order: number }[];
+  heroSlides: {
+    url: string; type: string; label: string;
+    badge: string; title: string; highlight: string;
+    subtitle: string; description: string;
+    cta: string; ctaHref: string; align: string;
+    showText: boolean; showButton: boolean;
+  }[];
+  marqueeItems: string[];
+  sliderShowArrows: boolean;
+  sliderShowDots: boolean;
+}
+
+async function getSettings(): Promise<SiteSettings> {
+  const defaults: SiteSettings = {
+    homeSections: DEFAULT_SECTION_ORDER.map((id, order) => ({ id, enabled: true, order })),
+    heroSlides: [],
+    marqueeItems: [],
+    sliderShowArrows: true,
+    sliderShowDots: true,
+  };
+  try {
+    await connectDB();
+    const s = await Settings.findOne().lean() as Partial<SiteSettings> | null;
+    if (!s) return defaults;
+    return {
+      homeSections: s.homeSections?.length ? s.homeSections : defaults.homeSections,
+      heroSlides: s.heroSlides ?? [],
+      marqueeItems: s.marqueeItems ?? [],
+      sliderShowArrows: s.sliderShowArrows ?? true,
+      sliderShowDots: s.sliderShowDots ?? true,
+    };
+  } catch { return defaults; }
+}
 
 export const revalidate = 60;
 
@@ -223,64 +266,40 @@ const sampleProducts: ProductType[] = [
 ];
 
 export default async function HomePage() {
-  const { newArrivals, bestSellers, kBeauty, hairCare } = await getProducts();
+  const [{ newArrivals, bestSellers, kBeauty, hairCare }, settings] = await Promise.all([
+    getProducts(),
+    getSettings(),
+  ]);
+  const { homeSections: sections, heroSlides, marqueeItems, sliderShowArrows, sliderShowDots } = settings;
 
-  // Only use sample data if DB returned nothing at all (empty catalog)
   const arrivals = newArrivals.length ? newArrivals : sampleProducts.slice(0, 5);
   const best = bestSellers.length ? bestSellers : sampleProducts.filter((p) => p.isBestSeller).slice(0, 5);
   const beauty = kBeauty.length ? kBeauty : sampleProducts.slice(0, 5);
   const hair = hairCare.length ? hairCare : sampleProducts.filter((p) => p.subtype === "Haircare");
 
+  const renderSection = (id: string) => {
+    switch (id) {
+      case "hero":           return <HeroBanner key={id} heroSlides={heroSlides} marqueeItems={marqueeItems} showArrows={sliderShowArrows} showDots={sliderShowDots} />;
+      case "new-arrivals":   return <ProductSection key={id} title="New Arrivals" subtitle="Freshly Imported" viewAllHref="/shop?filter=new" products={arrivals} />;
+      case "community-stats": return <CommunityStats key={id} />;
+      case "skin-concerns":  return <SkinConcerns key={id} />;
+      case "k-beauty":       return <ProductSection key={id} title="Best of K-Beauty" subtitle="Top Picks from Seoul" viewAllHref="/shop?origin=Korea" products={beauty} />;
+      case "video-showcase": return <VideoShowcase key={id} />;
+      case "best-sellers":   return <ProductSection key={id} title="Best Sellers" subtitle="Customer Favorites" viewAllHref="/shop?filter=bestseller" products={best} />;
+      case "hair-care":      return <ProductSection key={id} title="Hair Care" subtitle="Nourish & Strengthen" viewAllHref="/shop?subtype=Haircare" products={hair} />;
+      case "trending":       return <TrendingSection key={id} />;
+      case "pre-order":      return <PreOrderCTA key={id} />;
+      case "brands":         return <BrandSection key={id} />;
+      case "trust-badges":   return <TrustBadges key={id} />;
+      case "reviews":        return <ReviewCarousel key={id} />;
+      case "newsletter":     return <Newsletter key={id} />;
+      default:               return null;
+    }
+  };
 
-  return (
-    <>
-      <HeroBanner />
+  const orderedSections = [...sections]
+    .filter((s) => s.enabled)
+    .sort((a, b) => a.order - b.order);
 
-      <ProductSection
-        title="New Arrivals"
-        subtitle="Freshly Imported"
-        viewAllHref="/shop?filter=new"
-        products={arrivals}
-      />
-
-      <CommunityStats />
-
-      <SkinConcerns />
-
-      <ProductSection
-        title="Best of K-Beauty"
-        subtitle="Top Picks from Seoul"
-        viewAllHref="/shop?origin=Korea"
-        products={beauty}
-      />
-
-      <VideoShowcase />
-
-      <ProductSection
-        title="Best Sellers"
-        subtitle="Customer Favorites"
-        viewAllHref="/shop?filter=bestseller"
-        products={best}
-      />
-
-      <ProductSection
-        title="Hair Care"
-        subtitle="Nourish & Strengthen"
-        viewAllHref="/shop?subtype=Haircare"
-        products={hair}
-      />
-
-      <TrendingSection />
-
-      <PreOrderCTA />
-
-      <BrandSection />
-
-      <TrustBadges />
-
-      <ReviewCarousel />
-
-      <Newsletter />
-    </>
-  );
+  return <>{orderedSections.map((s) => renderSection(s.id))}</>;
 }

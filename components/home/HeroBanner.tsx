@@ -10,6 +10,16 @@ import { cn } from "@/lib/utils";
 interface HeroMedia {
   url: string;
   type: "image" | "video";
+  badge?: string;
+  title?: string;
+  highlight?: string;
+  subtitle?: string;
+  description?: string;
+  cta?: string;
+  ctaHref?: string;
+  align?: "left" | "right";
+  showText?: boolean;
+  showButton?: boolean;
 }
 
 interface Slide {
@@ -78,26 +88,21 @@ const slides: Slide[] = [
   },
 ];
 
-export default function HeroBanner() {
+interface HeroBannerProps {
+  heroSlides?: HeroMedia[];
+  marqueeItems?: string[];
+  showArrows?: boolean;
+  showDots?: boolean;
+}
+
+const DEFAULT_MARQUEE = ["100% Authentic K-Beauty", "Free Shipping Over Rs. 10,000", "Free Sample with Every Order", "Islandwide Delivery", "Direct From Seoul"];
+
+export default function HeroBanner({ heroSlides = [], marqueeItems = [], showArrows = true, showDots = true }: HeroBannerProps) {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, duration: 28 });
   const [selected, setSelected] = useState(0);
-  const [heroMedia, setHeroMedia] = useState<HeroMedia[]>([]);
-  const DEFAULT_MARQUEE = ["100% Authentic K-Beauty", "Free Shipping Over Rs. 10,000", "Free Sample with Every Order", "Islandwide Delivery", "Direct From Seoul"];
-  const [marqueeItems, setMarqueeItems] = useState<string[]>(DEFAULT_MARQUEE);
 
-  useEffect(() => {
-    fetch("/api/settings")
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data?.heroSlides) && data.heroSlides.length > 0) {
-          setHeroMedia(data.heroSlides.slice(0, slides.length));
-        }
-        if (Array.isArray(data?.marqueeItems) && data.marqueeItems.length > 0) {
-          setMarqueeItems(data.marqueeItems);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const heroMedia = heroSlides.slice(0, slides.length);
+  const marqueeList = marqueeItems.length ? marqueeItems : DEFAULT_MARQUEE;
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -113,7 +118,20 @@ export default function HeroBanner() {
     <section className="relative">
       <div className="overflow-hidden" ref={emblaRef}>
         <div className="flex">
-          {slides.map((slide, i) => (
+          {slides.map((slide, i) => {
+            const cfg = heroMedia[i];
+            const align = cfg?.align || slide.align;
+            const showText = cfg ? (cfg.showText ?? true) : true;
+            const showButton = cfg ? (cfg.showButton ?? true) : true;
+            const badge = cfg?.badge || slide.badge;
+            const title = cfg?.title || slide.title;
+            const highlight = cfg?.highlight || slide.highlight;
+            const subtitle = cfg?.subtitle || slide.subtitle;
+            const description = cfg?.description || slide.description;
+            const cta = cfg?.cta || slide.cta;
+            const ctaHref = cfg?.ctaHref || slide.ctaHref;
+
+            return (
             <div
               key={i}
               className={cn(
@@ -121,52 +139,56 @@ export default function HeroBanner() {
                 slide.bgGradient
               )}
             >
-              {heroMedia[i]?.type === "video" ? (
+              {cfg?.type === "video" ? (
                 <video
-                  src={heroMedia[i].url}
+                  src={cfg.url}
                   autoPlay
                   muted
                   loop
                   playsInline
                   className={cn(
                     "absolute inset-0 w-full h-full object-cover",
-                    slide.align === "left" ? "object-right" : "object-left"
+                    align === "left" ? "object-right" : "object-left"
                   )}
                 />
               ) : (
                 <Image
-                  src={heroMedia[i]?.url ?? slide.image}
-                  alt={slide.title}
+                  src={cfg?.url ?? slide.image}
+                  alt={title}
                   fill
                   className={cn(
                     "object-cover",
-                    slide.align === "left" ? "object-right" : "object-left"
+                    align === "left" ? "object-right" : "object-left"
                   )}
                   sizes="100vw"
                   priority={i === 0}
                 />
               )}
 
-              <div
-                className={cn(
-                  "absolute inset-0 bg-gradient-to-r",
-                  slide.align === "left"
-                    ? "from-white via-white/85 to-transparent"
-                    : "from-transparent via-white/85 to-white"
-                )}
-              />
+              {showText && (
+                <div
+                  className={cn(
+                    "absolute inset-0 bg-gradient-to-r",
+                    align === "left"
+                      ? "from-white via-white/85 to-transparent"
+                      : "from-transparent via-white/85 to-white"
+                  )}
+                />
+              )}
 
               <div className="relative h-full max-w-7xl mx-auto px-4 lg:px-8 flex items-center">
+                {showText && (
                 <div
                   className={cn(
                     "max-w-xl space-y-5 animate-fade-up",
-                    slide.align === "right" && "ml-auto text-right"
+                    align === "right" && "ml-auto text-right"
                   )}
                 >
+                  {badge && (
                   <div
                     className={cn(
                       "inline-flex items-center gap-2 bg-white/80 backdrop-blur px-4 py-2 rounded-full border border-ink-100",
-                      slide.align === "right" && "ml-auto"
+                      align === "right" && "ml-auto"
                     )}
                   >
                     <span
@@ -176,9 +198,10 @@ export default function HeroBanner() {
                       )}
                     />
                     <span className="text-[10px] font-semibold tracking-widest uppercase text-ink-700">
-                      {slide.badge}
+                      {badge}
                     </span>
                   </div>
+                  )}
 
                   <h1
                     className={cn(
@@ -186,88 +209,102 @@ export default function HeroBanner() {
                       slide.textColor
                     )}
                   >
-                    {slide.title}{" "}
+                    {title}{" "}
                     <span className={cn("italic", slide.accentColor)}>
-                      {slide.highlight}
+                      {highlight}
                     </span>
+                    {subtitle && (
                     <span className="block text-2xl md:text-3xl font-light text-ink-500 mt-3">
-                      {slide.subtitle}
+                      {subtitle}
                     </span>
+                    )}
                   </h1>
 
+                  {description && (
                   <p
                     className={cn(
                       "text-base lg:text-lg text-ink-600 leading-relaxed",
-                      slide.align === "right" ? "ml-auto max-w-md" : "max-w-md"
+                      align === "right" ? "ml-auto max-w-md" : "max-w-md"
                     )}
                   >
-                    {slide.description}
+                    {description}
                   </p>
+                  )}
 
+                  {showButton && cta && (
                   <div
                     className={cn(
                       "flex gap-3 pt-2",
-                      slide.align === "right" && "justify-end"
+                      align === "right" && "justify-end"
                     )}
                   >
                     <Link
-                      href={slide.ctaHref}
+                      href={ctaHref}
                       className="bg-ink-900 hover:bg-rose-600 text-white font-medium px-7 py-3.5 text-sm tracking-wide transition-all duration-300 inline-flex items-center gap-2 group"
                     >
-                      {slide.cta}
+                      {cta}
                       <ArrowRight
                         size={16}
                         className="group-hover:translate-x-1 transition-transform"
                       />
                     </Link>
                   </div>
+                  )}
                 </div>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      <button
-        onClick={() => emblaApi?.scrollPrev()}
-        aria-label="Previous slide"
-        className="absolute left-3 lg:left-8 top-1/2 -translate-y-1/2 w-11 h-11 lg:w-12 lg:h-12 bg-white/70 hover:bg-white backdrop-blur rounded-full flex items-center justify-center shadow-card transition-all hover:scale-110 z-10"
-      >
-        <ChevronLeft size={20} className="text-ink-900" />
-      </button>
-      <button
-        onClick={() => emblaApi?.scrollNext()}
-        aria-label="Next slide"
-        className="absolute right-3 lg:right-8 top-1/2 -translate-y-1/2 w-11 h-11 lg:w-12 lg:h-12 bg-white/70 hover:bg-white backdrop-blur rounded-full flex items-center justify-center shadow-card transition-all hover:scale-110 z-10"
-      >
-        <ChevronRight size={20} className="text-ink-900" />
-      </button>
-
-      <div className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
-        {slides.map((_slide, i) => (
+      {showArrows && (
+        <>
           <button
-            key={i}
-            onClick={() => emblaApi?.scrollTo(i)}
-            aria-label={`Go to slide ${i + 1}`}
-            className="group p-1"
+            onClick={() => emblaApi?.scrollPrev()}
+            aria-label="Previous slide"
+            className="absolute left-3 lg:left-8 top-1/2 -translate-y-1/2 w-11 h-11 lg:w-12 lg:h-12 bg-white/70 hover:bg-white backdrop-blur rounded-full flex items-center justify-center shadow-card transition-all hover:scale-110 z-10"
           >
-            <span
-              className={cn(
-                "block h-1 rounded-full transition-all duration-500",
-                i === selected
-                  ? "w-10 bg-ink-900"
-                  : "w-5 bg-ink-300 group-hover:bg-ink-500"
-              )}
-            />
+            <ChevronLeft size={20} className="text-ink-900" />
           </button>
-        ))}
-      </div>
+          <button
+            onClick={() => emblaApi?.scrollNext()}
+            aria-label="Next slide"
+            className="absolute right-3 lg:right-8 top-1/2 -translate-y-1/2 w-11 h-11 lg:w-12 lg:h-12 bg-white/70 hover:bg-white backdrop-blur rounded-full flex items-center justify-center shadow-card transition-all hover:scale-110 z-10"
+          >
+            <ChevronRight size={20} className="text-ink-900" />
+          </button>
+        </>
+      )}
+
+      {showDots && (
+        <div className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-2 z-10">
+          {slides.map((_slide, i) => (
+            <button
+              key={i}
+              onClick={() => emblaApi?.scrollTo(i)}
+              aria-label={`Go to slide ${i + 1}`}
+              className="group p-1"
+            >
+              <span
+                className={cn(
+                  "block h-1 rounded-full transition-all duration-500",
+                  i === selected
+                    ? "w-10 bg-ink-900"
+                    : "w-5 bg-ink-300 group-hover:bg-ink-500"
+                )}
+              />
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="bg-ink-900 text-white py-3 overflow-hidden">
         <div className="marquee-track marquee-fast">
           {Array.from({ length: 2 }).map((_, idx) => (
             <div key={idx} className="flex items-center gap-12 text-xs uppercase tracking-[0.3em] font-medium whitespace-nowrap pr-12">
-              {marqueeItems.map((item, i) => (
+              {marqueeList.map((item, i) => (
                 <span key={i} className="flex items-center gap-12">
                   <span>✦ {item}</span>
                   <span className="text-rose-400">·</span>

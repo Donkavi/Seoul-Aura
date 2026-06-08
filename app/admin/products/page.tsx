@@ -2,13 +2,56 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Plus, Pencil, Trash2, Search, X, Package, Check } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, Package, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product, Category, Concern, ProductVariant, Brand } from "@/types";
 
 interface VariantRow {
   name: string;
   price: string;
+}
+
+interface DescSection {
+  title: string;
+  content: string;
+}
+
+const PRESET_TITLES = [
+  "What It Is",
+  "Product Benefits",
+  "Skin Type",
+  "Key Ingredients",
+  "How To Use",
+  "Size",
+  "Net Weight",
+  "Country of Origin",
+  "Custom",
+];
+
+function sectionsToDescription(sections: DescSection[]): string {
+  return sections
+    .filter((s) => s.title.trim())
+    .map((s) => `${s.title.trim()}:\n${s.content.trim()}`)
+    .join("\n\n");
+}
+
+function descriptionToSections(desc: string): DescSection[] {
+  if (!desc) return [];
+  const lines = desc.split(/\r?\n/).map((l) => l.trim());
+  const sections: DescSection[] = [];
+  let currentTitle = "";
+  let currentLines: string[] = [];
+  for (const line of lines) {
+    if (/^.{1,50}:$/.test(line)) {
+      if (currentTitle) sections.push({ title: currentTitle.replace(/:$/, ""), content: currentLines.join("\n") });
+      currentTitle = line;
+      currentLines = [];
+    } else if (line) {
+      currentLines.push(line);
+    }
+  }
+  if (currentTitle) sections.push({ title: currentTitle.replace(/:$/, ""), content: currentLines.join("\n") });
+  return sections;
 }
 
 interface FormState {
@@ -66,6 +109,8 @@ export default function AdminProductsPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | "regular" | "preorder">("all");
   const [loading, setLoading] = useState(false);
+  const [descSections, setDescSections] = useState<DescSection[]>([]);
+  const [showRawDesc, setShowRawDesc] = useState(false);
   // Inline new brand
   const [addingBrand, setAddingBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
@@ -105,9 +150,31 @@ export default function AdminProductsPage() {
     }
   };
 
+  useEffect(() => { loadData(); }, []);
+
+  // Sync sections → form.description
   useEffect(() => {
-    loadData();
-  }, []);
+    setForm((f) => ({ ...f, description: sectionsToDescription(descSections) }));
+  }, [descSections]);
+
+  const addDescSection = () =>
+    setDescSections((prev) => [...prev, { title: "", content: "" }]);
+
+  const removeDescSection = (i: number) =>
+    setDescSections((prev) => prev.filter((_, idx) => idx !== i));
+
+  const moveDescSection = (i: number, dir: "up" | "down") => {
+    setDescSections((prev) => {
+      const next = [...prev];
+      const swap = dir === "up" ? i - 1 : i + 1;
+      if (swap < 0 || swap >= next.length) return prev;
+      [next[i], next[swap]] = [next[swap], next[i]];
+      return next;
+    });
+  };
+
+  const updateDescSection = (i: number, field: keyof DescSection, value: string) =>
+    setDescSections((prev) => prev.map((s, idx) => idx === i ? { ...s, [field]: value } : s));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,6 +204,7 @@ export default function AdminProductsPage() {
       await loadData();
       setShowForm(false);
       setForm(emptyForm);
+      setDescSections([]);
       setEditingId(null);
     } catch (err) {
       console.error(err);
@@ -167,6 +235,7 @@ export default function AdminProductsPage() {
       isBestSeller: p.isBestSeller,
       isNewArrival: p.isNewArrival,
     });
+    setDescSections(descriptionToSections(p.description));
     setEditingId(p._id);
     setShowForm(true);
   };
@@ -636,16 +705,90 @@ export default function AdminProductsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
-                  Full Description *
-                </label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  rows={4}
-                  required
-                  className="input-field resize-none"
-                />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700">
+                    Full Description *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowRawDesc((v) => !v)}
+                    className="text-[11px] text-rose-600 hover:underline"
+                  >
+                    {showRawDesc ? "Hide raw text" : "View raw text"}
+                  </button>
+                </div>
+
+                {/* Section builder */}
+                <div className="space-y-2 mb-2">
+                  {descSections.map((s, i) => (
+                    <div key={i} className="border border-ink-100 rounded-sm p-3 space-y-2 bg-ink-50">
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={PRESET_TITLES.includes(s.title) ? s.title : "Custom"}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateDescSection(i, "title", val === "Custom" ? "" : val);
+                          }}
+                          className="text-xs border border-ink-200 rounded-sm px-2 py-1.5 bg-white text-ink-700 focus:outline-none focus:border-rose-300 flex-1"
+                        >
+                          <option value="">— Select title —</option>
+                          {PRESET_TITLES.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-0.5">
+                          <button type="button" onClick={() => moveDescSection(i, "up")} disabled={i === 0} className="p-1 hover:bg-ink-200 rounded disabled:opacity-30"><ChevronUp size={13} /></button>
+                          <button type="button" onClick={() => moveDescSection(i, "down")} disabled={i === descSections.length - 1} className="p-1 hover:bg-ink-200 rounded disabled:opacity-30"><ChevronDown size={13} /></button>
+                          <button type="button" onClick={() => removeDescSection(i)} className="p-1 hover:bg-rose-50 text-ink-400 hover:text-rose-600 rounded"><X size={13} /></button>
+                        </div>
+                      </div>
+                      {/* Custom title input */}
+                      {!PRESET_TITLES.slice(0, -1).includes(s.title) && (
+                        <input
+                          value={s.title}
+                          onChange={(e) => updateDescSection(i, "title", e.target.value)}
+                          placeholder="Custom title (e.g. Allergen Info)"
+                          className="w-full text-xs border border-ink-200 rounded-sm px-2 py-1.5 bg-white text-ink-700 placeholder:text-ink-300 focus:outline-none focus:border-rose-300"
+                        />
+                      )}
+                      <textarea
+                        value={s.content}
+                        onChange={(e) => updateDescSection(i, "content", e.target.value)}
+                        placeholder="Enter content for this section…"
+                        rows={2}
+                        className="w-full text-xs border border-ink-200 rounded-sm px-2 py-1.5 bg-white text-ink-700 placeholder:text-ink-300 focus:outline-none focus:border-rose-300 resize-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addDescSection}
+                  className="inline-flex items-center gap-1.5 text-xs text-rose-600 border border-rose-200 px-3 py-1.5 hover:bg-rose-50 transition-colors rounded-sm mb-2"
+                >
+                  <Plus size={12} /> Add Section
+                </button>
+
+                {/* Raw preview */}
+                {showRawDesc && (
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => {
+                      setForm({ ...form, description: e.target.value });
+                      setDescSections(descriptionToSections(e.target.value));
+                    }}
+                    rows={6}
+                    className="input-field resize-none font-mono text-xs mt-1"
+                    placeholder="Raw description text (auto-generated from sections above)"
+                  />
+                )}
+
+                {descSections.length === 0 && !showRawDesc && (
+                  <p className="text-[11px] text-ink-400">
+                    Click <strong>Add Section</strong> to build structured product info, or use <strong>View raw text</strong> to type manually.
+                  </p>
+                )}
               </div>
 
               <div>
