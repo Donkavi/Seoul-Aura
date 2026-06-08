@@ -91,6 +91,15 @@ h1, h2, h3, h4, h5, h6 {
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
 @keyframes marqueeLeft {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }

@@ -61,7 +61,7 @@ interface FormState {
   brand: string;
   price: string;
   comparePrice: string;
-  origin: "Korea" | "Dubai" | "Other";
+  origin: "Korea" | "Dubai" | "Global" | "Other";
   type: string;
   subtype: string;
   images: string;
@@ -114,7 +114,7 @@ export default function AdminProductsPage() {
   // Inline new brand
   const [addingBrand, setAddingBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState("");
-  const [newBrandOrigin, setNewBrandOrigin] = useState<"Korea" | "Dubai" | "Other">("Korea");
+  const [newBrandOrigin, setNewBrandOrigin] = useState<"Korea" | "Dubai" | "Global" | "Other">("Korea");
   const [savingBrand, setSavingBrand] = useState(false);
 
   const loadData = async () => {
@@ -505,11 +505,12 @@ export default function AdminProductsPage() {
                       />
                       <select
                         value={newBrandOrigin}
-                        onChange={(e) => setNewBrandOrigin(e.target.value as "Korea" | "Dubai" | "Other")}
+                        onChange={(e) => setNewBrandOrigin(e.target.value as "Korea" | "Dubai" | "Global" | "Other")}
                         className="input-field w-28"
                       >
                         <option value="Korea">Korea</option>
                         <option value="Dubai">Dubai</option>
+                        <option value="Global">Global</option>
                         <option value="Other">Other</option>
                       </select>
                     </div>
