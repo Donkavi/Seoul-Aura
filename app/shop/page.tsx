@@ -376,6 +376,20 @@ function ShopContent() {
           </aside>
 
           <div className="flex-1 min-w-0">
+            {/* Mobile search bar — full width, above the toolbar row */}
+            <div className="lg:hidden mb-3">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+                <input
+                  type="text"
+                  placeholder="Search this collection…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-ink-50 border border-ink-200 rounded-sm pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-rose-300"
+                />
+              </div>
+            </div>
+
             <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-ink-100">
               <button
                 onClick={() => setFiltersOpen(true)}

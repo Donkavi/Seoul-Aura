@@ -35,8 +35,6 @@ export async function GET(req: NextRequest) {
       query.$or = [
         { name: rx },
         { brand: rx },
-        { description: rx },
-        { shortDescription: rx },
         { tags: { $in: [new RegExp(search, "i")] } },
       ];
     }

@@ -355,64 +355,178 @@ interface PreOrderItemData {
   productBrand: string;
   productName: string;
   productLink?: string;
+  productImage?: string;
   quantity: number;
+  unitPrice?: number;
 }
 
 interface PreOrderEmailData {
   requestNumber: string;
   customerName: string;
   customerEmail: string;
+  phoneNumber?: string;
   items: PreOrderItemData[];
   origin: string;
   notes?: string;
+  deliveryCharge?: number;
+  currencySymbol?: string;
 }
 
-function preOrderItemsBlock(items: PreOrderItemData[]) {
-  const rows = items.map((it) => `
-    <div style="padding:12px 0;border-bottom:1px solid #f5f0ee;">
-      <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#e11d48;font-weight:600;">${it.productBrand}</p>
-      <p style="margin:3px 0 0;font-size:14px;color:#1c1917;">${it.productName}</p>
-      <p style="margin:5px 0 0;font-size:12px;color:#78716c;">Qty: <strong>${it.quantity}</strong>${
-        it.productLink ? ` · <a href="${it.productLink}" style="color:#e11d48;">reference link</a>` : ""
-      }</p>
-    </div>`).join("");
-  return `<div style="border-top:1px solid #f5f0ee;">${rows}</div>`;
+function fmt(amount: number, sym: string) {
+  return `${sym} ${amount.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function preOrderInvoiceTable(items: PreOrderItemData[], sym: string) {
+  const hasPrices = items.some((it) => it.unitPrice != null);
+
+  const headerCells = hasPrices
+    ? `<th style="padding:10px 12px;text-align:left;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;">Product</th>
+       <th style="padding:10px 12px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;width:48px;">Qty</th>
+       <th style="padding:10px 12px;text-align:right;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;white-space:nowrap;">Unit Price</th>
+       <th style="padding:10px 12px;text-align:right;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;white-space:nowrap;">Amount</th>`
+    : `<th style="padding:10px 12px;text-align:left;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;">Product</th>
+       <th style="padding:10px 12px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;width:48px;">Qty</th>`;
+
+  const rows = items.map((it, idx) => {
+    const bg = idx % 2 === 1 ? "#fdf8f8" : "#ffffff";
+    const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
+    const imgBlock = it.productImage
+      ? `<img src="${it.productImage}" width="52" height="52" alt="${it.productName}" style="width:52px;height:52px;object-fit:cover;border-radius:3px;border:1px solid #f0e8e6;display:block;flex-shrink:0;" />`
+      : `<div style="width:52px;height:52px;background:#fdf5f4;border:1px solid #f0e8e6;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+           <span style="font-size:18px;">🧴</span>
+         </div>`;
+
+    const productCell = `
+      <td style="padding:10px 12px;background:${bg};border-bottom:1px solid #f9f0ee;">
+        <table cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="vertical-align:top;padding-right:12px;">${imgBlock}</td>
+          <td style="vertical-align:middle;">
+            <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#e11d48;font-weight:600;">${it.productBrand}</p>
+            <p style="margin:3px 0 0;font-size:13px;color:#1c1917;font-weight:500;line-height:1.4;">${
+              it.productLink
+                ? `<a href="${it.productLink}" style="color:#1c1917;text-decoration:none;">${it.productName}</a>`
+                : it.productName
+            }</p>
+          </td>
+        </tr></table>
+      </td>`;
+
+    if (hasPrices) {
+      return `<tr>
+        ${productCell}
+        <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:center;font-size:13px;color:#1c1917;">${it.quantity}</td>
+        <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:#78716c;white-space:nowrap;">${it.unitPrice != null ? fmt(it.unitPrice, sym) : '<span style="color:#a8a29e;">To be quoted</span>'}</td>
+        <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:#1c1917;font-weight:600;white-space:nowrap;">${lineTotal != null ? fmt(lineTotal, sym) : '<span style="color:#a8a29e;">—</span>'}</td>
+      </tr>`;
+    }
+    return `<tr>
+      ${productCell}
+      <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:center;font-size:13px;color:#1c1917;">${it.quantity}</td>
+    </tr>`;
+  }).join("");
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;">
+      <thead><tr style="background:#fdf5f4;">${headerCells}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function invoiceSummaryBlock(items: PreOrderItemData[], deliveryCharge: number, sym: string) {
+  const itemsWithPrice = items.filter((it) => it.unitPrice != null);
+  if (itemsWithPrice.length === 0 && deliveryCharge === 0) return "";
+
+  const subtotal = itemsWithPrice.reduce((sum, it) => sum + (it.unitPrice! * it.quantity), 0);
+  const total = subtotal + deliveryCharge;
+  const allPriced = itemsWithPrice.length === items.length;
+
+  const subtotalRow = itemsWithPrice.length > 0 ? `
+    <tr>
+      <td style="padding:8px 16px;font-size:13px;color:#78716c;">Subtotal</td>
+      <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;">${fmt(subtotal, sym)}</td>
+    </tr>` : "";
+
+  const deliveryRow = `
+    <tr>
+      <td style="padding:8px 16px;font-size:13px;color:#78716c;">Delivery Charge</td>
+      <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;">${fmt(deliveryCharge, sym)}</td>
+    </tr>`;
+
+  const totalRow = itemsWithPrice.length > 0 ? `
+    <tr style="background:#fff7f7;border-top:2px solid #fde8e8;">
+      <td style="padding:12px 16px;font-size:14px;font-weight:700;color:#1c1917;">${allPriced ? "Estimated Total" : "Estimated Total (partial)"}</td>
+      <td style="padding:12px 16px;font-size:16px;font-weight:700;color:#e11d48;text-align:right;white-space:nowrap;">${fmt(total, sym)}</td>
+    </tr>` : `
+    <tr style="background:#fff7f7;border-top:2px solid #fde8e8;">
+      <td style="padding:12px 16px;font-size:14px;font-weight:700;color:#1c1917;">Delivery Charge</td>
+      <td style="padding:12px 16px;font-size:16px;font-weight:700;color:#e11d48;text-align:right;white-space:nowrap;">${fmt(deliveryCharge, sym)}</td>
+    </tr>`;
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;margin-top:4px;">
+      <tbody>
+        ${subtotalRow}
+        ${deliveryRow}
+        ${totalRow}
+      </tbody>
+    </table>
+    ${!allPriced ? `<p style="margin:8px 0 0;font-size:11px;color:#a8a29e;">* Prices are based on current listed rates. Items marked "To be quoted" will be priced when our team sources them.</p>` : `<p style="margin:8px 0 0;font-size:11px;color:#a8a29e;">* Estimated total based on current listed prices. Final pricing confirmed within 48 hours.</p>`}`;
 }
 
 export async function sendPreOrderConfirmationToBuyer(data: PreOrderEmailData) {
+  const sym = data.currencySymbol ?? "Rs.";
+  const delivery = data.deliveryCharge ?? 0;
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
   const html = layout(`
     <h1 style="margin:0 0 4px;font-family:Georgia,serif;font-size:26px;font-weight:400;color:#1c1917;">
       Pre-order request received! ✨
     </h1>
     <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.7;">
-      Hi ${data.customerName}, we've received your pre-order request. Our team will review it and get back to you within 2 business days with pricing and availability.
+      Hi ${data.customerName}, your pre-order request has been received. Our team will confirm pricing &amp; availability within 48 hours — no payment is taken until you approve.
     </p>
 
-    <div style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;padding:16px 20px;margin-bottom:24px;">
-      <p style="margin:0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
-      <p style="margin:4px 0 0;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
-    </div>
+    <!-- Invoice Header -->
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
+          <p style="margin:4px 0 0;font-size:20px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
+        </td>
+        <td style="padding:16px 20px;text-align:right;">
+          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Date</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#1c1917;">${now}</p>
+          ${data.phoneNumber ? `<p style="margin:6px 0 0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;margin-top:10px;">Phone</p><p style="margin:4px 0 0;font-size:13px;color:#1c1917;">${data.phoneNumber}</p>` : ""}
+        </td>
+      </tr>
+    </table>
 
-    <h3 style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">
-      Products Requested (${data.items.length})
+    <!-- Items Table -->
+    <h3 style="margin:0 0 10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">
+      Items Requested (${data.items.length})
     </h3>
-    ${preOrderItemsBlock(data.items)}
-    <div style="height:20px;"></div>
+    ${preOrderInvoiceTable(data.items, sym)}
+
+    <!-- Invoice Summary -->
+    ${delivery > 0 || data.items.some(it => it.unitPrice != null) ? `
+    <div style="margin-top:12px;">
+      ${invoiceSummaryBlock(data.items, delivery, sym)}
+    </div>` : ""}
 
     ${data.notes ? `
-    <div style="background:#faf9f8;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
-      <p style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Your Notes</p>
+    <div style="background:#faf9f8;border:1px solid #f0ebe9;border-radius:4px;padding:14px 16px;margin-top:20px;">
+      <p style="margin:0 0 4px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Your Notes</p>
       <p style="margin:0;font-size:13px;color:#78716c;font-style:italic;">${data.notes}</p>
     </div>` : ""}
 
     <hr style="border:none;border-top:1px solid #f5f0ee;margin:24px 0;" />
 
     <h3 style="margin:0 0 12px;font-size:13px;font-weight:600;color:#1c1917;">What happens next?</h3>
-    <ol style="margin:0;padding-left:20px;font-size:13px;color:#78716c;line-height:2;">
+    <ol style="margin:0;padding-left:20px;font-size:13px;color:#78716c;line-height:2.2;">
       <li>Our team reviews your request</li>
       <li>We check availability &amp; sourcing options from Korea</li>
-      <li>We'll email you with pricing &amp; an estimated arrival date</li>
-      <li>You confirm and we import it for you</li>
+      <li>We email you a confirmed price &amp; estimated arrival date</li>
+      <li>You approve — then we import &amp; deliver</li>
     </ol>
 
     <p style="margin-top:20px;font-size:12px;color:#a8a29e;">
@@ -430,6 +544,9 @@ export async function sendPreOrderConfirmationToBuyer(data: PreOrderEmailData) {
 
 // ─── 5. Pre-order notification → Admin ───────────────────────────────────────
 export async function sendPreOrderNotificationToAdmin(data: PreOrderEmailData) {
+  const sym = data.currencySymbol ?? "Rs.";
+  const delivery = data.deliveryCharge ?? 0;
+
   const html = layout(`
     <h1 style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">
       New Pre-order Request
@@ -449,16 +566,21 @@ export async function sendPreOrderNotificationToAdmin(data: PreOrderEmailData) {
         <td style="font-size:12px;color:#78716c;padding:4px 0;">Email</td>
         <td style="font-size:13px;color:#e11d48;">${data.customerEmail}</td>
       </tr>
+      ${data.phoneNumber ? `<tr><td style="font-size:12px;color:#78716c;padding:4px 0;">Phone</td><td style="font-size:13px;color:#1c1917;">${data.phoneNumber}</td></tr>` : ""}
     </table>
 
-    <h3 style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">
+    <h3 style="margin:0 0 10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">
       Products Requested (${data.items.length})
     </h3>
-    ${preOrderItemsBlock(data.items)}
-    <div style="height:20px;"></div>
+    ${preOrderInvoiceTable(data.items, sym)}
+
+    ${delivery > 0 || data.items.some(it => it.unitPrice != null) ? `
+    <div style="margin-top:12px;">
+      ${invoiceSummaryBlock(data.items, delivery, sym)}
+    </div>` : "<div style='height:16px;'></div>"}
 
     ${data.notes ? `
-    <div style="background:#faf9f8;border-radius:4px;padding:14px 16px;margin-bottom:20px;">
+    <div style="background:#faf9f8;border-radius:4px;padding:14px 16px;margin-top:16px;">
       <p style="margin:0 0 4px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Customer Notes</p>
       <p style="margin:0;font-size:13px;color:#78716c;font-style:italic;">${data.notes}</p>
     </div>` : ""}

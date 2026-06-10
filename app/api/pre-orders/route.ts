@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import PreOrder from "@/models/PreOrder";
+import Settings from "@/models/Settings";
 import { sendPreOrderConfirmationToBuyer, sendPreOrderNotificationToAdmin } from "@/lib/email";
 
 function generateRequestNumber(): string {
@@ -52,7 +53,9 @@ interface IncomingItem {
   productBrand?: string;
   productName?: string;
   productLink?: string;
+  productImage?: string;
   quantity?: string | number;
+  unitPrice?: number;
 }
 
 export async function POST(req: NextRequest) {
@@ -78,7 +81,9 @@ export async function POST(req: NextRequest) {
         productBrand: it.productBrand!.toString().trim(),
         productName: it.productName!.toString().trim(),
         productLink: it.productLink?.toString().trim(),
+        productImage: it.productImage?.toString().trim(),
         quantity: Math.max(1, parseInt(String(it.quantity ?? "1")) || 1),
+        unitPrice: it.unitPrice != null ? Number(it.unitPrice) : undefined,
       }));
 
     if (!customerName?.trim() || !customerEmail?.trim() || !phoneNumber?.trim() || items.length === 0) {
@@ -105,14 +110,29 @@ export async function POST(req: NextRequest) {
       status: "pending",
     });
 
+    // Fetch settings for delivery charge / currency in background
+    const settingsDoc = await Settings.findOne().lean().catch(() => null);
+    const deliveryCharge = (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;
+    const currencySymbol = (settingsDoc as { currencySymbol?: string } | null)?.currencySymbol ?? "Rs.";
+
     // Fire emails in background — don't block the response
     const emailData = {
       requestNumber: preOrder.requestNumber,
       customerName: preOrder.customerName,
       customerEmail: preOrder.customerEmail,
-      items: preOrder.items,
+      phoneNumber: preOrder.phoneNumber,
+      items: preOrder.items.map((it: { productBrand: string; productName: string; productLink?: string; productImage?: string; quantity: number; unitPrice?: number }) => ({
+        productBrand: it.productBrand,
+        productName: it.productName,
+        productLink: it.productLink,
+        productImage: it.productImage,
+        quantity: it.quantity,
+        unitPrice: it.unitPrice,
+      })),
       origin: preOrder.origin ?? "Other",
       notes: preOrder.notes,
+      deliveryCharge,
+      currencySymbol,
     };
     Promise.all([
       sendPreOrderConfirmationToBuyer(emailData),

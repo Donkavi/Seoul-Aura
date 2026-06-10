@@ -712,7 +712,7 @@ export default function AdminSettingsPage() {
                   className="input-field"
                 />
               </Field>
-              <Field label="Shipping Fee">
+              <Field label="Delivery Charge">
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-500">
                     {settings.currencySymbol}
@@ -724,6 +724,7 @@ export default function AdminSettingsPage() {
                     className="input-field pl-9"
                   />
                 </div>
+                <p className="text-[11px] text-ink-400 mt-1">Shown on pre-order invoice emails.</p>
               </Field>
               <Field label="Free Shipping From">
                 <div className="relative">
