@@ -1,7 +1,8 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -334,7 +335,9 @@ interface PreOrderItem {
   productBrand: string;
   productName: string;
   productLink?: string;
+  productImage?: string;
   quantity: number;
+  unitPrice?: number;
 }
 
 interface PreOrder {
@@ -344,6 +347,7 @@ interface PreOrder {
   productBrand: string;
   productName: string;
   productLink?: string;
+  productImage?: string;
   quantity: number;
   origin?: string;
   notes?: string;
@@ -357,14 +361,19 @@ interface PreOrder {
 function PreOrdersTab({ email }: { email: string }) {
   const [preOrders, setPreOrders] = useState<PreOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<PreOrder | null>(null);
+  const [deliveryCharge, setDeliveryCharge] = useState(350);
+
+  useEffect(() => {
+    fetch("/api/settings").then(r => r.json()).then(d => {
+      if (d?.shippingFee != null) setDeliveryCharge(d.shippingFee);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch(`/api/pre-orders?search=${encodeURIComponent(email)}&limit=50`)
       .then((r) => r.json())
-      .then((d) => {
-        const all = d.preOrders ?? [];
-        setPreOrders(all.filter((p: PreOrder) => p.requestNumber || true));
-      })
+      .then((d) => setPreOrders(d.preOrders ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [email]);
@@ -377,60 +386,205 @@ function PreOrdersTab({ email }: { email: string }) {
     </EmptyState>
   );
 
+  const getItems = (p: PreOrder): PreOrderItem[] =>
+    p.items?.length
+      ? p.items
+      : [{ productBrand: p.productBrand, productName: p.productName, productLink: p.productLink, productImage: p.productImage, quantity: p.quantity }];
+
+  const calcSubtotal = (items: PreOrderItem[]) =>
+    items.reduce((s, it) => it.unitPrice != null ? s + it.unitPrice * it.quantity : s, 0);
+
+  const hasPrices = (items: PreOrderItem[]) => items.some(it => it.unitPrice != null);
+
   return (
-    <div className="space-y-4">
-      {preOrders.map((p) => (
-        <div key={p._id} className="bg-white border border-ink-100 rounded-sm p-5 hover:border-rose-200 transition-colors">
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-            <div>
-              <p className="text-xs font-mono text-ink-500">{p.requestNumber}</p>
-              <p className="text-xs text-ink-400 mt-0.5">{relativeDate(p.createdAt)}</p>
-            </div>
-            <span className={cn("text-xs px-3 py-1 rounded-full font-medium capitalize", PRE_ORDER_STATUS[p.status] ?? "bg-ink-100 text-ink-500")}>
-              {p.status}
-            </span>
-          </div>
+    <>
+      <div className="space-y-3">
+        {preOrders.map((p) => {
+          const items = getItems(p);
+          const subtotal = calcSubtotal(items);
+          const total = subtotal + deliveryCharge;
+          const priced = hasPrices(items);
 
-          <div className="mb-3 space-y-3">
-            {(p.items?.length
-              ? p.items
-              : [{ productBrand: p.productBrand, productName: p.productName, productLink: p.productLink, quantity: p.quantity }]
-            ).map((it, i) => (
-              <div key={i} className={i > 0 ? "pt-3 border-t border-ink-50" : ""}>
-                <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold mb-0.5">{it.productBrand}</p>
-                <p className="text-sm font-medium text-ink-900">{it.productName}</p>
-                <p className="text-xs text-ink-500 mt-0.5">Qty: {it.quantity}</p>
-                {it.productLink && (
-                  <a href={it.productLink} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-rose-600 hover:underline mt-1 inline-block truncate max-w-xs">
-                    View product link →
-                  </a>
-                )}
+          return (
+            <button
+              key={p._id}
+              onClick={() => setSelected(p)}
+              className="w-full text-left bg-white border border-ink-100 rounded-sm p-4 hover:border-rose-300 hover:shadow-sm transition-all group"
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <p className="text-xs font-mono text-ink-500">{p.requestNumber}</p>
+                  <p className="text-xs text-ink-400 mt-0.5">{relativeDate(p.createdAt)}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium capitalize", PRE_ORDER_STATUS[p.status] ?? "bg-ink-100 text-ink-500")}>
+                    {p.status}
+                  </span>
+                  <ChevronRight size={14} className="text-ink-300 group-hover:text-rose-400 transition-colors" />
+                </div>
               </div>
-            ))}
-          </div>
 
-          {(p.estimatedPrice || p.estimatedAvailability || p.adminNotes) && (
-            <div className="border-t border-ink-100 pt-3 space-y-1">
-              {p.estimatedPrice && (
-                <p className="text-xs text-ink-600">
-                  <span className="text-ink-400">Estimated price:</span>{" "}
-                  <span className="font-semibold text-ink-900">{formatPrice(p.estimatedPrice)}</span>
+              {/* Thumbnail strip */}
+              <div className="flex items-center gap-2 mb-3">
+                {items.slice(0, 4).map((it, i) => (
+                  <div key={i} className="w-12 h-12 rounded border border-ink-100 bg-ink-50 flex-shrink-0 overflow-hidden relative">
+                    {it.productImage
+                      ? <img src={it.productImage} alt={it.productName} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-lg">🧴</div>
+                    }
+                  </div>
+                ))}
+                {items.length > 4 && (
+                  <div className="w-12 h-12 rounded border border-ink-100 bg-ink-50 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs text-ink-500 font-medium">+{items.length - 4}</span>
+                  </div>
+                )}
+                <div className="ml-1 min-w-0">
+                  <p className="text-sm font-medium text-ink-900 truncate">
+                    {items[0].productName}{items.length > 1 ? ` +${items.length - 1} more` : ""}
+                  </p>
+                  <p className="text-xs text-ink-400">{items.length} item{items.length !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+
+              {priced && (
+                <div className="flex items-center justify-between pt-2 border-t border-ink-50">
+                  <span className="text-xs text-ink-400">Est. Total (incl. delivery)</span>
+                  <span className="text-sm font-semibold text-ink-900">{formatPrice(total)}</span>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Detail modal */}
+      {selected && (() => {
+        const items = getItems(selected);
+        const subtotal = calcSubtotal(items);
+        const total = subtotal + deliveryCharge;
+        const priced = hasPrices(items);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setSelected(null)}>
+            <div
+              className="bg-white w-full sm:max-w-lg sm:rounded-sm max-h-[90vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className="sticky top-0 bg-white border-b border-ink-100 px-5 py-4 flex items-center justify-between z-10">
+                <div>
+                  <p className="text-xs font-mono text-ink-500">{selected.requestNumber}</p>
+                  <p className="text-xs text-ink-400">{relativeDate(selected.createdAt)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium capitalize", PRE_ORDER_STATUS[selected.status] ?? "bg-ink-100 text-ink-500")}>
+                    {selected.status}
+                  </span>
+                  <button onClick={() => setSelected(null)} className="p-1.5 hover:bg-ink-100 rounded transition-colors">
+                    <X size={16} className="text-ink-500" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {/* Items */}
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-ink-500 font-semibold mb-3">
+                    Items ({items.length})
+                  </p>
+                  <div className="space-y-3">
+                    {items.map((it, i) => {
+                      const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
+                      return (
+                        <div key={i} className="flex gap-3 p-3 bg-ink-50/50 rounded-sm border border-ink-100">
+                          <div className="w-16 h-16 rounded border border-ink-100 bg-white flex-shrink-0 overflow-hidden">
+                            {it.productImage
+                              ? <img src={it.productImage} alt={it.productName} className="w-full h-full object-cover" />
+                              : <div className="w-full h-full flex items-center justify-center text-2xl">🧴</div>
+                            }
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">{it.productBrand}</p>
+                            <p className="text-sm font-medium text-ink-900 leading-snug mt-0.5">{it.productName}</p>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="text-xs text-ink-500">
+                                Qty: <strong>{it.quantity}</strong>
+                                {it.unitPrice != null && <span className="text-ink-400"> × {formatPrice(it.unitPrice)}</span>}
+                              </span>
+                              {lineTotal != null && (
+                                <span className="text-sm font-semibold text-ink-900">{formatPrice(lineTotal)}</span>
+                              )}
+                            </div>
+                            {it.productLink && (
+                              <a href={it.productLink} target="_blank" rel="noopener noreferrer"
+                                className="text-[11px] text-rose-600 hover:underline mt-1 inline-block">
+                                View product →
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Price summary */}
+                {priced && (
+                  <div className="border border-ink-100 rounded-sm overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
+                      <span className="text-xs text-ink-500">Subtotal</span>
+                      <span className="text-sm text-ink-900">{formatPrice(subtotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
+                      <span className="text-xs text-ink-500">Delivery Charge</span>
+                      <span className="text-sm text-ink-900">{formatPrice(deliveryCharge)}</span>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-3 bg-rose-50">
+                      <span className="text-xs font-semibold text-ink-700 uppercase tracking-wide">Estimated Total</span>
+                      <span className="text-base font-bold text-rose-600">{formatPrice(total)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin info */}
+                {(selected.estimatedPrice || selected.estimatedAvailability || selected.adminNotes) && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-sm p-4 space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-widest text-blue-600 font-semibold mb-2">From Our Team</p>
+                    {selected.estimatedPrice && (
+                      <p className="text-xs text-ink-700">
+                        <span className="text-ink-400">Confirmed price:</span>{" "}
+                        <strong>{formatPrice(selected.estimatedPrice)}</strong>
+                      </p>
+                    )}
+                    {selected.estimatedAvailability && (
+                      <p className="text-xs text-ink-700">
+                        <span className="text-ink-400">ETA:</span> {selected.estimatedAvailability}
+                      </p>
+                    )}
+                    {selected.adminNotes && (
+                      <p className="text-xs text-ink-600 italic">"{selected.adminNotes}"</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Customer notes */}
+                {selected.notes && (
+                  <div className="bg-ink-50 rounded-sm p-3">
+                    <p className="text-[10px] uppercase tracking-widest text-ink-400 font-semibold mb-1">Your Notes</p>
+                    <p className="text-xs text-ink-600 italic">{selected.notes}</p>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-ink-400 text-center">
+                  Prices shown are estimates. Final pricing confirmed by our team within 48 hours.
                 </p>
-              )}
-              {p.estimatedAvailability && (
-                <p className="text-xs text-ink-600">
-                  <span className="text-ink-400">ETA:</span> {p.estimatedAvailability}
-                </p>
-              )}
-              {p.adminNotes && (
-                <p className="text-xs text-ink-600 italic">"{p.adminNotes}"</p>
-              )}
+              </div>
             </div>
-          )}
-        </div>
-      ))}
-    </div>
+          </div>
+        );
+      })()}
+    </>
   );
 }
 
@@ -662,7 +816,11 @@ const NAV_ITEMS: { key: TabKey; icon: React.ElementType; label: string }[] = [
 ];
 
 function Dashboard({ user }: { user: { name?: string | null; email?: string | null; image?: string | null; id?: string; isAdmin?: boolean } }) {
-  const [activeTab, setActiveTab] = useState<TabKey>("orders");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as TabKey | null) ?? "orders";
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    NAV_ITEMS.some((n) => n.key === initialTab) ? initialTab : "orders"
+  );
   const isAdmin = user.isAdmin ?? false;
 
   const name = user.name ?? user.email?.split("@")[0] ?? "Member";
@@ -839,11 +997,15 @@ export default function AccountPage() {
     if (!(session.user as any).phoneVerified) {
       return <VerifyPhone redirectTo="/account" />;
     }
-    return <Dashboard user={{
-      ...session.user,
-      id: (session.user as any).id,
-      isAdmin: (session.user as any).isAdmin ?? false,
-    }} />;
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 size={28} className="animate-spin text-rose-500" /></div>}>
+        <Dashboard user={{
+          ...session.user,
+          id: (session.user as any).id,
+          isAdmin: (session.user as any).isAdmin ?? false,
+        }} />
+      </Suspense>
+    );
   }
 
   return <SignInPage />;

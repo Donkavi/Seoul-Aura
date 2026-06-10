@@ -101,6 +101,18 @@ export default function ProductView({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [zoom, setZoom] = useState(false);
   const [liveRating, setLiveRating] = useState({ avg: 0, count: 0, ready: false });
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try { await navigator.share({ title: product.name, url }); } catch { /* cancelled */ }
+    } else {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const images = product.images?.length ? product.images : [];
   const hasMultiple = images.length > 1;
@@ -225,13 +237,23 @@ export default function ProductView({
               >
                 <Expand size={14} />
               </button>
-              <button
-                aria-label="Share"
-                onClick={(e) => e.stopPropagation()}
-                className="w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center hover:bg-rose-50 transition-colors"
-              >
-                <Share2 size={14} />
-              </button>
+              <div className="relative">
+                {copied && (
+                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-ink-900 text-white text-[10px] font-medium px-2.5 py-1 rounded whitespace-nowrap pointer-events-none">
+                    Link copied!
+                  </span>
+                )}
+                <button
+                  aria-label="Share"
+                  onClick={(e) => { e.stopPropagation(); handleShare(); }}
+                  className={cn(
+                    "w-10 h-10 bg-white/90 backdrop-blur rounded-full flex items-center justify-center transition-colors",
+                    copied ? "bg-green-50 text-green-600" : "hover:bg-rose-50"
+                  )}
+                >
+                  {copied ? <Check size={14} /> : <Share2 size={14} />}
+                </button>
+              </div>
             </div>
 
             {hasMultiple && (

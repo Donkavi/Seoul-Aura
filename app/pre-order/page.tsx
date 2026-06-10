@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 
 interface DbBrand { _id: string; name: string; }
-interface DbProduct { _id: string; name: string; slug: string; images: string[]; }
+interface DbProduct { _id: string; name: string; slug: string; images: string[]; price?: number; }
 
 // ─── Combobox ─────────────────────────────────────────────────────────────────
 function Combobox({
@@ -129,6 +129,8 @@ interface ProductRow {
   origin: string;        // kept internally, not shown
   fromCart: boolean;     // sourced from the pre-order bag
   productId?: string;    // cart product id, so we can sync removals
+  unitPrice?: number;    // listed price for invoice
+  productImage?: string; // first image url for invoice
 }
 
 const blankRow = (): ProductRow => ({
@@ -138,6 +140,8 @@ const blankRow = (): ProductRow => ({
   quantity: "1",
   origin: "Other",
   fromCart: false,
+  unitPrice: undefined,
+  productImage: undefined,
 });
 
 const steps = [
@@ -246,6 +250,8 @@ export default function PreOrderPage() {
         origin: i.product.origin || "Other",
         fromCart: true,
         productId: i.product._id,
+        unitPrice: i.product.price,
+        productImage: i.product.images?.[0],
       }));
       setProducts(rows);
       // Pre-fetch products for each brand that's already set
@@ -277,6 +283,8 @@ export default function PreOrderPage() {
         productLink: matched
           ? `${typeof window !== "undefined" ? window.location.origin : ""}/shop/${matched.slug ?? matched._id}`
           : r.productLink,
+        unitPrice: matched?.price ?? r.unitPrice,
+        productImage: matched?.images?.[0] ?? r.productImage,
       } : r
     ));
   };
@@ -350,6 +358,8 @@ export default function PreOrderPage() {
             productName: row.productName,
             productLink: row.productLink,
             quantity: row.quantity,
+            unitPrice: row.unitPrice,
+            productImage: row.productImage,
           })),
         }),
       });
@@ -387,7 +397,7 @@ export default function PreOrderPage() {
             Pre-Orders in your account.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <Link href="/account" className="btn-primary">View My Pre-Orders</Link>
+            <Link href="/account?tab=pre-orders" className="btn-primary">View My Pre-Orders</Link>
             <button onClick={() => setStatus("idle")} className="btn-outline">Submit Another</button>
           </div>
         </div>

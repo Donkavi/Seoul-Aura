@@ -11,7 +11,9 @@ export interface IPreOrderItem {
   productBrand: string;
   productName: string;
   productLink?: string;
+  productImage?: string;
   quantity: number;
+  unitPrice?: number;
 }
 
 export interface IPreOrder extends Document {
@@ -40,7 +42,9 @@ const PreOrderItemSchema = new Schema<IPreOrderItem>(
     productBrand: { type: String, required: true, trim: true },
     productName: { type: String, required: true, trim: true },
     productLink: { type: String, trim: true },
+    productImage: { type: String },
     quantity: { type: Number, default: 1, min: 1 },
+    unitPrice: { type: Number },
   },
   { _id: false }
 );
