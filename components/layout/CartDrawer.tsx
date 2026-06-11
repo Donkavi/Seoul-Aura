@@ -14,7 +14,7 @@ export default function CartDrawer() {
   const {
     isOpen, closeDrawer, updateQty, removeItem,
     cartItems, total, itemCount,
-    preOrderItems, preOrderCount,
+    preOrderItems, preOrderCount, preOrderTotal,
   } = useCart();
   const [tab, setTab] = useState<Tab>("bag");
 
@@ -130,10 +130,25 @@ export default function CartDrawer() {
                 </button>
               </footer>
             ) : (
-              <footer className="border-t border-ink-100 p-6 space-y-4 bg-rose-25/40">
-                <div className="flex items-start gap-2 text-xs text-ink-600 leading-relaxed">
-                  <Plane size={14} className="text-rose-600 shrink-0 mt-0.5" />
-                  <p>Pre-order items are sourced on request. Submit and our team will confirm pricing &amp; availability within 48 hours — no payment until you approve.</p>
+              <footer className="border-t border-ink-100 p-6 space-y-3 bg-rose-25/40">
+                {/* Estimated price breakdown */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-ink-500">Est. Subtotal</span>
+                    <span className="font-medium text-ink-900">~{formatPrice(preOrderTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-ink-500">Delivery</span>
+                    <span className="text-ink-500 text-xs">Added at confirmation</span>
+                  </div>
+                  <div className="flex justify-between text-base pt-2 border-t border-rose-100">
+                    <span className="font-semibold text-ink-900">Est. Total</span>
+                    <span className="font-display text-xl text-rose-600">~{formatPrice(preOrderTotal)}</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 text-[11px] text-ink-500 leading-relaxed">
+                  <Plane size={12} className="text-rose-400 shrink-0 mt-0.5" />
+                  <p>Prices are estimates — final quote confirmed within 48 hrs. No payment until you approve.</p>
                 </div>
                 <Link href="/pre-order" onClick={closeDrawer} className="btn-primary w-full block text-center">
                   Request Pre-Order · {preOrderCount} item{preOrderCount !== 1 ? "s" : ""}

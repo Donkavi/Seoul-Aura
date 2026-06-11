@@ -26,7 +26,7 @@ import {
   ShieldCheck,
   ChevronDown,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 
 interface DbBrand { _id: string; name: string; }
@@ -188,7 +188,7 @@ const faqs = [
 
 export default function PreOrderPage() {
   const { data: session, status: authStatus } = useSession();
-  const { preOrderItems, removeItem, clearPreOrders } = useCart();
+  const { preOrderItems, removeItem, clearPreOrders, preOrderTotal } = useCart();
 
   const [contact, setContact] = useState({
     customerName: "",
@@ -204,11 +204,15 @@ export default function PreOrderPage() {
   // DB data for comboboxes
   const [dbBrands, setDbBrands] = useState<DbBrand[]>([]);
   const [dbProductsCache, setDbProductsCache] = useState<Record<string, DbProduct[]>>({});
+  const [deliveryCharge, setDeliveryCharge] = useState(350);
 
-  // Fetch brands once
+  // Fetch brands + delivery charge once
   useEffect(() => {
     fetch("/api/brands").then((r) => r.json()).then((d) => {
       if (Array.isArray(d)) setDbBrands(d);
+    }).catch(() => {});
+    fetch("/api/settings").then((r) => r.json()).then((d) => {
+      if (d?.shippingFee != null) setDeliveryCharge(d.shippingFee);
     }).catch(() => {});
   }, []);
 
@@ -626,6 +630,42 @@ export default function PreOrderPage() {
                   {error}
                 </div>
               )}
+
+              {/* Estimated order total — shown when items have known prices */}
+              {(() => {
+                const validRows = products.filter(r => r.productBrand.trim() && r.productName.trim());
+                const pricedRows = validRows.filter(r => r.unitPrice != null);
+                if (pricedRows.length === 0) return null;
+                const subtotal = pricedRows.reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
+                const total = subtotal + deliveryCharge;
+                const allPriced = pricedRows.length === validRows.length;
+                return (
+                  <div className="bg-rose-50/60 border border-rose-100 rounded-sm p-4 space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold mb-3">Order Summary</p>
+                    {pricedRows.map((r, i) => (
+                      <div key={i} className="flex justify-between text-xs text-ink-600">
+                        <span className="truncate max-w-[220px]">{r.productName} <span className="text-ink-400">× {r.quantity}</span></span>
+                        <span className="font-medium ml-2 whitespace-nowrap">{formatPrice(r.unitPrice! * parseInt(r.quantity || "1"))}</span>
+                      </div>
+                    ))}
+                    <div className="pt-2 border-t border-rose-100 space-y-1.5">
+                      <div className="flex justify-between text-xs text-ink-500">
+                        <span>{allPriced ? "Subtotal" : "Subtotal (partial)"}</span>
+                        <span>~{formatPrice(subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-ink-500">
+                        <span>Delivery Charge</span>
+                        <span>{formatPrice(deliveryCharge)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1.5 border-t border-rose-100">
+                        <span className="text-xs font-semibold text-ink-700">Est. Total</span>
+                        <span className="text-base font-bold text-rose-600">~{formatPrice(total)}</span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-ink-400">Final pricing confirmed within 48 hrs. No payment until you approve.</p>
+                  </div>
+                );
+              })()}
 
               <div className="pt-3 border-t border-ink-100 space-y-3">
                 <p className="text-xs text-ink-500">

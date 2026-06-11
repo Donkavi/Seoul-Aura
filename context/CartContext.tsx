@@ -80,6 +80,7 @@ interface CartContextValue extends CartState {
   // Pre-order items
   preOrderItems: CartItem[];
   preOrderCount: number;
+  preOrderTotal: number;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -106,6 +107,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const total = cartItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const itemCount = cartItems.reduce((s, i) => s + i.quantity, 0);
   const preOrderCount = preOrderItems.reduce((s, i) => s + i.quantity, 0);
+  const preOrderTotal = preOrderItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
 
   return (
     <CartContext.Provider
@@ -116,6 +118,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         total,
         itemCount,
         preOrderCount,
+        preOrderTotal,
         addItem: (p, q) => dispatch({ type: "ADD_ITEM", product: p, quantity: q }),
         removeItem: (id) => dispatch({ type: "REMOVE_ITEM", productId: id }),
         updateQty: (id, q) => dispatch({ type: "UPDATE_QTY", productId: id, quantity: q }),
