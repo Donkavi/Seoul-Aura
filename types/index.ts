@@ -202,7 +202,9 @@ export interface PreOrderItem {
   productBrand: string;
   productName: string;
   productLink?: string;
+  productImage?: string;
   quantity: number;
+  unitPrice?: number;
 }
 
 export interface PreOrder {

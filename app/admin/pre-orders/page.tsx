@@ -51,6 +51,23 @@ export default function AdminPreOrdersPage() {
   const [tab, setTab] = useState<FilterTab>("pending");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<PreOrder | null>(null);
+  const [deliveryCharge, setDeliveryCharge] = useState(350);
+  const [counts, setCounts] = useState<Record<PreOrderStatus, number>>({} as Record<PreOrderStatus, number>);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { if (d?.shippingFee != null) setDeliveryCharge(d.shippingFee); })
+      .catch(() => {});
+  }, []);
+
+  const loadCounts = async () => {
+    try {
+      const res = await fetch("/api/pre-orders?counts=true");
+      const data = await res.json();
+      if (data.counts) setCounts(data.counts);
+    } catch { /* ignore */ }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -71,6 +88,10 @@ export default function AdminPreOrdersPage() {
   };
 
   useEffect(() => {
+    loadCounts();
+  }, []);
+
+  useEffect(() => {
     load();
   }, [tab]);
 
@@ -78,11 +99,6 @@ export default function AdminPreOrdersPage() {
     const debounce = setTimeout(load, 250);
     return () => clearTimeout(debounce);
   }, [search]);
-
-  const counts = preOrders.reduce(
-    (acc, p) => ({ ...acc, [p.status]: (acc[p.status] ?? 0) + 1 }),
-    {} as Record<PreOrderStatus, number>
-  );
 
   return (
     <div className="p-6 lg:p-10">
@@ -186,6 +202,9 @@ export default function AdminPreOrdersPage() {
                 <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">
                   Qty
                 </th>
+                <th className="text-right p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">
+                  Est. Total
+                </th>
                 <th className="text-left p-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">
                   Status
                 </th>
@@ -225,6 +244,15 @@ export default function AdminPreOrdersPage() {
                         ? `×${p.items.reduce((s, it) => s + it.quantity, 0)}`
                         : `×${p.quantity}`}
                     </td>
+                    <td className="p-4 text-right">
+                      {(() => {
+                        const items = p.items?.length ? p.items : [{ quantity: p.quantity, unitPrice: undefined as number | undefined }];
+                        const allPriced = items.every((it) => it.unitPrice != null);
+                        if (!allPriced) return <span className="text-xs text-ink-400 italic">TBQ</span>;
+                        const subtotal = items.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0);
+                        return <span className="text-sm font-semibold text-ink-900">{formatPrice(subtotal + deliveryCharge)}</span>;
+                      })()}
+                    </td>
                     <td className="p-4">
                       <span
                         className={cn(
@@ -250,7 +278,7 @@ export default function AdminPreOrdersPage() {
           preOrder={selected}
           onClose={() => setSelected(null)}
           onUpdate={async () => {
-            await load();
+            await Promise.all([load(), loadCounts()]);
             setSelected(null);
           }}
         />
@@ -278,6 +306,14 @@ function PreOrderDrawer({
   );
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deliveryCharge, setDeliveryCharge] = useState(350);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { if (d?.shippingFee != null) setDeliveryCharge(d.shippingFee); })
+      .catch(() => {});
+  }, []);
 
   const save = async () => {
     setSaving(true);
@@ -365,36 +401,80 @@ function PreOrderDrawer({
             <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
               Products {(preOrder.items?.length ?? 0) > 0 && `(${preOrder.items.length})`}
             </h3>
-            <div className="bg-rose-25/40 border border-ink-100 rounded-sm p-4 space-y-3 text-sm">
+            <div className="border border-ink-100 rounded-sm overflow-hidden text-sm">
+              {/* Column headers */}
+              <div className="grid grid-cols-[1fr_auto_auto_auto] bg-ink-50 border-b border-ink-100 px-4 py-2 gap-3 text-[10px] uppercase tracking-widest text-ink-500 font-semibold">
+                <span>Product</span>
+                <span className="text-right w-10">Qty</span>
+                <span className="text-right w-20">Unit Price</span>
+                <span className="text-right w-20">Total</span>
+              </div>
+
               {(preOrder.items?.length
                 ? preOrder.items
-                : [{ productBrand: preOrder.productBrand, productName: preOrder.productName, productLink: preOrder.productLink, quantity: preOrder.quantity }]
-              ).map((it, i) => (
-                <div key={i} className={i > 0 ? "pt-3 border-t border-ink-100" : ""}>
-                  <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">
-                    {it.productBrand}
-                  </p>
-                  <p className="font-display text-lg text-ink-900 leading-snug">{it.productName}</p>
-                  <p className="text-xs text-ink-500">
-                    Quantity: <strong>×{it.quantity}</strong>
-                  </p>
-                  {it.productLink && (
-                    <a
-                      href={it.productLink}
-                      target="_blank"
-                      rel="noopener"
-                      className="inline-flex items-center gap-1 text-xs text-rose-600 hover:underline mt-0.5"
-                    >
-                      Reference link <ExternalLink size={11} />
-                    </a>
-                  )}
-                </div>
-              ))}
+                : [{ productBrand: preOrder.productBrand, productName: preOrder.productName, productLink: preOrder.productLink, quantity: preOrder.quantity, unitPrice: undefined, productImage: undefined }]
+              ).map((it, i) => {
+                const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
+                return (
+                  <div key={i} className={cn("grid grid-cols-[1fr_auto_auto_auto] items-start px-4 py-3 gap-3", i > 0 && "border-t border-ink-100")}>
+                    <div className="flex items-start gap-3 min-w-0">
+                      {it.productImage ? (
+                        <img src={it.productImage} alt={it.productName} className="w-10 h-10 rounded object-cover flex-shrink-0 border border-ink-100" />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-ink-50 border border-ink-100 flex items-center justify-center flex-shrink-0 text-lg">🧴</div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">{it.productBrand}</p>
+                        <p className="text-sm text-ink-900 font-medium leading-snug">{it.productName}</p>
+                        {it.productLink && (
+                          <a href={it.productLink} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-[10px] text-rose-500 hover:underline mt-0.5">
+                            Reference <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-right w-10 text-ink-700 font-medium pt-1">×{it.quantity}</span>
+                    <span className="text-right w-20 text-ink-500 pt-1 whitespace-nowrap">
+                      {it.unitPrice != null ? formatPrice(it.unitPrice) : <span className="text-ink-300 italic text-xs">TBQ</span>}
+                    </span>
+                    <span className="text-right w-20 text-ink-900 font-semibold pt-1 whitespace-nowrap">
+                      {lineTotal != null ? formatPrice(lineTotal) : <span className="text-ink-300">—</span>}
+                    </span>
+                  </div>
+                );
+              })}
+
+              {/* Totals */}
+              {(() => {
+                const items = preOrder.items?.length
+                  ? preOrder.items
+                  : [{ quantity: preOrder.quantity, unitPrice: undefined as number | undefined }];
+                const subtotal = items.every((it) => it.unitPrice != null)
+                  ? items.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0)
+                  : null;
+                return (
+                  <div className="border-t border-ink-200 bg-ink-50/60 px-4 py-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between text-ink-500">
+                      <span>Subtotal</span>
+                      <span>{subtotal != null ? formatPrice(subtotal) : <span className="italic text-xs text-ink-400">Pending quotes</span>}</span>
+                    </div>
+                    <div className="flex justify-between text-ink-500">
+                      <span>Delivery Charge</span>
+                      <span>{formatPrice(deliveryCharge)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-ink-900 pt-1.5 border-t border-ink-200">
+                      <span>Est. Total</span>
+                      <span className="text-rose-600 font-display text-base">
+                        {subtotal != null ? formatPrice(subtotal + deliveryCharge) : "—"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {preOrder.notes && (
-                <div className="pt-3 border-t border-ink-100">
-                  <p className="text-[10px] uppercase tracking-widest text-ink-500 font-semibold mb-1">
-                    Customer note
-                  </p>
+                <div className="border-t border-ink-100 px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-widest text-ink-500 font-semibold mb-1">Customer note</p>
                   <p className="text-sm text-ink-700 italic">&quot;{preOrder.notes}&quot;</p>
                 </div>
               )}
