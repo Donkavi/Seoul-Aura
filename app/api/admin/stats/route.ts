@@ -13,6 +13,7 @@ export async function GET() {
     const [
       totalOrders,
       revenueResult,
+      preOrderRevenueResult,
       totalUsers,
       totalProducts,
       pendingOrders,
@@ -24,6 +25,33 @@ export async function GET() {
         { $match: { paymentStatus: "paid" } },
         { $group: { _id: null, total: { $sum: "$total" } } },
       ]),
+      // Fulfilled pre-order revenue: use estimatedPrice if set, else sum item unit prices
+      PreOrder.aggregate([
+        { $match: { status: "fulfilled" } },
+        {
+          $project: {
+            revenue: {
+              $cond: {
+                if: { $gt: [{ $ifNull: ["$estimatedPrice", 0] }, 0] },
+                then: "$estimatedPrice",
+                else: {
+                  $reduce: {
+                    input: { $ifNull: ["$items", []] },
+                    initialValue: 0,
+                    in: {
+                      $add: [
+                        "$$value",
+                        { $multiply: [{ $ifNull: ["$$this.unitPrice", 0] }, "$$this.quantity"] },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$revenue" } } },
+      ]),
       User.countDocuments(),
       Product.countDocuments(),
       Order.countDocuments({ status: "pending" }),
@@ -31,7 +59,7 @@ export async function GET() {
       PreOrder.countDocuments({ status: { $in: ["pending", "reviewing"] } }),
     ]);
 
-    const totalRevenue = revenueResult[0]?.total ?? 0;
+    const totalRevenue = (revenueResult[0]?.total ?? 0) + (preOrderRevenueResult[0]?.total ?? 0);
 
     return NextResponse.json({
       totalOrders,

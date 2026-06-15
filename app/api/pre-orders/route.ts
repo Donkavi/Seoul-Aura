@@ -14,6 +14,17 @@ export async function GET(req: NextRequest) {
   try {
     await connectDB();
     const { searchParams } = new URL(req.url);
+
+    // ?counts=true → return per-status counts only (no pagination)
+    if (searchParams.get("counts") === "true") {
+      const result = await PreOrder.aggregate([
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]);
+      const counts: Record<string, number> = {};
+      result.forEach((r: { _id: string; count: number }) => { counts[r._id] = r.count; });
+      return NextResponse.json({ counts });
+    }
+
     const status = searchParams.get("status");
     const limit = parseInt(searchParams.get("limit") ?? "50");
     const page = parseInt(searchParams.get("page") ?? "1");
