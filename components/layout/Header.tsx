@@ -12,7 +12,7 @@ import type { NavMenuItem } from "@/types";
 
 export default function Header() {
   const router = useRouter();
-  const { itemCount, openDrawer } = useCart();
+  const { itemCount, preOrderCount, openDrawer } = useCart();
   const { count: wishlistCount } = useWishlist();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -149,8 +149,13 @@ export default function Header() {
             >
               <ShoppingBag size={20} className="text-ink-700" />
               {itemCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-rose-600 text-white text-[10px] font-semibold w-5 h-5 rounded-full flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 bg-ink-900 text-white text-[10px] font-semibold w-5 h-5 rounded-full flex items-center justify-center">
                   {itemCount}
+                </span>
+              )}
+              {preOrderCount > 0 && (
+                <span className="absolute -bottom-0.5 -right-0.5 bg-rose-600 text-white text-[10px] font-semibold w-5 h-5 rounded-full flex items-center justify-center">
+                  {preOrderCount}
                 </span>
               )}
             </button>

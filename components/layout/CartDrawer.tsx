@@ -150,7 +150,7 @@ export default function CartDrawer() {
                   <Plane size={12} className="text-rose-400 shrink-0 mt-0.5" />
                   <p>Prices are estimates — final quote confirmed within 48 hrs. No payment until you approve.</p>
                 </div>
-                <Link href="/pre-order" onClick={closeDrawer} className="btn-primary w-full block text-center">
+                <Link href="/pre-order#request-form" onClick={closeDrawer} className="btn-primary w-full block text-center">
                   Request Pre-Order · {preOrderCount} item{preOrderCount !== 1 ? "s" : ""}
                 </Link>
                 <button onClick={closeDrawer} className="btn-ghost w-full text-center text-xs">

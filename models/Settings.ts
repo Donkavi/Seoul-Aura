@@ -99,6 +99,7 @@ export interface ISettings extends Document {
   currencySymbol: string;
   shippingFee: number;
   freeShippingThreshold: number;
+  allowManualPreOrderEntry: boolean;
   instagramUrl: string;
   facebookUrl: string;
   whatsappNumber: string;
@@ -298,9 +299,10 @@ const SettingsSchema = new Schema<ISettings>(
     currencySymbol: { type: String, default: "Rs." },
     shippingFee: { type: Number, default: 350 },
     freeShippingThreshold: { type: Number, default: 5000 },
+    allowManualPreOrderEntry: { type: Boolean, default: true },
     instagramUrl: { type: String, default: "" },
     facebookUrl: { type: String, default: "" },
-    whatsappNumber: { type: String, default: "" },
+    whatsappNumber: { type: String, default: "+94778362755" },
     tiktokUrl: { type: String, default: "" },
     heroSlides: { type: [HeroSlideSchema], default: [] },
     sliderShowArrows: { type: Boolean, default: true },
