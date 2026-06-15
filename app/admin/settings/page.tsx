@@ -122,6 +122,7 @@ interface Settings {
   currencySymbol: string;
   shippingFee: number;
   freeShippingThreshold: number;
+  allowManualPreOrderEntry: boolean;
   instagramUrl: string;
   facebookUrl: string;
   whatsappNumber: string;
@@ -152,6 +153,7 @@ const defaultSettings: Settings = {
   currencySymbol: "Rs.",
   shippingFee: 350,
   freeShippingThreshold: 5000,
+  allowManualPreOrderEntry: true,
   instagramUrl: "",
   facebookUrl: "",
   whatsappNumber: "",
@@ -744,6 +746,32 @@ export default function AdminSettingsPage() {
                   Set to 0 to disable free shipping.
                 </p>
               </Field>
+            </div>
+
+            {/* Pre-Order Form */}
+            <div className="mt-6 pt-5 border-t border-ink-100">
+              <p className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-3">Pre-Order Form</p>
+              <label className="flex items-center justify-between gap-4 cursor-pointer group">
+                <div>
+                  <p className="text-sm font-medium text-ink-900">Allow manual brand / product entry</p>
+                  <p className="text-xs text-ink-400 mt-0.5">
+                    When enabled, customers can type a brand or product name not in your catalog using the "+ Use ..." option.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.allowManualPreOrderEntry}
+                  onClick={() => set("allowManualPreOrderEntry", !settings.allowManualPreOrderEntry)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    settings.allowManualPreOrderEntry ? "bg-rose-600" : "bg-ink-200"
+                  }`}
+                >
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    settings.allowManualPreOrderEntry ? "translate-x-5" : "translate-x-0"
+                  }`} />
+                </button>
+              </label>
             </div>
           </Section>
 

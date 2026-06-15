@@ -10,6 +10,7 @@ interface CartState {
 
 type CartAction =
   | { type: "ADD_ITEM"; product: Product; quantity?: number }
+  | { type: "ADD_ITEM_SILENT"; product: Product; quantity?: number }
   | { type: "REMOVE_ITEM"; productId: string }
   | { type: "UPDATE_QTY"; productId: string; quantity: number }
   | { type: "CLEAR" }
@@ -35,6 +36,23 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return {
         ...state,
         isOpen: true,
+        items: [...state.items, { product: action.product, quantity: action.quantity ?? 1 }],
+      };
+    }
+    case "ADD_ITEM_SILENT": {
+      const existing = state.items.find((i) => i.product._id === action.product._id);
+      if (existing) {
+        return {
+          ...state,
+          items: state.items.map((i) =>
+            i.product._id === action.product._id
+              ? { ...i, quantity: i.quantity + (action.quantity ?? 1) }
+              : i
+          ),
+        };
+      }
+      return {
+        ...state,
         items: [...state.items, { product: action.product, quantity: action.quantity ?? 1 }],
       };
     }
@@ -66,6 +84,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 
 interface CartContextValue extends CartState {
   addItem: (product: Product, quantity?: number) => void;
+  addItemSilent: (product: Product, quantity?: number) => void;
   removeItem: (productId: string) => void;
   updateQty: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -120,6 +139,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         preOrderCount,
         preOrderTotal,
         addItem: (p, q) => dispatch({ type: "ADD_ITEM", product: p, quantity: q }),
+        addItemSilent: (p, q) => dispatch({ type: "ADD_ITEM_SILENT", product: p, quantity: q }),
         removeItem: (id) => dispatch({ type: "REMOVE_ITEM", productId: id }),
         updateQty: (id, q) => dispatch({ type: "UPDATE_QTY", productId: id, quantity: q }),
         clearCart: () => dispatch({ type: "CLEAR" }),

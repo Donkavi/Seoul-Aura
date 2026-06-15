@@ -30,17 +30,21 @@ import { cn, formatPrice } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 
 interface DbBrand { _id: string; name: string; }
-interface DbProduct { _id: string; name: string; slug: string; images: string[]; price?: number; }
+interface DbProduct {
+  _id: string; name: string; slug: string; images: string[]; price?: number;
+  brand?: string; origin?: string; subtype?: string; type?: string;
+}
 
 // ─── Combobox ─────────────────────────────────────────────────────────────────
 function Combobox({
-  value, onChange, options, placeholder, disabled = false,
+  value, onChange, options, placeholder, disabled = false, allowCustom = true,
 }: {
   value: string;
   onChange: (v: string) => void;
   options: string[];
   placeholder?: string;
   disabled?: boolean;
+  allowCustom?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
@@ -67,14 +71,28 @@ function Combobox({
     setOpen(false);
   };
 
+  const handleBlur = () => {
+    if (!allowCustom && !exactMatch) {
+      setQuery("");
+      onChange("");
+    }
+    setOpen(false);
+  };
+
   return (
     <div ref={ref} className="relative flex-1">
       <div className="flex items-center gap-1.5">
         <input
           value={query}
           disabled={disabled}
-          onChange={(e) => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            // Only push raw text to parent when custom entry is allowed
+            if (allowCustom) onChange(e.target.value);
+            setOpen(true);
+          }}
           onFocus={() => setOpen(true)}
+          onBlur={handleBlur}
           placeholder={placeholder}
           className="flex-1 bg-transparent outline-none text-sm disabled:text-ink-400"
         />
@@ -96,7 +114,7 @@ function Combobox({
               </button>
             </li>
           ))}
-          {!exactMatch && query.trim() && (
+          {allowCustom && !exactMatch && query.trim() && (
             <li>
               <button type="button" onMouseDown={() => select(query.trim())}
                 className="w-full text-left px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 border-t border-ink-100 flex items-center gap-1.5 font-medium">
@@ -188,7 +206,7 @@ const faqs = [
 
 export default function PreOrderPage() {
   const { data: session, status: authStatus } = useSession();
-  const { preOrderItems, removeItem, clearPreOrders, preOrderTotal } = useCart();
+  const { preOrderItems, removeItem, clearPreOrders, preOrderTotal, addItemSilent, updateQty } = useCart();
 
   const [contact, setContact] = useState({
     customerName: "",
@@ -205,14 +223,18 @@ export default function PreOrderPage() {
   const [dbBrands, setDbBrands] = useState<DbBrand[]>([]);
   const [dbProductsCache, setDbProductsCache] = useState<Record<string, DbProduct[]>>({});
   const [deliveryCharge, setDeliveryCharge] = useState(350);
+  const [allowManualEntry, setAllowManualEntry] = useState(true);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
 
-  // Fetch brands + delivery charge once
+  // Fetch brands + settings once
   useEffect(() => {
     fetch("/api/brands").then((r) => r.json()).then((d) => {
       if (Array.isArray(d)) setDbBrands(d);
     }).catch(() => {});
     fetch("/api/settings").then((r) => r.json()).then((d) => {
       if (d?.shippingFee != null) setDeliveryCharge(d.shippingFee);
+      if (d?.allowManualPreOrderEntry != null) setAllowManualEntry(d.allowManualPreOrderEntry);
+      if (d?.whatsappNumber) setWhatsappNumber(d.whatsappNumber);
     }).catch(() => {});
   }, []);
 
@@ -237,41 +259,75 @@ export default function PreOrderPage() {
     }
   }, [session]);
 
-  // Seed product rows from the pre-order bag (once)
-  const seeded = useRef(false);
+  // Bidirectional sync: keep form rows in sync with the pre-order bag
   useEffect(() => {
-    if (seeded.current) return;
-    if (preOrderItems.length > 0) {
-      seeded.current = true;
-      const rows = preOrderItems.map((i) => ({
-        productBrand: i.product.brand || "",
-        productName: i.product.name,
-        productLink:
-          typeof window !== "undefined"
-            ? `${window.location.origin}/shop/${i.product.slug ?? i.product._id}`
-            : "",
-        quantity: String(i.quantity),
-        origin: i.product.origin || "Other",
-        fromCart: true,
-        productId: i.product._id,
-        unitPrice: i.product.price,
-        productImage: i.product.images?.[0],
-      }));
-      setProducts(rows);
-      // Pre-fetch products for each brand that's already set
-      rows.forEach((r) => { if (r.productBrand) fetchBrandProducts(r.productBrand); });
-    }
+    setProducts((prev) => {
+      let changed = false;
+      const bagIds = new Set(preOrderItems.map((i) => i.product._id));
+
+      // Remove catalog rows whose bag item was deleted
+      const filtered = prev.filter((r) => {
+        if (!r.productId) return true;
+        if (!bagIds.has(r.productId)) { changed = true; return false; }
+        return true;
+      });
+
+      // Sync quantities for existing catalog rows
+      const synced = filtered.map((r) => {
+        if (!r.productId) return r;
+        const bi = preOrderItems.find((i) => i.product._id === r.productId);
+        if (!bi) return r;
+        const newQty = String(bi.quantity);
+        if (r.quantity !== newQty) { changed = true; return { ...r, quantity: newQty }; }
+        return r;
+      });
+
+      // Add new bag items not yet represented in form
+      const existingIds = new Set(synced.map((r) => r.productId).filter(Boolean) as string[]);
+      const newRows = preOrderItems
+        .filter((i) => !existingIds.has(i.product._id))
+        .map((i) => {
+          changed = true;
+          return {
+            productBrand: i.product.brand || "",
+            productName: i.product.name,
+            productLink: typeof window !== "undefined"
+              ? `${window.location.origin}/shop/${i.product.slug ?? i.product._id}`
+              : "",
+            quantity: String(i.quantity),
+            origin: i.product.origin || "Other",
+            fromCart: true,
+            productId: i.product._id,
+            unitPrice: i.product.price,
+            productImage: i.product.images?.[0],
+          };
+        });
+
+      if (!changed) return prev;
+      const merged = [...newRows, ...synced];
+      return merged.length > 0 ? merged : [blankRow()];
+    });
+    // Pre-fetch products for brands in the bag
+    preOrderItems.forEach((i) => { if (i.product.brand) fetchBrandProducts(i.product.brand); });
   }, [preOrderItems, fetchBrandProducts]);
 
   const updateContact = (key: string, value: string) =>
     setContact((prev) => ({ ...prev, [key]: value }));
 
-  const updateRow = (idx: number, key: keyof ProductRow, value: string) =>
+  const updateRow = (idx: number, key: keyof ProductRow, value: string) => {
     setProducts((rows) => rows.map((r, i) => (i === idx ? { ...r, [key]: value } : r)));
+    // Sync quantity changes to the pre-order bag
+    if (key === "quantity") {
+      const row = products[idx];
+      if (row.productId) updateQty(row.productId, Math.max(1, parseInt(value) || 1));
+    }
+  };
 
   const onBrandChange = (idx: number, brand: string) => {
+    const row = products[idx];
+    if (row.productId) removeItem(row.productId); // remove old catalog product from bag
     setProducts((rows) => rows.map((r, i) =>
-      i === idx ? { ...r, productBrand: brand, productName: "", productLink: "" } : r
+      i === idx ? { ...r, productBrand: brand, productName: "", productLink: "", productId: undefined, unitPrice: undefined } : r
     ));
     fetchBrandProducts(brand);
   };
@@ -280,6 +336,13 @@ export default function PreOrderPage() {
     const brand = products[idx].productBrand;
     const cached = dbProductsCache[brand] ?? [];
     const matched = cached.find((p) => p.name === name);
+    const oldRow = products[idx];
+
+    // Remove old catalog product from bag if switching to a different one
+    if (oldRow.productId && matched?._id !== oldRow.productId) {
+      removeItem(oldRow.productId);
+    }
+
     setProducts((rows) => rows.map((r, i) =>
       i === idx ? {
         ...r,
@@ -289,15 +352,44 @@ export default function PreOrderPage() {
           : r.productLink,
         unitPrice: matched?.price ?? r.unitPrice,
         productImage: matched?.images?.[0] ?? r.productImage,
+        productId: matched?._id,
       } : r
     ));
+
+    // Form → Bag: add matched catalog product to pre-order bag (silently)
+    if (matched) {
+      const qty = Math.max(1, parseInt(products[idx].quantity) || 1);
+      addItemSilent({
+        _id: matched._id,
+        name: matched.name,
+        slug: matched.slug,
+        images: matched.images,
+        price: matched.price ?? 0,
+        brand: matched.brand ?? brand,
+        origin: (matched.origin ?? "Other") as "Korea" | "Dubai" | "Other",
+        subtype: matched.subtype ?? "",
+        type: matched.type ?? "",
+        description: "",
+        shortDescription: "",
+        stock: 99,
+        tags: [],
+        concerns: [],
+        isFeatured: false,
+        isBestSeller: false,
+        isNewArrival: false,
+        averageRating: 0,
+        reviewCount: 0,
+        createdAt: new Date().toISOString(),
+        isPreOrder: true,
+      }, qty);
+    }
   };
 
   const addRow = () => setProducts((rows) => [...rows, blankRow()]);
 
   const removeRow = (idx: number) => {
     const row = products[idx];
-    if (row?.fromCart && row.productId) removeItem(row.productId); // keep the bag in sync
+    if (row.productId) removeItem(row.productId); // sync removal to bag
     setProducts((rows) => (rows.length === 1 ? [blankRow()] : rows.filter((_, i) => i !== idx)));
   };
 
@@ -373,7 +465,6 @@ export default function PreOrderPage() {
       setRefs(data.requestNumber ? [data.requestNumber] : []);
       clearPreOrders();
       setProducts([blankRow()]);
-      seeded.current = false;
       setStatus("success");
     } catch (err) {
       setStatus("error");
@@ -431,7 +522,7 @@ export default function PreOrderPage() {
         </div>
       </section>
 
-      <section className="py-16 lg:py-20">
+      <section id="request-form" className="py-16 lg:py-20">
         <div className="max-w-6xl mx-auto px-4 lg:px-8 grid lg:grid-cols-5 gap-10 lg:gap-16">
           <div className="lg:col-span-2 space-y-6">
             <div>
@@ -563,6 +654,7 @@ export default function PreOrderPage() {
                             onChange={(v) => onBrandChange(idx, v)}
                             options={dbBrands.map((b) => b.name)}
                             placeholder="e.g. COSRX"
+                            allowCustom={allowManualEntry}
                           />
                         </FormField>
                         <FormField icon={Package} label="Product Name *">
@@ -571,6 +663,7 @@ export default function PreOrderPage() {
                             onChange={(v) => onProductChange(idx, v)}
                             options={(dbProductsCache[row.productBrand] ?? []).map((p) => p.name)}
                             placeholder={row.productBrand ? "Select or type a product" : "Enter brand first"}
+                            allowCustom={allowManualEntry}
                             disabled={false}
                           />
                         </FormField>
@@ -691,6 +784,34 @@ export default function PreOrderPage() {
         </div>
       </section>
 
+      {/* WhatsApp contact nudge */}
+      <section className="py-12 bg-rose-50 border-y border-rose-100">
+        <div className="max-w-3xl mx-auto px-4 lg:px-8 text-center">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-white border border-rose-200 mb-4">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-green-500">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+            </svg>
+          </div>
+          <h2 className="font-display text-2xl lg:text-3xl text-ink-900 mb-2">
+            Can&apos;t find your product in the list?
+          </h2>
+          <p className="text-sm text-ink-600 max-w-md mx-auto mb-6 leading-relaxed">
+            If the brand or product you&apos;re looking for isn&apos;t in our catalog yet, just message us directly on WhatsApp — we&apos;ll source it for you.
+          </p>
+          <a
+            href={`https://wa.me/${(whatsappNumber || "+94778362755").replace(/\D/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2.5 bg-green-500 hover:bg-green-600 text-white font-medium px-6 py-3 rounded-sm transition-colors"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+            </svg>
+            Chat with us on WhatsApp
+          </a>
+        </div>
+      </section>
+
       <section className="bg-ink-900 text-white py-16 lg:py-20">
         <div className="max-w-3xl mx-auto px-4 lg:px-8">
           <div className="text-center mb-12">
@@ -717,9 +838,9 @@ export default function PreOrderPage() {
           <div className="mt-12 text-center">
             <p className="text-sm text-ink-300 mb-4">Still have questions?</p>
             <a
-              href="https://wa.me/94773398094"
+              href={`https://wa.me/${(whatsappNumber || "+94778362755").replace(/\D/g, "")}`}
               target="_blank"
-              rel="noopener"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-rose-300 hover:text-rose-200 text-sm underline underline-offset-4"
             >
               Chat with us on WhatsApp <ArrowRight size={14} />
