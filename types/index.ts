@@ -205,6 +205,7 @@ export interface PreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  availability?: "available" | "unavailable";
 }
 
 export interface PreOrder {
@@ -225,6 +226,8 @@ export interface PreOrder {
   estimatedPrice?: number;
   estimatedAvailability?: string;
   adminNotes?: string;
+  balancePaymentMethod?: "cod" | "bank";
+  depositPaid?: boolean;
   createdAt: string;
   updatedAt: string;
 }

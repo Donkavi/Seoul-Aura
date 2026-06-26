@@ -51,6 +51,7 @@ export interface IContactPage {
 
 export interface IHeroSlide {
   url: string;
+  mobileUrl: string;
   type: "image" | "video";
   label: string;
   badge: string;
@@ -119,6 +120,7 @@ export interface ISettings extends Document {
 const HeroSlideSchema = new Schema<IHeroSlide>(
   {
     url: { type: String, required: true },
+    mobileUrl: { type: String, default: "" },
     type: { type: String, enum: ["image", "video"], default: "image" },
     label: { type: String, default: "" },
     badge: { type: String, default: "" },

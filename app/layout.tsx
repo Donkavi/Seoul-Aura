@@ -8,7 +8,7 @@ import AuthProvider from "@/components/providers/AuthProvider";
 export const metadata: Metadata = {
   title: "Seoul Aura | Premium Korean Imports",
   description:
-    "Discover authentic Korean beauty products and Dubai specialty foods. Curated imports, subscription boxes, and more.",
+    "Discover authentic Korean beauty products. Curated imports, subscription boxes, and more.",
   keywords: ["korean cosmetics", "dubai food", "k-beauty", "import shop", "subscription box"],
   icons: {
     icon: "/icon-512.png",

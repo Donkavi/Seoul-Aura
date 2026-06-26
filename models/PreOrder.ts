@@ -14,6 +14,7 @@ export interface IPreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  availability?: "available" | "unavailable";
 }
 
 export interface IPreOrder extends Document {
@@ -33,6 +34,8 @@ export interface IPreOrder extends Document {
   estimatedPrice?: number;
   estimatedAvailability?: string;
   adminNotes?: string;
+  balancePaymentMethod?: "cod" | "bank";
+  depositPaid?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,6 +48,7 @@ const PreOrderItemSchema = new Schema<IPreOrderItem>(
     productImage: { type: String },
     quantity: { type: Number, default: 1, min: 1 },
     unitPrice: { type: Number },
+    availability: { type: String, enum: ["available", "unavailable"], default: "available" },
   },
   { _id: false }
 );
@@ -71,6 +75,8 @@ const PreOrderSchema = new Schema<IPreOrder>(
     estimatedPrice: { type: Number },
     estimatedAvailability: { type: String },
     adminNotes: { type: String, trim: true },
+    balancePaymentMethod: { type: String, enum: ["cod", "bank"] },
+    depositPaid: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

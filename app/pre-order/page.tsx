@@ -25,6 +25,10 @@ import {
   Loader2,
   ShieldCheck,
   ChevronDown,
+  X,
+  Clock,
+  CreditCard,
+  Tag,
 } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -176,7 +180,7 @@ const steps = [
   {
     icon: PackageCheck,
     title: "You confirm",
-    text: "Within 48 hours, we email you the quoted price, ETA, and a link to confirm the order.",
+    text: "We confirm your order from our side within 2 business days. Once confirmed, you pay 25% of the total bill as a deposit — and your order is locked in.",
   },
   {
     icon: Plane,
@@ -218,6 +222,12 @@ export default function PreOrderPage() {
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [refs, setRefs] = useState<string[]>([]);
+
+  // Confirmation modal
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [agreements, setAgreements] = useState({ confirm: false, deposit: false, pricing: false });
+  const [balanceMethod, setBalanceMethod] = useState<"cod" | "bank" | "">("");
+  const allAgreed = agreements.confirm && agreements.deposit && agreements.pricing && balanceMethod !== "";
 
   // DB data for comboboxes
   const [dbBrands, setDbBrands] = useState<DbBrand[]>([]);
@@ -424,7 +434,7 @@ export default function PreOrderPage() {
     );
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -439,6 +449,23 @@ export default function PreOrderPage() {
       return;
     }
 
+    // Open the confirmation modal — actual submit happens after the user agrees
+    setAgreements({ confirm: false, deposit: false, pricing: false });
+    setBalanceMethod("");
+    setShowConfirm(true);
+  };
+
+  const confirmAndSubmit = async () => {
+    if (!allAgreed) return;
+    setError("");
+
+    const validRows = products.filter((p) => p.productBrand.trim() && p.productName.trim());
+    if (validRows.length === 0) {
+      setShowConfirm(false);
+      setError("Add at least one product with a brand and product name.");
+      return;
+    }
+
     setStatus("submitting");
     try {
       const res = await fetch("/api/pre-orders", {
@@ -449,6 +476,7 @@ export default function PreOrderPage() {
           customerEmail: contact.customerEmail,
           phoneNumber: contact.phoneNumber,
           notes: contact.notes,
+          balancePaymentMethod: balanceMethod,
           items: validRows.map((row) => ({
             productBrand: row.productBrand,
             productName: row.productName,
@@ -465,8 +493,10 @@ export default function PreOrderPage() {
       setRefs(data.requestNumber ? [data.requestNumber] : []);
       clearPreOrders();
       setProducts([blankRow()]);
+      setShowConfirm(false);
       setStatus("success");
     } catch (err) {
+      setShowConfirm(false);
       setStatus("error");
       setError((err as Error).message || "Something went wrong. Please try again.");
     }
@@ -848,6 +878,162 @@ export default function PreOrderPage() {
           </div>
         </div>
       </section>
+
+      {/* Confirmation modal */}
+      {showConfirm && (() => {
+        const validRows = products.filter(r => r.productBrand.trim() && r.productName.trim());
+        const pricedRows = validRows.filter(r => r.unitPrice != null);
+        const allPriced = pricedRows.length > 0 && pricedRows.length === validRows.length;
+        const subtotal = pricedRows.reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
+        const estTotal = subtotal + deliveryCharge;
+        const deposit = Math.round(estTotal * 0.25);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="absolute inset-0 bg-ink-900/50 backdrop-blur-sm animate-fade-in"
+              onClick={() => status !== "submitting" && setShowConfirm(false)}
+            />
+            <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-fade-in">
+              <div className="sticky top-0 bg-white border-b border-ink-100 px-6 py-4 flex items-center justify-between">
+                <h3 className="font-display text-xl text-ink-900">Before we place your request</h3>
+                <button
+                  onClick={() => status !== "submitting" && setShowConfirm(false)}
+                  className="p-1.5 hover:bg-ink-50 rounded-full transition-colors"
+                  aria-label="Close"
+                >
+                  <X size={18} className="text-ink-500" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-sm text-ink-600 leading-relaxed">
+                  Please review and acknowledge how pre-orders work before we submit your request:
+                </p>
+
+                {/* Checkbox 1 — confirmation window */}
+                <label className="flex items-start gap-3 p-3.5 border border-ink-200 rounded-sm cursor-pointer hover:border-rose-300 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={agreements.confirm}
+                    onChange={(e) => setAgreements((a) => ({ ...a, confirm: e.target.checked }))}
+                    className="mt-0.5 w-4 h-4 accent-rose-600 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="flex items-start gap-2 text-sm text-ink-700 leading-relaxed">
+                    <Clock size={16} className="text-rose-500 flex-shrink-0 mt-0.5" />
+                    <span>We&apos;ll review and <strong>confirm your order from our side within 2 business days</strong>.</span>
+                  </span>
+                </label>
+
+                {/* Checkbox 2 — deposit */}
+                <label className="flex items-start gap-3 p-3.5 border border-ink-200 rounded-sm cursor-pointer hover:border-rose-300 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={agreements.deposit}
+                    onChange={(e) => setAgreements((a) => ({ ...a, deposit: e.target.checked }))}
+                    className="mt-0.5 w-4 h-4 accent-rose-600 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="flex items-start gap-2 text-sm text-ink-700 leading-relaxed">
+                    <CreditCard size={16} className="text-rose-500 flex-shrink-0 mt-0.5" />
+                    <span>
+                      Once confirmed, I agree to pay a <strong>25% deposit
+                      {allPriced && <> (~{formatPrice(deposit)})</>} via bank transfer</strong> to lock in my order.
+                    </span>
+                  </span>
+                </label>
+
+                {/* Checkbox 3 — estimated pricing */}
+                <label className="flex items-start gap-3 p-3.5 border border-ink-200 rounded-sm cursor-pointer hover:border-rose-300 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={agreements.pricing}
+                    onChange={(e) => setAgreements((a) => ({ ...a, pricing: e.target.checked }))}
+                    className="mt-0.5 w-4 h-4 accent-rose-600 cursor-pointer flex-shrink-0"
+                  />
+                  <span className="flex items-start gap-2 text-sm text-ink-700 leading-relaxed">
+                    <Tag size={16} className="text-rose-500 flex-shrink-0 mt-0.5" />
+                    <span>I understand the <strong>estimated total is based on current listed prices</strong>, and final pricing will be confirmed within 48 hours.</span>
+                  </span>
+                </label>
+
+                {allPriced && (
+                  <div className="bg-rose-50/60 border border-rose-100 rounded-sm p-3 text-xs space-y-1">
+                    <div className="flex justify-between text-ink-500">
+                      <span>Estimated Total</span>
+                      <span>~{formatPrice(estTotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-ink-900 font-semibold">
+                      <span>Deposit via bank transfer (25%)</span>
+                      <span className="text-rose-600">~{formatPrice(deposit)}</span>
+                    </div>
+                    {balanceMethod !== "" && (
+                      <div className="flex justify-between text-ink-500 pt-1 border-t border-rose-100">
+                        <span>Balance ({balanceMethod === "bank" ? "Bank Transfer" : "Cash on Delivery"})</span>
+                        <span>~{formatPrice(estTotal - deposit)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Balance payment method */}
+                <div>
+                  <p className="text-xs font-semibold text-ink-700 mb-2">How would you like to pay the remaining balance?</p>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setBalanceMethod("cod")}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 border rounded-sm text-center transition-colors",
+                        balanceMethod === "cod"
+                          ? "border-rose-500 bg-rose-50/60 ring-1 ring-rose-300"
+                          : "border-ink-200 hover:border-rose-300"
+                      )}
+                    >
+                      <ShoppingBag size={18} className={balanceMethod === "cod" ? "text-rose-600" : "text-ink-400"} />
+                      <span className="text-xs font-medium text-ink-800">Cash on Delivery</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBalanceMethod("bank")}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 p-3 border rounded-sm text-center transition-colors",
+                        balanceMethod === "bank"
+                          ? "border-rose-500 bg-rose-50/60 ring-1 ring-rose-300"
+                          : "border-ink-200 hover:border-rose-300"
+                      )}
+                    >
+                      <CreditCard size={18} className={balanceMethod === "bank" ? "text-rose-600" : "text-ink-400"} />
+                      <span className="text-xs font-medium text-ink-800">Bank Transfer</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-ink-400 mt-1.5">The 25% deposit is always paid via bank transfer. This is for the remaining balance.</p>
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 bg-white border-t border-ink-100 px-6 py-4 flex gap-3">
+                <button
+                  onClick={() => setShowConfirm(false)}
+                  disabled={status === "submitting"}
+                  className="btn-outline flex-1 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmAndSubmit}
+                  disabled={!allAgreed || status === "submitting"}
+                  className="btn-primary flex-1 inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {status === "submitting" ? (
+                    <><Loader2 size={14} className="animate-spin" /> Placing…</>
+                  ) : (
+                    <><Check size={14} /> Place Pre-Order</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }

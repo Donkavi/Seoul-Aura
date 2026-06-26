@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Plane, Search, PackageCheck, ArrowRight, Sparkles } from "lucide-react";
+import { Plane, Search, PackageCheck, CreditCard, ArrowRight, Sparkles } from "lucide-react";
 
 const steps = [
   { icon: Search, text: "We hunt the source" },
-  { icon: PackageCheck, text: "You confirm the quote" },
+  { icon: PackageCheck, text: "We confirm in 2 business days" },
+  { icon: CreditCard, text: "You pay a 25% deposit to lock it in" },
   { icon: Plane, text: "We import & deliver" },
 ];
 
@@ -60,7 +61,7 @@ export default function PreOrderCTA() {
                 />
               </Link>
               <a
-                href="https://wa.me/94773398094"
+                href="https://wa.me/94778362755"
                 target="_blank"
                 rel="noopener"
                 className="border border-white/30 text-white hover:bg-white hover:text-ink-900 px-7 py-3.5 text-sm font-medium tracking-wide transition-all duration-300"
@@ -84,13 +85,19 @@ export default function PreOrderCTA() {
               <div className="mt-6 pt-6 border-t border-white/10">
                 <div className="flex items-center justify-between">
                   <span className="text-xs uppercase tracking-widest text-rose-300 font-semibold">
-                    Quoted in
+                    Confirmed in
                   </span>
-                  <span className="font-display text-2xl text-white">~48 hours</span>
+                  <span className="font-display text-2xl text-white">2 days</span>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <span className="text-xs uppercase tracking-widest text-rose-300 font-semibold">
-                    ETA after confirm
+                    Deposit to lock in
+                  </span>
+                  <span className="font-display text-2xl text-white">25%</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-widest text-rose-300 font-semibold">
+                    ETA after deposit
                   </span>
                   <span className="font-display text-2xl text-white">2-3 weeks</span>
                 </div>

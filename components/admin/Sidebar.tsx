@@ -19,6 +19,7 @@ import {
   UserCheck,
   Shield,
   Store,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ const navItems = [
   { href: "/admin/stock-notifications", label: "Restock Alerts", icon: Bell },
   { href: "/admin/subscriptions", label: "Sub Plans", icon: Box },
   { href: "/admin/subscribers", label: "Subscribers", icon: UserCheck },
+  { href: "/admin/notify", label: "Notify", icon: Send },
   { href: "/admin/nav-menu", label: "Nav Menu", icon: Navigation },
   { href: "/admin/users", label: "Users", icon: Users },
   { href: "/admin/admins", label: "Admins", icon: Shield },

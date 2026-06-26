@@ -34,6 +34,7 @@ const DEFAULT_HOME_SECTIONS: HomeSection[] = [
 
 interface HeroSlide {
   url: string;
+  mobileUrl: string;
   type: "image" | "video";
   label: string;
   badge: string;
@@ -434,7 +435,7 @@ export default function AdminSettingsPage() {
       heroSlides: [
         ...prev.heroSlides,
         {
-          url, type: newSlideType, label: newSlideLabel.trim(),
+          url, mobileUrl: "", type: newSlideType, label: newSlideLabel.trim(),
           badge: "", title: "", highlight: "", subtitle: "", description: "",
           cta: "", ctaHref: "/shop", align: "left" as const,
           showText: true, showButton: true,
@@ -1151,6 +1152,31 @@ export default function AdminSettingsPage() {
                             <option value="right">Text Right</option>
                           </select>
                         </div>
+
+                        {/* Mobile image (images only) */}
+                        {slide.type === "image" && (
+                          <div className="flex gap-2 items-center">
+                            {slide.mobileUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={slide.mobileUrl}
+                                alt=""
+                                className="w-8 h-10 object-cover rounded-sm border border-ink-100 flex-shrink-0"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                              />
+                            ) : (
+                              <span className="w-8 h-10 flex items-center justify-center rounded-sm border border-dashed border-ink-200 text-ink-300 flex-shrink-0">
+                                <ImageIcon size={12} />
+                              </span>
+                            )}
+                            <input
+                              value={slide.mobileUrl ?? ""}
+                              onChange={(e) => updateSlideField(i, "mobileUrl", e.target.value)}
+                              placeholder="Mobile image URL (portrait) — optional, falls back to main image"
+                              className="flex-1 text-xs border border-ink-100 rounded-sm px-2 py-1.5 text-ink-700 placeholder:text-ink-300 focus:outline-none focus:border-rose-300 font-mono"
+                            />
+                          </div>
+                        )}
 
                         {/* Visibility toggles */}
                         <div className="flex items-center gap-4 py-1">

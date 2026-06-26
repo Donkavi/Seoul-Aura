@@ -26,11 +26,9 @@ function layout(content: string) {
         <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
           <!-- Header -->
           <tr>
-            <td style="background:#1c1917;padding:28px 40px;text-align:center;border-radius:6px 6px 0 0;">
-              <a href="${SITE}" style="text-decoration:none;">
-                <span style="font-family:Georgia,serif;font-size:26px;font-weight:400;color:#ffffff;letter-spacing:4px;text-transform:uppercase;">
-                  Seoul <span style="color:#fbcfda;">Aura</span>
-                </span>
+            <td style="background:linear-gradient(135deg,#e11d48,#be123c);padding:20px 40px;text-align:center;border-radius:6px 6px 0 0;">
+              <a href="${SITE}" style="text-decoration:none;display:inline-block;">
+                <img src="${SITE}/logo_white.png" alt="Seoul Aura" width="190" height="190" style="display:block;width:190px;height:190px;margin:0 auto;object-fit:contain;" />
               </a>
             </td>
           </tr>
@@ -358,6 +356,7 @@ interface PreOrderItemData {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  availability?: "available" | "unavailable";
 }
 
 interface PreOrderEmailData {
@@ -370,6 +369,7 @@ interface PreOrderEmailData {
   notes?: string;
   deliveryCharge?: number;
   currencySymbol?: string;
+  balancePaymentMethod?: "cod" | "bank";
 }
 
 function fmt(amount: number, sym: string) {
@@ -432,13 +432,16 @@ function preOrderInvoiceTable(items: PreOrderItemData[], sym: string) {
     </table>`;
 }
 
-function invoiceSummaryBlock(items: PreOrderItemData[], deliveryCharge: number, sym: string) {
+function invoiceSummaryBlock(items: PreOrderItemData[], deliveryCharge: number, sym: string, balancePaymentMethod?: "cod" | "bank") {
   const itemsWithPrice = items.filter((it) => it.unitPrice != null);
   if (itemsWithPrice.length === 0 && deliveryCharge === 0) return "";
 
   const subtotal = itemsWithPrice.reduce((sum, it) => sum + (it.unitPrice! * it.quantity), 0);
   const total = subtotal + deliveryCharge;
   const allPriced = itemsWithPrice.length === items.length;
+  const deposit = Math.round(total * 0.25);
+  const balance = total - deposit;
+  const balanceLabel = balancePaymentMethod === "bank" ? "Bank Transfer" : balancePaymentMethod === "cod" ? "Cash on Delivery" : "";
 
   const subtotalRow = itemsWithPrice.length > 0 ? `
     <tr>
@@ -462,14 +465,27 @@ function invoiceSummaryBlock(items: PreOrderItemData[], deliveryCharge: number, 
       <td style="padding:12px 16px;font-size:16px;font-weight:700;color:#e11d48;text-align:right;white-space:nowrap;">${fmt(deliveryCharge, sym)}</td>
     </tr>`;
 
+  // Payment breakdown — only meaningful when we have a total
+  const paymentRows = itemsWithPrice.length > 0 ? `
+    <tr>
+      <td style="padding:8px 16px;font-size:13px;color:#78716c;">25% Deposit <span style="color:#a8a29e;">· Bank Transfer</span></td>
+      <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;font-weight:600;">${fmt(deposit, sym)}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 16px;font-size:13px;color:#78716c;">Balance${balanceLabel ? ` <span style="color:#a8a29e;">· ${balanceLabel}</span>` : ""}</td>
+      <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;">${fmt(balance, sym)}</td>
+    </tr>` : "";
+
   return `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;margin-top:4px;">
       <tbody>
         ${subtotalRow}
         ${deliveryRow}
         ${totalRow}
+        ${paymentRows}
       </tbody>
     </table>
+    ${itemsWithPrice.length > 0 ? `<p style="margin:8px 0 0;font-size:11px;color:#a8a29e;">* A 25% deposit via bank transfer locks in your order after we confirm it (within 2 business days). The balance is paid via your selected method.</p>` : ""}
     ${!allPriced ? `<p style="margin:8px 0 0;font-size:11px;color:#a8a29e;">* Prices are based on current listed rates. Items marked "To be quoted" will be priced when our team sources them.</p>` : `<p style="margin:8px 0 0;font-size:11px;color:#a8a29e;">* Estimated total based on current listed prices. Final pricing confirmed within 48 hours.</p>`}`;
 }
 
@@ -510,7 +526,7 @@ export async function sendPreOrderConfirmationToBuyer(data: PreOrderEmailData) {
     <!-- Invoice Summary -->
     ${delivery > 0 || data.items.some(it => it.unitPrice != null) ? `
     <div style="margin-top:12px;">
-      ${invoiceSummaryBlock(data.items, delivery, sym)}
+      ${invoiceSummaryBlock(data.items, delivery, sym, data.balancePaymentMethod)}
     </div>` : ""}
 
     ${data.notes ? `
@@ -576,7 +592,7 @@ export async function sendPreOrderNotificationToAdmin(data: PreOrderEmailData) {
 
     ${delivery > 0 || data.items.some(it => it.unitPrice != null) ? `
     <div style="margin-top:12px;">
-      ${invoiceSummaryBlock(data.items, delivery, sym)}
+      ${invoiceSummaryBlock(data.items, delivery, sym, data.balancePaymentMethod)}
     </div>` : "<div style='height:16px;'></div>"}
 
     ${data.notes ? `
@@ -633,11 +649,21 @@ interface PreOrderStatusEmailData {
   estimatedPrice?: number;
   estimatedAvailability?: string;
   adminNotes?: string;
+  items?: PreOrderItemData[];
+  deliveryCharge?: number;
+  currencySymbol?: string;
+  balancePaymentMethod?: "cod" | "bank";
+  depositPaid?: boolean;
 }
 
 export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailData) {
   const msg = PRE_ORDER_STATUS_MESSAGES[data.status];
   if (!msg) return;
+
+  const sym = data.currencySymbol ?? "Rs.";
+  const delivery = data.deliveryCharge ?? 0;
+  // Show items + totals on every status except rejected (where nothing is being fulfilled)
+  const showInvoice = !!data.items?.length && data.status !== "rejected";
 
   const html = layout(`
     <div style="text-align:center;margin-bottom:28px;">
@@ -649,19 +675,29 @@ export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailD
     <div style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;padding:16px 20px;margin-bottom:24px;text-align:center;">
       <p style="margin:0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
       <p style="margin:4px 0 8px;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
-      <p style="margin:0;font-size:13px;color:#78716c;">${data.productName}</p>
+      ${!showInvoice ? `<p style="margin:0;font-size:13px;color:#78716c;">${data.productName}</p>` : ""}
     </div>
 
-    ${data.estimatedPrice || data.estimatedAvailability ? `
+    ${showInvoice ? `
+      ${preOrderAvailabilityTable(data.items!, sym)}
+      ${preOrderTotalsTable(data.items!, delivery, sym, data.balancePaymentMethod, data.depositPaid)}
+      <div style="height:8px;"></div>
+    ` : ""}
+
+    ${data.estimatedAvailability ? `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;background:#faf9f8;border-radius:4px;padding:16px;">
+      <tr>
+        <td style="font-size:12px;color:#78716c;padding:4px 0;">Estimated Availability</td>
+        <td style="font-size:13px;color:#1c1917;text-align:right;">${data.estimatedAvailability}</td>
+      </tr>
+    </table>` : ""}
+
+    ${!showInvoice && data.estimatedPrice ? `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;background:#faf9f8;border-radius:4px;padding:16px;">
-      ${data.estimatedPrice ? `<tr>
+      <tr>
         <td style="font-size:12px;color:#78716c;padding:4px 0;width:140px;">Estimated Price</td>
         <td style="font-size:14px;font-weight:700;color:#1c1917;">${rupees(data.estimatedPrice)}</td>
-      </tr>` : ""}
-      ${data.estimatedAvailability ? `<tr>
-        <td style="font-size:12px;color:#78716c;padding:4px 0;">Estimated Availability</td>
-        <td style="font-size:13px;color:#1c1917;">${data.estimatedAvailability}</td>
-      </tr>` : ""}
+      </tr>
     </table>` : ""}
 
     ${data.adminNotes ? `
@@ -689,4 +725,237 @@ export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailD
     subject: `${msg.emoji} Pre-order Update · ${data.requestNumber} — Seoul Aura`,
     html,
   });
+}
+
+// ─── Shared: pre-order items table with availability badges ──────────────────
+function preOrderAvailabilityTable(items: PreOrderItemData[], sym: string) {
+  const available = items.filter((it) => it.availability !== "unavailable");
+  const unavailable = items.filter((it) => it.availability === "unavailable");
+
+  const itemRow = (it: PreOrderItemData, unavail: boolean) => {
+    const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
+    const imgBlock = it.productImage
+      ? `<img src="${it.productImage}" width="48" height="48" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:3px;border:1px solid #f0e8e6;display:block;${unavail ? "opacity:0.45;" : ""}" />`
+      : `<div style="width:48px;height:48px;background:#fdf5f4;border:1px solid #f0e8e6;border-radius:3px;text-align:center;line-height:48px;${unavail ? "opacity:0.45;" : ""}">🧴</div>`;
+    const badge = unavail
+      ? `<span style="display:inline-block;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:#f5f5f4;color:#a8a29e;border:1px solid #e7e5e4;border-radius:99px;padding:2px 8px;margin-top:4px;">Unavailable</span>`
+      : `<span style="display:inline-block;font-size:9px;letter-spacing:1px;text-transform:uppercase;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:99px;padding:2px 8px;margin-top:4px;">Available</span>`;
+    return `<tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #f9f0ee;">
+        <table cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="vertical-align:top;padding-right:12px;">${imgBlock}</td>
+          <td style="vertical-align:middle;">
+            <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#e11d48;font-weight:600;">${it.productBrand}</p>
+            <p style="margin:3px 0 0;font-size:13px;color:${unavail ? "#a8a29e" : "#1c1917"};font-weight:500;line-height:1.4;${unavail ? "text-decoration:line-through;" : ""}">${it.productName}</p>
+            ${badge}
+          </td>
+        </tr></table>
+      </td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f9f0ee;text-align:center;font-size:13px;color:${unavail ? "#a8a29e" : "#1c1917"};">${it.quantity}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:${unavail ? "#a8a29e" : "#1c1917"};font-weight:600;white-space:nowrap;${unavail ? "text-decoration:line-through;" : ""}">${unavail ? "—" : (lineTotal != null ? fmt(lineTotal, sym) : '<span style="color:#a8a29e;">To be quoted</span>')}</td>
+    </tr>`;
+  };
+
+  const rows = [...available.map((it) => itemRow(it, false)), ...unavailable.map((it) => itemRow(it, true))].join("");
+
+  return `
+    <h3 style="margin:0 0 10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Items (${items.length})</h3>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;">
+      <thead><tr style="background:#fdf5f4;">
+        <th style="padding:10px 12px;text-align:left;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;">Product</th>
+        <th style="padding:10px 12px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;width:48px;">Qty</th>
+        <th style="padding:10px 12px;text-align:right;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;">Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${unavailable.length > 0 ? `<p style="margin:10px 0 0;font-size:12px;color:#a8a29e;line-height:1.6;">${unavailable.length} item${unavailable.length !== 1 ? "s are" : " is"} currently unavailable and ${unavailable.length !== 1 ? "have" : "has"} been removed from your total.</p>` : ""}`;
+}
+
+// ─── Shared: pre-order payment totals (only available items count) ───────────
+function preOrderTotalsTable(
+  items: PreOrderItemData[],
+  delivery: number,
+  sym: string,
+  balancePaymentMethod?: "cod" | "bank",
+  depositPaid?: boolean,
+  totalLabel = "Estimated Total"
+) {
+  const available = items.filter((it) => it.availability !== "unavailable");
+  const availablePriced = available.filter((it) => it.unitPrice != null);
+  const subtotal = availablePriced.reduce((s, it) => s + (it.unitPrice! * it.quantity), 0);
+  const allAvailablePriced = available.length > 0 && availablePriced.length === available.length;
+  const total = subtotal + delivery;
+  const deposit = Math.round(total * 0.25);
+  const balance = total - deposit;
+  const balanceLabel = balancePaymentMethod === "bank" ? "Bank Transfer"
+    : balancePaymentMethod === "cod" ? "Cash on Delivery" : "";
+
+  const html = `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;margin-top:16px;">
+      <tbody>
+        <tr>
+          <td style="padding:8px 16px;font-size:13px;color:#78716c;">Subtotal (available items)</td>
+          <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;">${fmt(subtotal, sym)}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px;font-size:13px;color:#78716c;">Delivery Charge</td>
+          <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;">${fmt(delivery, sym)}</td>
+        </tr>
+        <tr style="background:#fff7f7;border-top:2px solid #fde8e8;">
+          <td style="padding:12px 16px;font-size:14px;font-weight:700;color:#1c1917;">${allAvailablePriced ? totalLabel : `${totalLabel} (partial)`}</td>
+          <td style="padding:12px 16px;font-size:16px;font-weight:700;color:#e11d48;text-align:right;white-space:nowrap;">${fmt(total, sym)}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px;font-size:13px;color:#78716c;">25% Deposit <span style="color:#a8a29e;">· Bank Transfer</span>${depositPaid ? ' <span style="color:#16a34a;font-weight:600;">(Paid ✓)</span>' : ""}</td>
+          <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;font-weight:600;">${fmt(deposit, sym)}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px;font-size:13px;color:#78716c;">Balance${balanceLabel ? ` <span style="color:#a8a29e;">· ${balanceLabel}</span>` : ""}</td>
+          <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;">${fmt(balance, sym)}</td>
+        </tr>
+      </tbody>
+    </table>
+    ${!depositPaid ? `<p style="margin:12px 0 0;font-size:12px;color:#78716c;line-height:1.7;">To lock in your order, please pay the <strong>25% deposit (${fmt(deposit, sym)}) via bank transfer</strong>. Reply to this email and we'll share the bank details.</p>` : ""}`;
+
+  return html;
+}
+
+// ─── 7. Pre-order revision (availability / deposit) → Buyer ───────────────────
+interface PreOrderRevisionEmailData {
+  requestNumber: string;
+  customerName: string;
+  customerEmail: string;
+  phoneNumber?: string;
+  items: PreOrderItemData[];
+  deliveryCharge?: number;
+  currencySymbol?: string;
+  balancePaymentMethod?: "cod" | "bank";
+  depositPaid?: boolean;
+  reason: "availability" | "deposit" | "both";
+}
+
+export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailData) {
+  const sym = data.currencySymbol ?? "Rs.";
+  const delivery = data.deliveryCharge ?? 0;
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+
+  const headline = data.reason === "deposit"
+    ? "Deposit received — your order is locked in! 🔒"
+    : data.reason === "both"
+      ? "Your pre-order has been updated 📋"
+      : "Your pre-order availability is updated 📋";
+
+  const intro = data.reason === "deposit"
+    ? "We've received your 25% deposit and your order is now locked in. Here's your updated summary."
+    : "We've reviewed your pre-order and updated item availability. Here's your revised summary and totals.";
+
+  const depositBadge = data.depositPaid
+    ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:12px 16px;margin-bottom:20px;text-align:center;">
+         <p style="margin:0;font-size:13px;color:#16a34a;font-weight:700;">✅ 25% Deposit Received — your order is locked in.</p>
+       </div>`
+    : "";
+
+  const html = layout(`
+    <h1 style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">${headline}</h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.7;">Hi ${data.customerName}, ${intro}</p>
+
+    ${depositBadge}
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
+          <p style="margin:4px 0 0;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
+        </td>
+        <td style="padding:16px 20px;text-align:right;">
+          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Updated</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#1c1917;">${now}</p>
+        </td>
+      </tr>
+    </table>
+
+    ${preOrderAvailabilityTable(data.items, sym)}
+
+    ${preOrderTotalsTable(data.items, delivery, sym, data.balancePaymentMethod, data.depositPaid, "Updated Total")}
+
+    <div style="margin-top:24px;text-align:center;">
+      <a href="${SITE}/account?tab=pre-orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
+        View My Pre-Orders
+      </a>
+    </div>
+
+    <p style="margin-top:20px;font-size:12px;color:#a8a29e;text-align:center;">
+      Questions? <a href="mailto:seoulaurateam@gmail.com" style="color:#e11d48;">seoulaurateam@gmail.com</a>
+    </p>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: data.customerEmail,
+    subject: `📋 Pre-order Updated · ${data.requestNumber} — Seoul Aura`,
+    html,
+  });
+}
+
+// ─── 8. Marketing campaign (Notify) → Users / Notifiers ──────────────────────
+interface CampaignEmailData {
+  recipients: string[];
+  subject: string;
+  message: string;     // plain text / simple HTML; newlines become paragraphs
+  images?: string[];   // absolute image URLs
+  heading?: string;
+}
+
+function campaignHtml(message: string, images: string[], heading?: string) {
+  const imageBlocks = images
+    .filter(Boolean)
+    .map(
+      (src) =>
+        `<img src="${src}" alt="" style="display:block;width:100%;max-width:520px;height:auto;border-radius:6px;margin:0 auto 16px;" />`
+    )
+    .join("");
+
+  // Convert message text to paragraphs (blank line) + line breaks
+  const body = message
+    .split(/\n{2,}/)
+    .map(
+      (para) =>
+        `<p style="margin:0 0 16px;font-size:14px;color:#44403c;line-height:1.8;">${para.replace(/\n/g, "<br/>")}</p>`
+    )
+    .join("");
+
+  return layout(`
+    ${heading ? `<h1 style="margin:0 0 18px;font-family:Georgia,serif;font-size:26px;font-weight:400;color:#1c1917;">${heading}</h1>` : ""}
+    ${imageBlocks}
+    ${body}
+    <div style="margin-top:28px;text-align:center;">
+      <a href="${SITE}/shop" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
+        Shop Now
+      </a>
+    </div>
+  `);
+}
+
+export async function sendCampaignEmail(data: CampaignEmailData) {
+  const html = campaignHtml(data.message, data.images ?? [], data.heading);
+  const recipients = Array.from(new Set(data.recipients.map((r) => r.trim().toLowerCase()).filter(Boolean)));
+
+  let sent = 0;
+  let failed = 0;
+  const CHUNK = 20;
+
+  for (let i = 0; i < recipients.length; i += CHUNK) {
+    const chunk = recipients.slice(i, i + CHUNK);
+    const results = await Promise.allSettled(
+      chunk.map((to) =>
+        resend.emails.send({ from: FROM, to, subject: data.subject, html })
+      )
+    );
+    results.forEach((r) => {
+      if (r.status === "fulfilled" && !(r.value as { error?: unknown })?.error) sent++;
+      else failed++;
+    });
+  }
+
+  return { sent, failed, total: recipients.length };
 }

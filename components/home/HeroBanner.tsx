@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface HeroMedia {
   url: string;
+  mobileUrl?: string;
   type: "image" | "video";
   badge?: string;
   title?: string;
@@ -152,17 +153,29 @@ export default function HeroBanner({ heroSlides = [], marqueeItems = [], showArr
                   )}
                 />
               ) : (
-                <Image
-                  src={cfg?.url ?? slide.image}
-                  alt={title}
-                  fill
-                  className={cn(
-                    "object-cover",
-                    align === "left" ? "object-right" : "object-left"
-                  )}
-                  sizes="100vw"
-                  priority={i === 0}
-                />
+                <>
+                  {/* Desktop image */}
+                  <Image
+                    src={cfg?.url ?? slide.image}
+                    alt={title}
+                    fill
+                    className={cn(
+                      "object-cover hidden md:block",
+                      align === "left" ? "object-right" : "object-left"
+                    )}
+                    sizes="100vw"
+                    priority={i === 0}
+                  />
+                  {/* Mobile image — falls back to desktop image if no mobile variant set */}
+                  <Image
+                    src={cfg?.mobileUrl || cfg?.url || slide.image}
+                    alt={title}
+                    fill
+                    className="object-cover object-center md:hidden"
+                    sizes="100vw"
+                    priority={i === 0}
+                  />
+                </>
               )}
 
               {showText && (

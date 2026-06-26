@@ -31,7 +31,7 @@ interface FooterSettings {
 }
 
 const DEFAULTS: FooterSettings = {
-  storePhone: "074 166 7016",
+  storePhone: "+821066390309",
   whatsappNumber: "94778362755",
   storeEmail: "seoulaurateam@gmail.com",
   instagramUrl: "https://www.instagram.com/seoul_aura.lk?utm_source=qr",
@@ -89,7 +89,7 @@ export default function Footer() {
               />
             </Link>
             <p className="text-sm text-ink-300 leading-relaxed mb-5 max-w-xs">
-              Curated Korean beauty and Dubai specialty foods, delivered with care to your doorstep.
+              Curated Korean beauty, delivered with care to your doorstep.
             </p>
             <div className="flex gap-3">
               {socialLinks.map(({ href, Icon }) => (
@@ -114,7 +114,7 @@ export default function Footer() {
             <ul className="space-y-2.5 text-sm text-ink-300">
               <li><Link href="/about" className="hover:text-rose-300 transition-colors">About Us</Link></li>
               <li><Link href="/contact" className="hover:text-rose-300 transition-colors">Contact</Link></li>
-              <li><Link href="/blog" className="hover:text-rose-300 transition-colors">Journal</Link></li>
+
               <li><Link href="/faq" className="hover:text-rose-300 transition-colors">FAQ</Link></li>
             </ul>
           </div>

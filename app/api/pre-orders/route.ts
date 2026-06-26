@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const body = await req.json();
 
-    const { customerName, customerEmail, phoneNumber, origin, notes } = body;
+    const { customerName, customerEmail, phoneNumber, origin, notes, balancePaymentMethod } = body;
 
     // Accept either a multi-item `items` array or legacy single-product fields
     const rawItems: IncomingItem[] = Array.isArray(body.items) && body.items.length
@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
       quantity: first.quantity,
       origin: origin ?? "Other",
       notes: notes?.trim(),
+      balancePaymentMethod: balancePaymentMethod === "bank" || balancePaymentMethod === "cod" ? balancePaymentMethod : undefined,
       status: "pending",
     });
 
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
       notes: preOrder.notes,
       deliveryCharge,
       currencySymbol,
+      balancePaymentMethod: preOrder.balancePaymentMethod,
     };
     Promise.all([
       sendPreOrderConfirmationToBuyer(emailData),

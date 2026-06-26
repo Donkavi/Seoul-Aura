@@ -1,29 +1,46 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { ShieldCheck, Truck, CreditCard, Award } from "lucide-react";
 
-const badges = [
-  {
-    icon: ShieldCheck,
-    title: "100% Authentic",
-    description: "Direct imports from trusted Korean suppliers",
-  },
-  {
-    icon: Truck,
-    title: "Islandwide Delivery",
-    description: "Fast, secure delivery within 3-5 business days",
-  },
-  {
-    icon: CreditCard,
-    title: "Easy Payment Options",
-    description: "Card, bank transfer, KOKO and Cash on Delivery",
-  },
-  {
-    icon: Award,
-    title: "Trusted Online Store",
-    description: "Joined by 10,000+ happy customers since 2020",
-  },
-];
-
 export default function TrustBadges() {
+  const [customerCount, setCustomerCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/users?limit=1")
+      .then((r) => r.json())
+      .then((d) => setCustomerCount(d.total ?? null))
+      .catch(() => setCustomerCount(null));
+  }, []);
+
+  const customerLabel =
+    customerCount != null && customerCount > 0
+      ? `Joined by ${customerCount.toLocaleString()} happy customer${customerCount !== 1 ? "s" : ""} since 2026`
+      : "Joined by happy customers since 2026";
+
+  const badges = [
+    {
+      icon: ShieldCheck,
+      title: "100% Authentic",
+      description: "Direct imports from trusted Korean suppliers",
+    },
+    {
+      icon: Truck,
+      title: "Islandwide Delivery",
+      description: "Fast, secure delivery within 3-5 business days",
+    },
+    {
+      icon: CreditCard,
+      title: "Easy Payment Options",
+      description: "Cash on Delivery or Bank Transfer",
+    },
+    {
+      icon: Award,
+      title: "Trusted Online Store",
+      description: customerLabel,
+    },
+  ];
+
   return (
     <section className="py-14 bg-white">
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
