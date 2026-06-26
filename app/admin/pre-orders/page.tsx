@@ -6,6 +6,7 @@ import {
   X,
   Clock,
   Eye,
+  Check,
   CheckCircle,
   XCircle,
   Package,
@@ -246,11 +247,34 @@ export default function AdminPreOrdersPage() {
                     </td>
                     <td className="p-4 text-right">
                       {(() => {
-                        const items = p.items?.length ? p.items : [{ quantity: p.quantity, unitPrice: undefined as number | undefined }];
+                        const items = p.items?.length
+                          ? p.items
+                          : [{ quantity: p.quantity, unitPrice: undefined as number | undefined, availability: undefined as ("available" | "unavailable" | undefined) }];
+                        const available = items.filter((it) => it.availability !== "unavailable");
+                        const hasUnavailable = available.length < items.length;
+
+                        // Updated total — available, priced items only
+                        const availablePriced = available.length > 0 && available.every((it) => it.unitPrice != null);
+                        const updatedTotal = availablePriced
+                          ? available.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0) + deliveryCharge
+                          : null;
+
+                        // Previous full total — all items priced
                         const allPriced = items.every((it) => it.unitPrice != null);
-                        if (!allPriced) return <span className="text-xs text-ink-400 italic">TBQ</span>;
-                        const subtotal = items.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0);
-                        return <span className="text-sm font-semibold text-ink-900">{formatPrice(subtotal + deliveryCharge)}</span>;
+                        const fullTotal = allPriced
+                          ? items.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0) + deliveryCharge
+                          : null;
+
+                        if (updatedTotal == null) return <span className="text-xs text-ink-400 italic">TBQ</span>;
+
+                        return (
+                          <div className="leading-tight">
+                            {hasUnavailable && fullTotal != null && fullTotal !== updatedTotal && (
+                              <p className="text-[11px] text-ink-400 line-through">{formatPrice(fullTotal)}</p>
+                            )}
+                            <span className="text-sm font-semibold text-ink-900">{formatPrice(updatedTotal)}</span>
+                          </div>
+                        );
                       })()}
                     </td>
                     <td className="p-4">
@@ -307,6 +331,17 @@ function PreOrderDrawer({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deliveryCharge, setDeliveryCharge] = useState(350);
+  const [depositPaid, setDepositPaid] = useState(!!preOrder.depositPaid);
+
+  // Editable item availability (defaults to "available" for older records)
+  const initialItems = (preOrder.items?.length
+    ? preOrder.items
+    : [{ productBrand: preOrder.productBrand, productName: preOrder.productName, productLink: preOrder.productLink, quantity: preOrder.quantity, unitPrice: undefined, productImage: undefined, availability: undefined as ("available" | "unavailable" | undefined) }]
+  ).map((it) => ({ ...it, availability: it.availability ?? ("available" as const) }));
+  const [items, setItems] = useState(initialItems);
+
+  const setItemAvailability = (idx: number, availability: "available" | "unavailable") =>
+    setItems((rows) => rows.map((r, i) => (i === idx ? { ...r, availability } : r)));
 
   useEffect(() => {
     fetch("/api/settings")
@@ -326,6 +361,8 @@ function PreOrderDrawer({
           adminNotes,
           estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice) : undefined,
           estimatedAvailability: estimatedAvailability || undefined,
+          depositPaid,
+          items: items.map((it) => ({ availability: it.availability })),
         }),
       });
       onUpdate();
@@ -399,63 +436,80 @@ function PreOrderDrawer({
 
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
-              Products {(preOrder.items?.length ?? 0) > 0 && `(${preOrder.items.length})`}
+              Products ({items.length})
             </h3>
             <div className="border border-ink-100 rounded-sm overflow-hidden text-sm">
-              {/* Column headers */}
-              <div className="grid grid-cols-[1fr_auto_auto_auto] bg-ink-50 border-b border-ink-100 px-4 py-2 gap-3 text-[10px] uppercase tracking-widest text-ink-500 font-semibold">
-                <span>Product</span>
-                <span className="text-right w-10">Qty</span>
-                <span className="text-right w-20">Unit Price</span>
-                <span className="text-right w-20">Total</span>
-              </div>
-
-              {(preOrder.items?.length
-                ? preOrder.items
-                : [{ productBrand: preOrder.productBrand, productName: preOrder.productName, productLink: preOrder.productLink, quantity: preOrder.quantity, unitPrice: undefined, productImage: undefined }]
-              ).map((it, i) => {
+              {items.map((it, i) => {
+                const unavail = it.availability === "unavailable";
                 const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
                 return (
-                  <div key={i} className={cn("grid grid-cols-[1fr_auto_auto_auto] items-start px-4 py-3 gap-3", i > 0 && "border-t border-ink-100")}>
-                    <div className="flex items-start gap-3 min-w-0">
+                  <div key={i} className={cn("px-4 py-3", i > 0 && "border-t border-ink-100", unavail && "bg-ink-50/50")}>
+                    <div className="flex items-start gap-3">
                       {it.productImage ? (
-                        <img src={it.productImage} alt={it.productName} className="w-10 h-10 rounded object-cover flex-shrink-0 border border-ink-100" />
+                        <img src={it.productImage} alt={it.productName} className={cn("w-10 h-10 rounded object-cover flex-shrink-0 border border-ink-100", unavail && "opacity-40")} />
                       ) : (
-                        <div className="w-10 h-10 rounded bg-ink-50 border border-ink-100 flex items-center justify-center flex-shrink-0 text-lg">🧴</div>
+                        <div className={cn("w-10 h-10 rounded bg-ink-50 border border-ink-100 flex items-center justify-center flex-shrink-0 text-lg", unavail && "opacity-40")}>🧴</div>
                       )}
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">{it.productBrand}</p>
-                        <p className="text-sm text-ink-900 font-medium leading-snug">{it.productName}</p>
+                        <p className={cn("text-sm font-medium leading-snug", unavail ? "text-ink-400 line-through" : "text-ink-900")}>{it.productName}</p>
                         {it.productLink && (
                           <a href={it.productLink} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-[10px] text-rose-500 hover:underline mt-0.5">
                             Reference <ExternalLink size={10} />
                           </a>
                         )}
                       </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs text-ink-500">×{it.quantity}</p>
+                        <p className={cn("text-sm font-semibold whitespace-nowrap", unavail ? "text-ink-400 line-through" : "text-ink-900")}>
+                          {lineTotal != null ? formatPrice(lineTotal) : <span className="text-ink-300 italic text-xs">TBQ</span>}
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-right w-10 text-ink-700 font-medium pt-1">×{it.quantity}</span>
-                    <span className="text-right w-20 text-ink-500 pt-1 whitespace-nowrap">
-                      {it.unitPrice != null ? formatPrice(it.unitPrice) : <span className="text-ink-300 italic text-xs">TBQ</span>}
-                    </span>
-                    <span className="text-right w-20 text-ink-900 font-semibold pt-1 whitespace-nowrap">
-                      {lineTotal != null ? formatPrice(lineTotal) : <span className="text-ink-300">—</span>}
-                    </span>
+                    {/* Availability toggle */}
+                    <div className="flex items-center gap-2 mt-2.5 pl-[52px]">
+                      <button
+                        onClick={() => setItemAvailability(i, "available")}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors",
+                          !unavail ? "bg-green-50 text-green-700 border-green-300" : "bg-white text-ink-400 border-ink-200 hover:border-green-300"
+                        )}
+                      >
+                        <CheckCircle size={11} /> Available
+                      </button>
+                      <button
+                        onClick={() => setItemAvailability(i, "unavailable")}
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border transition-colors",
+                          unavail ? "bg-rose-50 text-rose-700 border-rose-300" : "bg-white text-ink-400 border-ink-200 hover:border-rose-300"
+                        )}
+                      >
+                        <XCircle size={11} /> Unavailable
+                      </button>
+                    </div>
                   </div>
                 );
               })}
 
-              {/* Totals */}
+              {/* Totals — only available items count */}
               {(() => {
-                const items = preOrder.items?.length
-                  ? preOrder.items
-                  : [{ quantity: preOrder.quantity, unitPrice: undefined as number | undefined }];
-                const subtotal = items.every((it) => it.unitPrice != null)
-                  ? items.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0)
+                const available = items.filter((it) => it.availability !== "unavailable");
+                const unavailCount = items.length - available.length;
+                const allPriced = available.length > 0 && available.every((it) => it.unitPrice != null);
+                const subtotal = allPriced
+                  ? available.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0)
                   : null;
+                const estTotal = subtotal != null ? subtotal + deliveryCharge : null;
+                const deposit = estTotal != null ? Math.round(estTotal * 0.25) : null;
+                const balanceLabel = preOrder.balancePaymentMethod === "bank" ? "Bank Transfer"
+                  : preOrder.balancePaymentMethod === "cod" ? "Cash on Delivery" : null;
                 return (
                   <div className="border-t border-ink-200 bg-ink-50/60 px-4 py-3 space-y-1.5 text-sm">
+                    {unavailCount > 0 && (
+                      <p className="text-[11px] text-rose-500 mb-1">{unavailCount} unavailable item{unavailCount !== 1 ? "s" : ""} excluded from totals.</p>
+                    )}
                     <div className="flex justify-between text-ink-500">
-                      <span>Subtotal</span>
+                      <span>Subtotal (available)</span>
                       <span>{subtotal != null ? formatPrice(subtotal) : <span className="italic text-xs text-ink-400">Pending quotes</span>}</span>
                     </div>
                     <div className="flex justify-between text-ink-500">
@@ -465,8 +519,24 @@ function PreOrderDrawer({
                     <div className="flex justify-between font-semibold text-ink-900 pt-1.5 border-t border-ink-200">
                       <span>Est. Total</span>
                       <span className="text-rose-600 font-display text-base">
-                        {subtotal != null ? formatPrice(subtotal + deliveryCharge) : "—"}
+                        {estTotal != null ? formatPrice(estTotal) : "—"}
                       </span>
+                    </div>
+                    {estTotal != null && (
+                      <div className="pt-1.5 border-t border-ink-200 space-y-1.5">
+                        <div className="flex justify-between text-ink-600">
+                          <span>25% Deposit <span className="text-ink-400 text-xs">· Bank Transfer</span>{depositPaid && <span className="text-green-600 text-xs font-semibold"> · Paid ✓</span>}</span>
+                          <span className="font-medium">{formatPrice(deposit!)}</span>
+                        </div>
+                        <div className="flex justify-between text-ink-600">
+                          <span>Balance {balanceLabel && <span className="text-ink-400 text-xs">· {balanceLabel}</span>}</span>
+                          <span>{formatPrice(estTotal - deposit!)}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-1.5 border-t border-ink-200">
+                      <span className="text-ink-500">Balance Payment Method</span>
+                      <span className="font-medium text-ink-900">{balanceLabel ?? <span className="italic text-xs text-ink-400">Not selected</span>}</span>
                     </div>
                   </div>
                 );
@@ -479,6 +549,36 @@ function PreOrderDrawer({
                 </div>
               )}
             </div>
+          </section>
+
+          {/* Deposit tracking */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
+              Deposit
+            </h3>
+            <button
+              onClick={() => setDepositPaid((v) => !v)}
+              className={cn(
+                "w-full flex items-center justify-between gap-3 p-3.5 border rounded-sm transition-colors text-left",
+                depositPaid ? "bg-green-50 border-green-300" : "border-ink-200 hover:border-rose-300"
+              )}
+            >
+              <span className="flex items-center gap-2.5">
+                <span className={cn(
+                  "w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0",
+                  depositPaid ? "bg-green-600 border-green-600" : "border-ink-300"
+                )}>
+                  {depositPaid && <Check size={13} className="text-white" />}
+                </span>
+                <span className="text-sm font-medium text-ink-900">25% deposit received (bank transfer)</span>
+              </span>
+              <span className={cn("text-[11px] font-semibold uppercase tracking-wider", depositPaid ? "text-green-700" : "text-ink-400")}>
+                {depositPaid ? "Paid" : "Not paid"}
+              </span>
+            </button>
+            <p className="text-[11px] text-ink-400 mt-1.5">
+              Marking this saves to the order and emails the customer an updated invoice. Best shown once the order is <strong>Confirmed</strong>.
+            </p>
           </section>
 
           <section>

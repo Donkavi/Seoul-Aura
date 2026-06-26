@@ -35,7 +35,10 @@
       "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\DELL\\\\Documents\\\\Lumos code\\\\app\\\\about\")",
       "Bash(Out-Null)",
       "Bash(Write-Host \"done\")",
-      "Bash(node scripts/import-products.mjs)"
+      "Bash(node scripts/import-products.mjs)",
+      "Bash(file public/logo_white.png public/logo.png)",
+      "Bash(python -c \"from PIL import Image; [print\\(f, Image.open\\('public/'+f\\).size\\) for f in ['logo_white.png','logo.png']]\")",
+      "Bash(grep -n 'heroSlides\\\\|findOneAndUpdate\\\\|\\\\.\\\\.\\\\.body\\\\|$set' app/api/settings/route.ts)"
     ],
     "additionalDirectories": [
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\shop\\[id]",

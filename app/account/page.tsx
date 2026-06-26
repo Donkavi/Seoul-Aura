@@ -338,6 +338,7 @@ interface PreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  availability?: "available" | "unavailable";
 }
 
 interface PreOrder {
@@ -355,6 +356,8 @@ interface PreOrder {
   estimatedPrice?: number;
   estimatedAvailability?: string;
   adminNotes?: string;
+  balancePaymentMethod?: "cod" | "bank";
+  depositPaid?: boolean;
   createdAt: string;
 }
 
@@ -391,10 +394,11 @@ function PreOrdersTab({ email }: { email: string }) {
       ? p.items
       : [{ productBrand: p.productBrand, productName: p.productName, productLink: p.productLink, productImage: p.productImage, quantity: p.quantity }];
 
+  // Only available items count toward totals
   const calcSubtotal = (items: PreOrderItem[]) =>
-    items.reduce((s, it) => it.unitPrice != null ? s + it.unitPrice * it.quantity : s, 0);
+    items.reduce((s, it) => (it.availability !== "unavailable" && it.unitPrice != null) ? s + it.unitPrice * it.quantity : s, 0);
 
-  const hasPrices = (items: PreOrderItem[]) => items.some(it => it.unitPrice != null);
+  const hasPrices = (items: PreOrderItem[]) => items.some(it => it.availability !== "unavailable" && it.unitPrice != null);
 
   return (
     <>
@@ -495,25 +499,32 @@ function PreOrdersTab({ email }: { email: string }) {
                   </p>
                   <div className="space-y-3">
                     {items.map((it, i) => {
+                      const unavail = it.availability === "unavailable";
                       const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
                       return (
-                        <div key={i} className="flex gap-3 p-3 bg-ink-50/50 rounded-sm border border-ink-100">
+                        <div key={i} className={cn("flex gap-3 p-3 rounded-sm border border-ink-100", unavail ? "bg-ink-50" : "bg-ink-50/50")}>
                           <div className="w-16 h-16 rounded border border-ink-100 bg-white flex-shrink-0 overflow-hidden">
                             {it.productImage
-                              ? <img src={it.productImage} alt={it.productName} className="w-full h-full object-cover" />
-                              : <div className="w-full h-full flex items-center justify-center text-2xl">🧴</div>
+                              ? <img src={it.productImage} alt={it.productName} className={cn("w-full h-full object-cover", unavail && "opacity-40")} />
+                              : <div className={cn("w-full h-full flex items-center justify-center text-2xl", unavail && "opacity-40")}>🧴</div>
                             }
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">{it.productBrand}</p>
-                            <p className="text-sm font-medium text-ink-900 leading-snug mt-0.5">{it.productName}</p>
+                            <p className={cn("text-sm font-medium leading-snug mt-0.5", unavail ? "text-ink-400 line-through" : "text-ink-900")}>{it.productName}</p>
+                            <span className={cn(
+                              "inline-block text-[9px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border mt-1",
+                              unavail ? "bg-ink-100 text-ink-500 border-ink-200" : "bg-green-50 text-green-700 border-green-200"
+                            )}>
+                              {unavail ? "Unavailable" : "Available"}
+                            </span>
                             <div className="flex items-center justify-between mt-2">
                               <span className="text-xs text-ink-500">
                                 Qty: <strong>{it.quantity}</strong>
                                 {it.unitPrice != null && <span className="text-ink-400"> × {formatPrice(it.unitPrice)}</span>}
                               </span>
                               {lineTotal != null && (
-                                <span className="text-sm font-semibold text-ink-900">{formatPrice(lineTotal)}</span>
+                                <span className={cn("text-sm font-semibold", unavail ? "text-ink-400 line-through" : "text-ink-900")}>{formatPrice(lineTotal)}</span>
                               )}
                             </div>
                             {it.productLink && (
@@ -530,20 +541,43 @@ function PreOrdersTab({ email }: { email: string }) {
                 </div>
 
                 {/* Price summary */}
-                {priced && (
-                  <div className="border border-ink-100 rounded-sm overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
-                      <span className="text-xs text-ink-500">Subtotal</span>
-                      <span className="text-sm text-ink-900">{formatPrice(subtotal)}</span>
+                {priced && (() => {
+                  const deposit = Math.round(total * 0.25);
+                  const balanceLabel = selected.balancePaymentMethod === "bank" ? "Bank Transfer"
+                    : selected.balancePaymentMethod === "cod" ? "Cash on Delivery" : null;
+                  return (
+                    <div className="border border-ink-100 rounded-sm overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
+                        <span className="text-xs text-ink-500">Subtotal (available)</span>
+                        <span className="text-sm text-ink-900">{formatPrice(subtotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
+                        <span className="text-xs text-ink-500">Delivery Charge</span>
+                        <span className="text-sm text-ink-900">{formatPrice(deliveryCharge)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3 bg-rose-50">
+                        <span className="text-xs font-semibold text-ink-700 uppercase tracking-wide">Estimated Total</span>
+                        <span className="text-base font-bold text-rose-600">{formatPrice(total)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-2.5 border-t border-ink-50">
+                        <span className="text-xs text-ink-500">
+                          25% Deposit <span className="text-ink-400">· Bank Transfer</span>
+                          {selected.depositPaid && <span className="text-green-600 font-semibold"> · Paid ✓</span>}
+                        </span>
+                        <span className="text-sm font-medium text-ink-900">{formatPrice(deposit)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-2.5 border-t border-ink-50">
+                        <span className="text-xs text-ink-500">Balance{balanceLabel && <span className="text-ink-400"> · {balanceLabel}</span>}</span>
+                        <span className="text-sm text-ink-900">{formatPrice(total - deposit)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
-                      <span className="text-xs text-ink-500">Delivery Charge</span>
-                      <span className="text-sm text-ink-900">{formatPrice(deliveryCharge)}</span>
-                    </div>
-                    <div className="flex items-center justify-between px-4 py-3 bg-rose-50">
-                      <span className="text-xs font-semibold text-ink-700 uppercase tracking-wide">Estimated Total</span>
-                      <span className="text-base font-bold text-rose-600">{formatPrice(total)}</span>
-                    </div>
+                  );
+                })()}
+
+                {/* Deposit paid banner */}
+                {selected.depositPaid && (
+                  <div className="bg-green-50 border border-green-200 rounded-sm px-4 py-3 text-center">
+                    <p className="text-sm font-semibold text-green-700">✅ 25% deposit received — your order is locked in.</p>
                   </div>
                 )}
 

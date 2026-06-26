@@ -6,15 +6,32 @@ import { Mail, Check } from "lucide-react";
 export default function Newsletter() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    setSubmitted(true);
-    setTimeout(() => {
-      setEmail("");
-      setSubmitted(false);
-    }, 3000);
+    if (!email || loading) return;
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/notifiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "newsletter" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Something went wrong.");
+      setSubmitted(true);
+      setTimeout(() => {
+        setEmail("");
+        setSubmitted(false);
+      }, 3000);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -39,18 +56,22 @@ export default function Newsletter() {
           />
           <button
             type="submit"
-            disabled={submitted}
+            disabled={submitted || loading}
             className="btn-primary disabled:bg-ink-700 inline-flex items-center justify-center gap-2"
           >
             {submitted ? (
               <>
                 <Check size={16} /> Subscribed
               </>
+            ) : loading ? (
+              "Subscribing…"
             ) : (
               "Subscribe"
             )}
           </button>
         </form>
+        {error && <p className="text-xs text-rose-600 mt-2">{error}</p>}
+        {submitted && <p className="text-xs text-green-600 mt-2">You&apos;re on the list — thanks for subscribing!</p>}
       </div>
     </section>
   );
