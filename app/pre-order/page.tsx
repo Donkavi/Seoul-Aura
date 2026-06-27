@@ -180,7 +180,7 @@ const steps = [
   {
     icon: PackageCheck,
     title: "You confirm",
-    text: "We confirm your order from our side within 2 business days. Once confirmed, you pay 25% of the total bill as a deposit — and your order is locked in.",
+    text: "We confirm your order from our side within 2 business days. Once confirmed, you pay a non-refundable 25% deposit of the total bill — and your order is locked in.",
   },
   {
     icon: Plane,
@@ -937,7 +937,7 @@ export default function PreOrderPage() {
                     <CreditCard size={16} className="text-rose-500 flex-shrink-0 mt-0.5" />
                     <span>
                       Once confirmed, I agree to pay a <strong>25% deposit
-                      {allPriced && <> (~{formatPrice(deposit)})</>} via bank transfer</strong> to lock in my order.
+                      {allPriced && <> (~{formatPrice(deposit)})</>} via bank transfer</strong> to lock in my order. I understand this <strong>deposit is non-refundable</strong>.
                     </span>
                   </span>
                 </label>
