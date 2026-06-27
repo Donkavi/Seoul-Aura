@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongodb";
 import Category from "@/models/Category";
 import { slugify } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     await connectDB();

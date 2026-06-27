@@ -6,6 +6,10 @@ import Product from "@/models/Product";
 import Review from "@/models/Review";
 import PreOrder from "@/models/PreOrder";
 
+// Always compute fresh from the DB — never cache at build time
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     await connectDB();
