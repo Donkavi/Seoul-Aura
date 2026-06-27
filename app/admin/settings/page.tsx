@@ -124,6 +124,15 @@ interface Settings {
   shippingFee: number;
   freeShippingThreshold: number;
   allowManualPreOrderEntry: boolean;
+  accountSections: {
+    orders: boolean;
+    preOrders: boolean;
+    subscriptions: boolean;
+    wishlist: boolean;
+    addresses: boolean;
+    payments: boolean;
+    notifications: boolean;
+  };
   instagramUrl: string;
   facebookUrl: string;
   whatsappNumber: string;
@@ -155,6 +164,10 @@ const defaultSettings: Settings = {
   shippingFee: 350,
   freeShippingThreshold: 5000,
   allowManualPreOrderEntry: true,
+  accountSections: {
+    orders: true, preOrders: true, subscriptions: true, wishlist: true,
+    addresses: true, payments: true, notifications: true,
+  },
   instagramUrl: "",
   facebookUrl: "",
   whatsappNumber: "",
@@ -378,6 +391,7 @@ export default function AdminSettingsPage() {
           setSettings({
             ...defaultSettings,
             ...data,
+            accountSections: { ...defaultSettings.accountSections, ...(data.accountSections ?? {}) },
             heroSlides: data.heroSlides ?? [],
             marqueeItems: data.marqueeItems?.length ? data.marqueeItems : defaultSettings.marqueeItems,
             videoShowcase: { ...defaultSettings.videoShowcase, ...(data.videoShowcase ?? {}) },
@@ -773,6 +787,43 @@ export default function AdminSettingsPage() {
                   }`} />
                 </button>
               </label>
+            </div>
+          </Section>
+
+          {/* Customer Account Sections */}
+          <Section icon={Users} title="Customer Account Sections">
+            <p className="text-xs text-ink-500 mb-4">
+              Choose which tabs appear in a customer&apos;s account profile. Disabled tabs are hidden from everyone.
+            </p>
+            <div className="space-y-3">
+              {([
+                { key: "orders", label: "Orders", desc: "Order history & tracking" },
+                { key: "preOrders", label: "Pre-Orders", desc: "Pre-order requests & status" },
+                { key: "subscriptions", label: "Subscriptions", desc: "Subscription boxes" },
+                { key: "wishlist", label: "Wishlist", desc: "Saved products" },
+                { key: "addresses", label: "Addresses", desc: "Saved delivery addresses" },
+                { key: "payments", label: "Payment Methods", desc: "Saved payment options" },
+                { key: "notifications", label: "Notifications", desc: "Notification preferences" },
+              ] as const).map(({ key, label, desc }) => {
+                const on = settings.accountSections[key];
+                return (
+                  <label key={key} className="flex items-center justify-between gap-4 cursor-pointer group">
+                    <div>
+                      <p className="text-sm font-medium text-ink-900">{label}</p>
+                      <p className="text-xs text-ink-400 mt-0.5">{desc}</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={on}
+                      onClick={() => set("accountSections", { ...settings.accountSections, [key]: !on })}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${on ? "bg-rose-600" : "bg-ink-200"}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${on ? "translate-x-5" : "translate-x-0"}`} />
+                    </button>
+                  </label>
+                );
+              })}
             </div>
           </Section>
 

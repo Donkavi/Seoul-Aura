@@ -101,6 +101,15 @@ export interface ISettings extends Document {
   shippingFee: number;
   freeShippingThreshold: number;
   allowManualPreOrderEntry: boolean;
+  accountSections: {
+    orders: boolean;
+    preOrders: boolean;
+    subscriptions: boolean;
+    wishlist: boolean;
+    addresses: boolean;
+    payments: boolean;
+    notifications: boolean;
+  };
   instagramUrl: string;
   facebookUrl: string;
   whatsappNumber: string;
@@ -302,6 +311,24 @@ const SettingsSchema = new Schema<ISettings>(
     shippingFee: { type: Number, default: 350 },
     freeShippingThreshold: { type: Number, default: 5000 },
     allowManualPreOrderEntry: { type: Boolean, default: true },
+    accountSections: {
+      type: new Schema(
+        {
+          orders: { type: Boolean, default: true },
+          preOrders: { type: Boolean, default: true },
+          subscriptions: { type: Boolean, default: true },
+          wishlist: { type: Boolean, default: true },
+          addresses: { type: Boolean, default: true },
+          payments: { type: Boolean, default: true },
+          notifications: { type: Boolean, default: true },
+        },
+        { _id: false }
+      ),
+      default: () => ({
+        orders: true, preOrders: true, subscriptions: true, wishlist: true,
+        addresses: true, payments: true, notifications: true,
+      }),
+    },
     instagramUrl: { type: String, default: "" },
     facebookUrl: { type: String, default: "" },
     whatsappNumber: { type: String, default: "+94778362755" },

@@ -75,7 +75,10 @@ export const authOptions: NextAuthOptions = {
         try {
           await connectDB();
           const email = (user?.email ?? token.email)?.toLowerCase() ?? "";
-          const bootstrapAdmin = process.env.ADMIN_EMAIL?.toLowerCase();
+          // Admin access is granted by membership in the `admins` collection.
+          // A dedicated BOOTSTRAP_ADMIN_EMAIL (NOT the notification ADMIN_EMAIL)
+          // can optionally seed first-admin access; leave it unset in normal use.
+          const bootstrapAdmin = process.env.BOOTSTRAP_ADMIN_EMAIL?.toLowerCase();
           const isBootstrap = !!bootstrapAdmin && email === bootstrapAdmin;
           const [dbUser, dbAdmin] = await Promise.all([
             User.findOne({ email }),
