@@ -55,7 +55,8 @@ export default function TermsPage() {
 
             <PolicyStep n="3" title="Pay a 25% deposit to lock it in">
               Once confirmed, a <strong>25% deposit of the total bill is required via bank transfer</strong> to
-              lock in your order. Your order is only secured after the deposit is received.
+              lock in your order. Your order is only secured after the deposit is received. This
+              <strong> deposit is non-refundable</strong>, as we begin sourcing and importing your items immediately.
             </PolicyStep>
 
             <PolicyStep n="4" title="Pay the balance & receive your order">
@@ -73,8 +74,9 @@ export default function TermsPage() {
             from the total — you only pay for items we can source.</p>
             <p>• The <strong>25% deposit must be paid by bank transfer.</strong> Only the balance may be paid by
             Cash on Delivery.</p>
-            <p>• No payment is taken until you approve the confirmed quote. You may walk away before paying the
-            deposit at no cost.</p>
+            <p>• The <strong>25% deposit is non-refundable</strong> once paid, as sourcing and importing begins
+            immediately. No payment is taken until you approve the confirmed quote — you may walk away before
+            paying the deposit at no cost.</p>
           </div>
         </div>
 
@@ -90,8 +92,9 @@ export default function TermsPage() {
 
         <Section n="4" title="Cancellations & Changes">
           <P>For in-stock orders, contact us within 24 hours of placing your order and we&apos;ll do our best
-          to help. For pre-orders, you may cancel any time before paying the deposit. Once a deposit is paid,
-          cancellations are handled case-by-case as the sourcing process has already begun.</P>
+          to help. For pre-orders, you may cancel any time before paying the deposit at no cost. Once the
+          <strong> 25% deposit is paid it is non-refundable</strong>, as the sourcing and import process has
+          already begun.</P>
         </Section>
 
         <Section n="5" title="Product Authenticity">
