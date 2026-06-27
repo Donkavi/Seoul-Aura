@@ -838,16 +838,23 @@ function EmptyState({ icon: Icon, message, children }: {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 type TabKey = "orders" | "pre-orders" | "subscriptions" | "wishlist" | "addresses" | "payments" | "notifications";
+type SectionKey = "orders" | "preOrders" | "subscriptions" | "wishlist" | "addresses" | "payments" | "notifications";
 
-const NAV_ITEMS: { key: TabKey; icon: React.ElementType; label: string }[] = [
-  { key: "orders",        icon: Package,       label: "Orders" },
-  { key: "pre-orders",   icon: Plane,         label: "Pre-Orders" },
-  { key: "subscriptions", icon: Calendar,      label: "Subscriptions" },
-  { key: "wishlist",      icon: Heart,         label: "Wishlist" },
-  { key: "addresses",     icon: MapPin,        label: "Addresses" },
-  { key: "payments",      icon: CreditCard,    label: "Payment Methods" },
-  { key: "notifications", icon: Bell,          label: "Notifications" },
+const NAV_ITEMS: { key: TabKey; section: SectionKey; icon: React.ElementType; label: string }[] = [
+  { key: "orders",        section: "orders",        icon: Package,       label: "Orders" },
+  { key: "pre-orders",   section: "preOrders",     icon: Plane,         label: "Pre-Orders" },
+  { key: "subscriptions", section: "subscriptions", icon: Calendar,      label: "Subscriptions" },
+  { key: "wishlist",      section: "wishlist",      icon: Heart,         label: "Wishlist" },
+  { key: "addresses",     section: "addresses",     icon: MapPin,        label: "Addresses" },
+  { key: "payments",      section: "payments",      icon: CreditCard,    label: "Payment Methods" },
+  { key: "notifications", section: "notifications", icon: Bell,          label: "Notifications" },
 ];
+
+type AccountSections = Record<SectionKey, boolean>;
+const DEFAULT_SECTIONS: AccountSections = {
+  orders: true, preOrders: true, subscriptions: true, wishlist: true,
+  addresses: true, payments: true, notifications: true,
+};
 
 function Dashboard({ user }: { user: { name?: string | null; email?: string | null; image?: string | null; id?: string; isAdmin?: boolean } }) {
   const searchParams = useSearchParams();
@@ -856,6 +863,24 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
     NAV_ITEMS.some((n) => n.key === initialTab) ? initialTab : "orders"
   );
   const isAdmin = user.isAdmin ?? false;
+
+  // Admin-controlled visible account sections
+  const [sections, setSections] = useState<AccountSections>(DEFAULT_SECTIONS);
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { if (d?.accountSections) setSections({ ...DEFAULT_SECTIONS, ...d.accountSections }); })
+      .catch(() => {});
+  }, []);
+
+  const visibleNav = NAV_ITEMS.filter((n) => sections[n.section]);
+
+  // If the active tab gets disabled, fall back to the first visible tab
+  useEffect(() => {
+    if (visibleNav.length && !visibleNav.some((n) => n.key === activeTab)) {
+      setActiveTab(visibleNav[0].key);
+    }
+  }, [visibleNav, activeTab]);
 
   const name = user.name ?? user.email?.split("@")[0] ?? "Member";
   const email = user.email ?? "";
@@ -908,7 +933,7 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
       {/* Mobile horizontal tab bar */}
       <div className="lg:hidden bg-white border-b border-ink-100 sticky top-[72px] z-10 overflow-x-auto scrollbar-none">
         <div className="flex min-w-max">
-          {NAV_ITEMS.map(({ key, icon: Icon, label }) => (
+          {visibleNav.map(({ key, icon: Icon, label }) => (
             <button
               key={key}
               onClick={() => setActiveTab(key)}
@@ -939,7 +964,7 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
         {/* Sidebar — desktop only */}
         <aside className="hidden lg:block lg:col-span-1">
           <nav className="bg-white border border-ink-100 rounded-sm p-3 sticky top-28">
-            {NAV_ITEMS.map(({ key, icon: Icon, label }) => (
+            {visibleNav.map(({ key, icon: Icon, label }) => (
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
@@ -981,7 +1006,7 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
         <main className="lg:col-span-3">
           <div className="bg-white border border-ink-100 rounded-sm p-4 lg:p-8 min-h-[400px]">
             <h2 className="font-display text-xl lg:text-2xl text-ink-900 mb-5 pb-4 border-b border-ink-100">
-              {NAV_ITEMS.find((n) => n.key === activeTab)?.label}
+              {visibleNav.find((n) => n.key === activeTab)?.label}
             </h2>
             {renderTab()}
           </div>
