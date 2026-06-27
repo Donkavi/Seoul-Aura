@@ -1010,29 +1010,6 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
             </h2>
             {renderTab()}
           </div>
-
-          {/* Referral */}
-          <section className="mt-4 lg:mt-6 bg-gradient-to-br from-ink-900 to-ink-800 text-white rounded-sm p-6 lg:p-8 relative overflow-hidden">
-            <div className="absolute -top-10 -right-10 w-64 h-64 bg-rose-600/20 rounded-full blur-3xl" />
-            <div className="relative">
-              <p className="text-xs uppercase tracking-widest text-rose-300 mb-2">Refer a Friend</p>
-              <h3 className="font-display text-xl lg:text-2xl mb-2">Give Rs. 1,000 · Get Rs. 1,000</h3>
-              <p className="text-xs lg:text-sm text-ink-300 mb-4 lg:mb-5 max-w-md">
-                Share your unique code with friends. When they shop, you both score Rs. 1,000 store credit.
-              </p>
-              <div className="flex items-center gap-2 max-w-sm">
-                <code className="flex-1 min-w-0 bg-white/10 backdrop-blur border border-white/20 px-3 lg:px-4 py-2.5 text-xs lg:text-sm font-mono truncate">
-                  AURA-{initials}-2026
-                </code>
-                <button
-                  onClick={() => navigator.clipboard.writeText(`AURA-${initials}-2026`)}
-                  className="shrink-0 bg-white text-ink-900 px-3 lg:px-4 py-2.5 text-xs lg:text-sm font-medium hover:bg-rose-50 transition-colors"
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-          </section>
         </main>
       </div>
     </div>
