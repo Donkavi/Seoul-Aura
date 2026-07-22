@@ -12,6 +12,7 @@ export interface IProduct extends Document {
   shortDescription: string;
   price: number;
   comparePrice?: number;
+  priceKRW?: number;
   origin: "Korea" | "Dubai" | "Other";
   type: string;
   subtype: string;
@@ -41,6 +42,7 @@ const ProductSchema = new Schema<IProduct>(
     shortDescription: { type: String, default: "" },
     price: { type: Number, required: true, min: 0 },
     comparePrice: { type: Number },
+    priceKRW: { type: Number, min: 0 },
     origin: { type: String, enum: ["Korea", "Dubai", "Other"], required: true },
     type: { type: String, required: true },
     subtype: { type: String, required: true },

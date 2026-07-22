@@ -20,12 +20,14 @@ import {
   Shield,
   Store,
   Send,
+  Calculator,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/products", label: "Products", icon: Package },
+  { href: "/admin/pricing", label: "Price Manager", icon: Calculator },
   { href: "/admin/brands", label: "Brands", icon: Store },
   { href: "/admin/categories", label: "Categories", icon: Tag },
   { href: "/admin/concerns", label: "Concerns", icon: Sparkles },
