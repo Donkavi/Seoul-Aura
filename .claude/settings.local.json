@@ -39,7 +39,10 @@
       "Bash(file public/logo_white.png public/logo.png)",
       "Bash(python -c \"from PIL import Image; [print\\(f, Image.open\\('public/'+f\\).size\\) for f in ['logo_white.png','logo.png']]\")",
       "Bash(grep -n 'heroSlides\\\\|findOneAndUpdate\\\\|\\\\.\\\\.\\\\.body\\\\|$set' app/api/settings/route.ts)",
-      "Bash(grep -vE \"api|admin|\\\\.tsx|\\\\.ts$\")"
+      "Bash(grep -vE \"api|admin|\\\\.tsx|\\\\.ts$\")",
+      "Bash(cd \"c:\\\\Users\\\\DELL\\\\Documents\\\\Lumos code\" && ls app/api/products/; echo \"---product model price fields---\"; grep -n \"price\\\\|comparePrice\" models/Product.ts | head; echo \"---[id] PATCH---\"; sed -n '1,50p' app/api/products/[id]/route.ts 2>/dev/null | grep -n \"PATCH\\\\|PUT\\\\|price\\\\|export async\" )",
+      "Bash(curl -s \"https://open.er-api.com/v6/latest/KRW\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('result:', d.get\\('result'\\)\\); print\\('LKR:', d.get\\('rates',{}\\).get\\('LKR'\\)\\); print\\('updated:', d.get\\('time_last_update_utc'\\)\\)\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\shop\\[id]",
@@ -51,7 +54,8 @@
       "c:\\Users\\DELL\\Documents\\KC\\finl\\Seoul Aura\\app\\api\\subscriptions",
       "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\auth",
       "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\admins",
-      "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\brands"
+      "c:\\Users\\DELL\\Documents\\Seoul-Aura\\app\\api\\brands",
+      "c:\\Users\\DELL\\Documents\\Lumos code\\app\\api\\products\\[id]"
     ]
   }
 }

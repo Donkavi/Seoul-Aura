@@ -101,6 +101,8 @@ export interface ISettings extends Document {
   shippingFee: number;
   freeShippingThreshold: number;
   allowManualPreOrderEntry: boolean;
+  krwToLkrRate: number;
+  priceMarginPercent: number;
   accountSections: {
     orders: boolean;
     preOrders: boolean;
@@ -311,6 +313,8 @@ const SettingsSchema = new Schema<ISettings>(
     shippingFee: { type: Number, default: 350 },
     freeShippingThreshold: { type: Number, default: 5000 },
     allowManualPreOrderEntry: { type: Boolean, default: true },
+    krwToLkrRate: { type: Number, default: 0.23 },
+    priceMarginPercent: { type: Number, default: 0 },
     accountSections: {
       type: new Schema(
         {
