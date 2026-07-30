@@ -144,6 +144,7 @@ interface Settings {
   sliderShowDots: boolean;
   showMintpay: boolean;
   showKoko: boolean;
+  otpMethod: "sms" | "email";
   aboutPage: AboutPage;
   contactPage: ContactPage;
   faqPage: FaqPage;
@@ -178,6 +179,7 @@ const defaultSettings: Settings = {
   sliderShowDots: true,
   showMintpay: true,
   showKoko: true,
+  otpMethod: "sms",
   videoShowcase: {
     videoUrl: "",
     posterUrl: "",
@@ -851,6 +853,38 @@ export default function AdminSettingsPage() {
                 />
                 <span className="text-sm text-ink-700">Show <strong>KOKO</strong> badge <span className="inline-block bg-purple-600 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold align-middle">KOKO</span></span>
               </label>
+            </div>
+          </Section>
+
+          {/* User Verification (OTP) */}
+          <Section icon={ShieldCheck} title="User Verification (OTP)">
+            <p className="text-xs text-ink-500 mb-4">
+              Choose how new accounts receive their one-time verification code. SMS uses Notify.lk (requires a valid phone number); Email sends the code to the account&apos;s email address.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { value: "sms", label: "Mobile OTP", desc: "SMS via Notify.lk", icon: Phone },
+                { value: "email", label: "Email OTP", desc: "Sent to account email", icon: ShieldCheck },
+              ] as const).map(({ value, label, desc, icon: Icon }) => {
+                const active = settings.otpMethod === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => set("otpMethod", value)}
+                    className={cn(
+                      "flex flex-col items-start gap-1 rounded-sm border p-4 text-left transition-colors",
+                      active ? "border-rose-500 bg-rose-25/40 ring-1 ring-rose-200" : "border-ink-100 hover:border-ink-200"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon size={15} className={active ? "text-rose-600" : "text-ink-400"} />
+                      <span className={cn("text-sm font-medium", active ? "text-rose-700" : "text-ink-900")}>{label}</span>
+                    </span>
+                    <span className="text-xs text-ink-400">{desc}</span>
+                  </button>
+                );
+              })}
             </div>
           </Section>
 

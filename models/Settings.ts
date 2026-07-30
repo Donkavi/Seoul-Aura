@@ -123,6 +123,7 @@ export interface ISettings extends Document {
   sliderShowDots: boolean;
   showMintpay: boolean;
   showKoko: boolean;
+  otpMethod: "sms" | "email";
   aboutPage: IAboutPage;
   contactPage: IContactPage;
   faqPage: IFaqPage;
@@ -342,6 +343,7 @@ const SettingsSchema = new Schema<ISettings>(
     sliderShowDots: { type: Boolean, default: true },
     showMintpay: { type: Boolean, default: true },
     showKoko: { type: Boolean, default: true },
+    otpMethod: { type: String, enum: ["sms", "email"], default: "sms" },
     videoShowcase: { type: VideoShowcaseSchema, default: () => ({}) },
     homeSections: { type: [HomeSectionSchema], default: () => DEFAULT_HOME_SECTIONS },
     aboutPage: { type: AboutPageSchema, default: () => ({}) },

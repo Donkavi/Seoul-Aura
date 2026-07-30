@@ -55,6 +55,44 @@ function layout(content: string) {
 </html>`;
 }
 
+// ─── OTP verification code → Buyer ───────────────────────────────────────────
+export async function sendOtpEmail(to: string, code: string, name?: string): Promise<boolean> {
+  const html = layout(`
+    <h1 style="margin:0 0 4px;font-family:Georgia,serif;font-size:26px;font-weight:400;color:#1c1917;">
+      Verify your account
+    </h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#78716c;">
+      Hi ${name || "there"}, use the code below to verify your Seoul Aura account.
+    </p>
+    <div style="text-align:center;margin:0 0 24px;">
+      <div style="display:inline-block;background:#fff1f2;border:1px solid #fecdd3;border-radius:8px;padding:18px 32px;">
+        <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#be123c;font-family:'Courier New',monospace;">${code}</span>
+      </div>
+    </div>
+    <p style="margin:0;font-size:13px;color:#78716c;text-align:center;">
+      This code expires in 5 minutes. If you didn't request it, you can safely ignore this email.<br/>
+      Never share this code with anyone.
+    </p>
+  `);
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM,
+      to,
+      subject: `Your Seoul Aura verification code is ${code}`,
+      html,
+    });
+    if (error) {
+      console.error("[email] OTP send failed:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[email] OTP send error:", err);
+    return false;
+  }
+}
+
 function badge(status: string) {
   const colors: Record<string, string> = {
     pending:   "background:#fef3c7;color:#92400e",

@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Phone, ShieldCheck, Loader2, ArrowRight, LogOut } from "lucide-react";
+import { Phone, Mail, ShieldCheck, Loader2, ArrowRight, LogOut } from "lucide-react";
 
 export default function VerifyPhone({ redirectTo = "/account" }: { redirectTo?: string }) {
   const { data: session, update } = useSession();
   const router = useRouter();
 
+  const userEmail = (session?.user as { email?: string })?.email ?? "";
+
+  const [method, setMethod] = useState<"sms" | "email">("sms");
   const [phone, setPhone] = useState<string>((session?.user as { phone?: string })?.phone ?? "");
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
@@ -17,18 +20,29 @@ export default function VerifyPhone({ redirectTo = "/account" }: { redirectTo?: 
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
+  // Load the admin-configured delivery channel (sms vs email)
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { if (d?.otpMethod === "email") setMethod("email"); })
+      .catch(() => {});
+  }, []);
+
+  const isEmail = method === "email";
+
   const sendCode = async () => {
     setError(""); setMsg(""); setSending(true);
     try {
       const res = await fetch("/api/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify(isEmail ? {} : { phone }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to send code");
       setCodeSent(true);
-      setMsg(data.sent ? "Code sent! Check your messages." : "Code generated — ask the team if it didn't arrive.");
+      const okMsg = isEmail ? "Code sent! Check your email inbox." : "Code sent! Check your messages.";
+      setMsg(data.sent ? okMsg : "Code generated — ask the team if it didn't arrive.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -63,33 +77,50 @@ export default function VerifyPhone({ redirectTo = "/account" }: { redirectTo?: 
           <div className="w-16 h-16 mx-auto bg-rose-50 rounded-full flex items-center justify-center mb-6 border border-rose-100">
             <ShieldCheck size={28} className="text-rose-600" />
           </div>
-          <h1 className="font-display text-3xl text-ink-900 text-center mb-2">Verify your phone</h1>
+          <h1 className="font-display text-3xl text-ink-900 text-center mb-2">
+            {isEmail ? "Verify your email" : "Verify your phone"}
+          </h1>
           <p className="text-sm text-ink-500 text-center mb-8 leading-relaxed">
-            For your security we verify every account with a one-time code. We&apos;ll send a 4-digit code to your number.
+            For your security we verify every account with a one-time code. We&apos;ll send a 4-digit code to your{" "}
+            {isEmail ? "email inbox" : "number"}.
           </p>
 
-          {/* Phone */}
-          <div className="mb-4">
-            <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 flex items-center gap-1.5">
-              <Phone size={12} /> Phone Number
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              disabled={codeSent}
-              placeholder="077 123 4567"
-              className="input-field disabled:bg-ink-50 disabled:text-ink-500"
-            />
-            {codeSent && (
-              <button
-                onClick={() => { setCodeSent(false); setCode(""); setMsg(""); }}
-                className="text-xs text-rose-600 hover:underline mt-1.5"
-              >
-                Change number
-              </button>
-            )}
-          </div>
+          {/* Destination: email (fixed) or phone (editable) */}
+          {isEmail ? (
+            <div className="mb-4">
+              <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 flex items-center gap-1.5">
+                <Mail size={12} /> Email Address
+              </label>
+              <input
+                type="email"
+                value={userEmail}
+                disabled
+                className="input-field disabled:bg-ink-50 disabled:text-ink-500"
+              />
+            </div>
+          ) : (
+            <div className="mb-4">
+              <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 flex items-center gap-1.5">
+                <Phone size={12} /> Phone Number
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                disabled={codeSent}
+                placeholder="077 123 4567"
+                className="input-field disabled:bg-ink-50 disabled:text-ink-500"
+              />
+              {codeSent && (
+                <button
+                  onClick={() => { setCodeSent(false); setCode(""); setMsg(""); }}
+                  className="text-xs text-rose-600 hover:underline mt-1.5"
+                >
+                  Change number
+                </button>
+              )}
+            </div>
+          )}
 
           {/* OTP */}
           {codeSent && (
@@ -115,7 +146,7 @@ export default function VerifyPhone({ redirectTo = "/account" }: { redirectTo?: 
           {!codeSent ? (
             <button
               onClick={sendCode}
-              disabled={sending || !phone.trim()}
+              disabled={sending || (!isEmail && !phone.trim())}
               className="btn-primary w-full inline-flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {sending ? <><Loader2 size={15} className="animate-spin" /> Sending…</> : <>Send Code <ArrowRight size={15} /></>}
