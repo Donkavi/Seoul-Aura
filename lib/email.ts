@@ -394,7 +394,19 @@ interface PreOrderItemData {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** Set only when this item was repriced in the update being emailed. */
+  previousUnitPrice?: number;
+  priceChangeReason?: string;
   availability?: "available" | "unavailable";
+}
+
+interface PreOrderPriceChangeData {
+  productBrand: string;
+  productName: string;
+  quantity: number;
+  previousUnitPrice?: number;
+  newUnitPrice: number;
+  reason: string;
 }
 
 interface PreOrderEmailData {
@@ -772,6 +784,16 @@ function preOrderAvailabilityTable(items: PreOrderItemData[], sym: string) {
 
   const itemRow = (it: PreOrderItemData, unavail: boolean) => {
     const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
+    const repriced = it.previousUnitPrice != null && it.unitPrice != null && it.previousUnitPrice !== it.unitPrice;
+    const cheaper = repriced && it.unitPrice! < it.previousUnitPrice!;
+    const unitCell = unavail
+      ? "—"
+      : it.unitPrice == null
+        ? '<span style="color:#a8a29e;">—</span>'
+        : repriced
+          ? `<span style="color:#a8a29e;text-decoration:line-through;">${fmt(it.previousUnitPrice!, sym)}</span><br/>
+             <span style="color:${cheaper ? "#16a34a" : "#e11d48"};font-weight:700;">${fmt(it.unitPrice, sym)}</span>`
+          : fmt(it.unitPrice, sym);
     const imgBlock = it.productImage
       ? `<img src="${it.productImage}" width="48" height="48" alt="" style="width:48px;height:48px;object-fit:cover;border-radius:3px;border:1px solid #f0e8e6;display:block;${unavail ? "opacity:0.45;" : ""}" />`
       : `<div style="width:48px;height:48px;background:#fdf5f4;border:1px solid #f0e8e6;border-radius:3px;text-align:center;line-height:48px;${unavail ? "opacity:0.45;" : ""}">🧴</div>`;
@@ -790,6 +812,7 @@ function preOrderAvailabilityTable(items: PreOrderItemData[], sym: string) {
         </tr></table>
       </td>
       <td style="padding:10px 12px;border-bottom:1px solid #f9f0ee;text-align:center;font-size:13px;color:${unavail ? "#a8a29e" : "#1c1917"};">${it.quantity}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #f9f0ee;text-align:right;font-size:12px;line-height:1.5;color:${unavail ? "#a8a29e" : "#1c1917"};white-space:nowrap;">${unitCell}</td>
       <td style="padding:10px 12px;border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:${unavail ? "#a8a29e" : "#1c1917"};font-weight:600;white-space:nowrap;${unavail ? "text-decoration:line-through;" : ""}">${unavail ? "—" : (lineTotal != null ? fmt(lineTotal, sym) : '<span style="color:#a8a29e;">To be quoted</span>')}</td>
     </tr>`;
   };
@@ -801,7 +824,8 @@ function preOrderAvailabilityTable(items: PreOrderItemData[], sym: string) {
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;">
       <thead><tr style="background:#fdf5f4;">
         <th style="padding:10px 12px;text-align:left;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;">Product</th>
-        <th style="padding:10px 12px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;width:48px;">Qty</th>
+        <th style="padding:10px 12px;text-align:center;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;width:40px;">Qty</th>
+        <th style="padding:10px 12px;text-align:right;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;white-space:nowrap;">Unit Price</th>
         <th style="padding:10px 12px;text-align:right;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;border-bottom:2px solid #f5f0ee;">Amount</th>
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -858,18 +882,77 @@ function preOrderTotalsTable(
   return html;
 }
 
-// ─── 7. Pre-order revision (availability / deposit) → Buyer ───────────────────
+// ─── Shared: unit-price revisions (old → new, with the reason) ───────────────
+function preOrderPriceChangeTable(changes: PreOrderPriceChangeData[], sym: string) {
+  if (!changes.length) return "";
+
+  const rows = changes
+    .map((c) => {
+      const cheaper = c.previousUnitPrice != null && c.newUnitPrice < c.previousUnitPrice;
+      const isNew = c.previousUnitPrice == null;
+      const diff = c.previousUnitPrice != null ? c.newUnitPrice - c.previousUnitPrice : null;
+      const diffLabel =
+        diff == null
+          ? ""
+          : `<span style="font-size:11px;color:${cheaper ? "#16a34a" : "#e11d48"};">${cheaper ? "▼" : "▲"} ${fmt(Math.abs(diff), sym)} per unit</span>`;
+
+      return `<tr>
+        <td style="padding:14px 16px;border-bottom:1px solid #f9f0ee;">
+          <p style="margin:0;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#e11d48;font-weight:600;">${c.productBrand}</p>
+          <p style="margin:3px 0 8px;font-size:13px;color:#1c1917;font-weight:500;line-height:1.4;">${c.productName}</p>
+
+          <table cellpadding="0" cellspacing="0" border="0" style="margin:0 0 8px;">
+            <tr>
+              <td style="padding:0 10px 0 0;">
+                <p style="margin:0;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a8a29e;">${isNew ? "Previous" : "Earlier price"}</p>
+                <p style="margin:2px 0 0;font-size:14px;color:#a8a29e;${isNew ? "" : "text-decoration:line-through;"}">${isNew ? "Not yet quoted" : fmt(c.previousUnitPrice!, sym)}</p>
+              </td>
+              <td style="padding:0 10px;font-size:16px;color:#d6d3d1;">→</td>
+              <td style="padding:0 0 0 10px;">
+                <p style="margin:0;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#a8a29e;">New price</p>
+                <p style="margin:2px 0 0;font-size:15px;font-weight:700;color:${cheaper ? "#16a34a" : "#e11d48"};">${fmt(c.newUnitPrice, sym)}</p>
+              </td>
+            </tr>
+          </table>
+          ${diffLabel}
+
+          <div style="background:#faf9f8;border-left:3px solid #e11d48;border-radius:2px;padding:9px 12px;margin-top:10px;">
+            <p style="margin:0 0 2px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#78716c;font-weight:600;">Reason</p>
+            <p style="margin:0;font-size:13px;color:#1c1917;line-height:1.6;">${c.reason}</p>
+          </div>
+
+          <p style="margin:8px 0 0;font-size:11px;color:#a8a29e;">
+            Qty ${c.quantity} · New line total <strong style="color:#1c1917;">${fmt(c.newUnitPrice * c.quantity, sym)}</strong>${
+              c.previousUnitPrice != null
+                ? ` <span style="text-decoration:line-through;">${fmt(c.previousUnitPrice * c.quantity, sym)}</span>`
+                : ""
+            }
+          </p>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  return `
+    <h3 style="margin:24px 0 10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Price ${changes.length !== 1 ? "changes" : "change"} (${changes.length})</h3>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;">
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ─── 7. Pre-order revision (price / availability / deposit) → Buyer ──────────
 interface PreOrderRevisionEmailData {
   requestNumber: string;
   customerName: string;
   customerEmail: string;
   phoneNumber?: string;
   items: PreOrderItemData[];
+  priceChanges?: PreOrderPriceChangeData[];
   deliveryCharge?: number;
   currencySymbol?: string;
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
-  reason: "availability" | "deposit" | "both";
+  reasons: ("availability" | "deposit" | "price")[];
 }
 
 export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailData) {
@@ -877,15 +960,23 @@ export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailDat
   const delivery = data.deliveryCharge ?? 0;
   const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 
-  const headline = data.reason === "deposit"
-    ? "Deposit received — your order is locked in! 🔒"
-    : data.reason === "both"
-      ? "Your pre-order has been updated 📋"
-      : "Your pre-order availability is updated 📋";
+  const reasons = data.reasons ?? [];
+  const only = (r: "availability" | "deposit" | "price") => reasons.length === 1 && reasons[0] === r;
+  const priceChanges = data.priceChanges ?? [];
 
-  const intro = data.reason === "deposit"
+  const headline = only("deposit")
+    ? "Deposit received — your order is locked in! 🔒"
+    : only("price")
+      ? "A price on your pre-order has been updated 💷"
+      : only("availability")
+        ? "Your pre-order availability is updated 📋"
+        : "Your pre-order has been updated 📋";
+
+  const intro = only("deposit")
     ? "We've received your 25% deposit and your order is now locked in. Here's your updated summary."
-    : "We've reviewed your pre-order and updated item availability. Here's your revised summary and totals.";
+    : reasons.includes("price")
+      ? `We've revised the price of ${priceChanges.length !== 1 ? "some items" : "an item"} on your pre-order. The earlier and new prices are shown below, along with the reason and your updated totals.`
+      : "We've reviewed your pre-order and updated item availability. Here's your revised summary and totals.";
 
   const depositBadge = data.depositPaid
     ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:12px 16px;margin-bottom:20px;text-align:center;">
@@ -912,6 +1003,8 @@ export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailDat
       </tr>
     </table>
 
+    ${preOrderPriceChangeTable(priceChanges, sym)}
+
     ${preOrderAvailabilityTable(data.items, sym)}
 
     ${preOrderTotalsTable(data.items, delivery, sym, data.balancePaymentMethod, data.depositPaid, "Updated Total")}
@@ -930,7 +1023,9 @@ export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailDat
   return resend.emails.send({
     from: FROM,
     to: data.customerEmail,
-    subject: `📋 Pre-order Updated · ${data.requestNumber} — Seoul Aura`,
+    subject: only("price")
+      ? `💷 Price Updated · Pre-order ${data.requestNumber} — Seoul Aura`
+      : `📋 Pre-order Updated · ${data.requestNumber} — Seoul Aura`,
     html,
   });
 }

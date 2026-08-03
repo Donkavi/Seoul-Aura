@@ -7,6 +7,13 @@ export type PreOrderStatus =
   | "rejected"
   | "fulfilled";
 
+export interface IPreOrderPriceChange {
+  previousUnitPrice?: number;
+  newUnitPrice: number;
+  reason: string;
+  changedAt: Date;
+}
+
 export interface IPreOrderItem {
   productBrand: string;
   productName: string;
@@ -14,6 +21,10 @@ export interface IPreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** The very first quoted unit price — never overwritten once set. */
+  originalUnitPrice?: number;
+  /** Every unit-price revision, oldest first. */
+  priceHistory?: IPreOrderPriceChange[];
   availability?: "available" | "unavailable";
 }
 
@@ -40,6 +51,16 @@ export interface IPreOrder extends Document {
   updatedAt: Date;
 }
 
+const PreOrderPriceChangeSchema = new Schema<IPreOrderPriceChange>(
+  {
+    previousUnitPrice: { type: Number },
+    newUnitPrice: { type: Number, required: true },
+    reason: { type: String, required: true, trim: true },
+    changedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const PreOrderItemSchema = new Schema<IPreOrderItem>(
   {
     productBrand: { type: String, required: true, trim: true },
@@ -48,6 +69,8 @@ const PreOrderItemSchema = new Schema<IPreOrderItem>(
     productImage: { type: String },
     quantity: { type: Number, default: 1, min: 1 },
     unitPrice: { type: Number },
+    originalUnitPrice: { type: Number },
+    priceHistory: { type: [PreOrderPriceChangeSchema], default: [] },
     availability: { type: String, enum: ["available", "unavailable"], default: "available" },
   },
   { _id: false }
