@@ -198,6 +198,13 @@ export interface Subscription {
   createdAt: string;
 }
 
+export interface PreOrderPriceChange {
+  previousUnitPrice?: number;
+  newUnitPrice: number;
+  reason: string;
+  changedAt: string;
+}
+
 export interface PreOrderItem {
   productBrand: string;
   productName: string;
@@ -205,6 +212,9 @@ export interface PreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** First quoted unit price — kept even after revisions. */
+  originalUnitPrice?: number;
+  priceHistory?: PreOrderPriceChange[];
   availability?: "available" | "unavailable";
 }
 

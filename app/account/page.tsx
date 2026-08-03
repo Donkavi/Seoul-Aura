@@ -338,6 +338,8 @@ interface PreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** First quoted unit price — present when the price was later revised. */
+  originalUnitPrice?: number;
   availability?: "available" | "unavailable";
 }
 
@@ -521,7 +523,15 @@ function PreOrdersTab({ email }: { email: string }) {
                             <div className="flex items-center justify-between mt-2">
                               <span className="text-xs text-ink-500">
                                 Qty: <strong>{it.quantity}</strong>
-                                {it.unitPrice != null && <span className="text-ink-400"> × {formatPrice(it.unitPrice)}</span>}
+                                {it.unitPrice != null && (
+                                  <span className="text-ink-400">
+                                    {" × "}
+                                    {it.originalUnitPrice != null && it.originalUnitPrice !== it.unitPrice && (
+                                      <span className="line-through mr-1">{formatPrice(it.originalUnitPrice)}</span>
+                                    )}
+                                    {formatPrice(it.unitPrice)}
+                                  </span>
+                                )}
                               </span>
                               {lineTotal != null && (
                                 <span className={cn("text-sm font-semibold", unavail ? "text-ink-400 line-through" : "text-ink-900")}>{formatPrice(lineTotal)}</span>

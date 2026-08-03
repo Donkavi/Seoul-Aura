@@ -11,6 +11,27 @@ interface IncomingPatchItem {
   productImage?: string;
   quantity?: number;
   unitPrice?: number;
+  /** Required whenever unitPrice differs from the price already on record. */
+  priceChangeReason?: string;
+  availability?: "available" | "unavailable";
+}
+
+interface StoredPriceChange {
+  previousUnitPrice?: number;
+  newUnitPrice: number;
+  reason: string;
+  changedAt: Date;
+}
+
+interface StoredItem {
+  productBrand: string;
+  productName: string;
+  productLink?: string;
+  productImage?: string;
+  quantity: number;
+  unitPrice?: number;
+  originalUnitPrice?: number;
+  priceHistory?: StoredPriceChange[];
   availability?: "available" | "unavailable";
 }
 
@@ -37,23 +58,88 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     const previous = await PreOrder.findById(params.id).lean() as
-      | { status: string; depositPaid?: boolean; items?: { availability?: string }[] }
+      | { status: string; depositPaid?: boolean; items?: StoredItem[] }
       | null;
     if (!previous) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    // Merge per-item availability updates onto existing items (preserve other fields)
+    // Merge per-item availability + unit-price updates onto existing items
+    // (all other stored fields are preserved as-is).
     let availabilityChanged = false;
+    const priceChanges: {
+      productBrand: string;
+      productName: string;
+      quantity: number;
+      previousUnitPrice?: number;
+      newUnitPrice: number;
+      reason: string;
+    }[] = [];
+    /** Indices of items repriced in *this* request — drives the old→new display. */
+    const repricedNow = new Set<number>();
+
     if (Array.isArray(body.items)) {
       const incoming = body.items as IncomingPatchItem[];
-      const merged = (previous.items ?? []).map((existing, i) => {
+      const changedAt = new Date();
+      const merged: StoredItem[] = [];
+
+      for (let i = 0; i < (previous.items ?? []).length; i++) {
+        const existing = (previous.items ?? [])[i];
         const inc = incoming[i];
+        const next: StoredItem = { ...existing };
+
         const newAvail = inc?.availability;
         if (newAvail && newAvail !== existing.availability) availabilityChanged = true;
-        return {
-          ...existing,
-          ...(newAvail ? { availability: newAvail } : {}),
-        };
-      });
+        if (newAvail) next.availability = newAvail;
+
+        // Unit price revision — only when a finite, non-negative number is sent
+        // and it actually differs from what's on record.
+        if (inc?.unitPrice !== undefined && inc.unitPrice !== null) {
+          const newPrice = Number(inc.unitPrice);
+          if (!Number.isFinite(newPrice) || newPrice < 0) {
+            return NextResponse.json(
+              { error: `Invalid unit price for "${existing.productName}"` },
+              { status: 400 }
+            );
+          }
+
+          if (newPrice !== existing.unitPrice) {
+            const reason = inc.priceChangeReason?.trim();
+            // A reason is mandatory when revising an existing quote; a first-time
+            // quote (previously "to be quoted") falls back to a default label.
+            if (existing.unitPrice != null && !reason) {
+              return NextResponse.json(
+                { error: `A reason is required to change the price of "${existing.productName}"` },
+                { status: 400 }
+              );
+            }
+            const finalReason = reason || "Initial quote";
+
+            next.unitPrice = newPrice;
+            next.originalUnitPrice = existing.originalUnitPrice ?? existing.unitPrice ?? newPrice;
+            next.priceHistory = [
+              ...(existing.priceHistory ?? []),
+              {
+                previousUnitPrice: existing.unitPrice,
+                newUnitPrice: newPrice,
+                reason: finalReason,
+                changedAt,
+              },
+            ];
+
+            repricedNow.add(i);
+            priceChanges.push({
+              productBrand: existing.productBrand,
+              productName: existing.productName,
+              quantity: existing.quantity,
+              previousUnitPrice: existing.unitPrice,
+              newUnitPrice: newPrice,
+              reason: finalReason,
+            });
+          }
+        }
+
+        merged.push(next);
+      }
+
       allowed.items = merged;
     }
 
@@ -65,21 +151,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     // Settings for totals in emails (delivery charge / currency)
     const statusChanged = body.status && body.status !== previous.status;
+    const priceChanged = priceChanges.length > 0;
     let deliveryCharge = 350;
     let currencySymbol = "Rs.";
-    if (statusChanged || availabilityChanged || depositChanged) {
+    if (statusChanged || availabilityChanged || depositChanged || priceChanged) {
       const settingsDoc = await Settings.findOne().lean().catch(() => null);
       deliveryCharge = (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;
       currencySymbol = (settingsDoc as { currencySymbol?: string } | null)?.currencySymbol ?? "Rs.";
     }
 
-    const mappedItems = updated.items.map((it: { productBrand: string; productName: string; productLink?: string; productImage?: string; quantity: number; unitPrice?: number; availability?: "available" | "unavailable" }) => ({
+    const mappedItems = updated.items.map((it: StoredItem, i: number) => ({
       productBrand: it.productBrand,
       productName: it.productName,
       productLink: it.productLink,
       productImage: it.productImage,
       quantity: it.quantity,
       unitPrice: it.unitPrice,
+      // Only items repriced in this save show an old → new comparison
+      previousUnitPrice: repricedNow.has(i)
+        ? it.priceHistory?.[it.priceHistory.length - 1]?.previousUnitPrice
+        : undefined,
+      priceChangeReason: repricedNow.has(i)
+        ? it.priceHistory?.[it.priceHistory.length - 1]?.reason
+        : undefined,
       availability: it.availability,
     }));
 
@@ -102,10 +196,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }).catch(console.error);
     }
 
-    // Email buyer a revised invoice when availability or deposit-paid changes
-    if (availabilityChanged || depositChanged) {
-      const reason: "availability" | "deposit" | "both" =
-        availabilityChanged && depositChanged ? "both" : availabilityChanged ? "availability" : "deposit";
+    // Email buyer a revised invoice when availability, pricing or deposit changes
+    if (availabilityChanged || depositChanged || priceChanged) {
+      const reasons: ("availability" | "deposit" | "price")[] = [];
+      if (priceChanged) reasons.push("price");
+      if (availabilityChanged) reasons.push("availability");
+      if (depositChanged) reasons.push("deposit");
 
       sendPreOrderRevisionToBuyer({
         requestNumber: updated.requestNumber,
@@ -113,11 +209,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         customerEmail: updated.customerEmail,
         phoneNumber: updated.phoneNumber,
         items: mappedItems,
+        priceChanges,
         deliveryCharge,
         currencySymbol,
         balancePaymentMethod: updated.balancePaymentMethod,
         depositPaid: updated.depositPaid,
-        reason,
+        reasons,
       }).catch(console.error);
     }
 

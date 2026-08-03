@@ -15,11 +15,14 @@ import {
   ExternalLink,
   MessageSquare,
   Send,
+  Pencil,
+  RotateCcw,
+  History,
   type LucideIcon,
 } from "lucide-react";
 import { cn, relativeDate, formatPrice } from "@/lib/utils";
 import CountUp from "@/components/admin/CountUp";
-import type { PreOrder, PreOrderStatus } from "@/types";
+import type { PreOrder, PreOrderItem, PreOrderPriceChange, PreOrderStatus } from "@/types";
 
 type FilterTab = "all" | PreOrderStatus;
 
@@ -311,6 +314,13 @@ export default function AdminPreOrdersPage() {
   );
 }
 
+/** An item row as edited inside the drawer, before saving. */
+type DraftItem = PreOrderItem & {
+  availability: "available" | "unavailable";
+  /** Reason captured for a not-yet-saved unit-price change. */
+  priceChangeReason?: string;
+};
+
 function PreOrderDrawer({
   preOrder,
   onClose,
@@ -333,15 +343,80 @@ function PreOrderDrawer({
   const [deliveryCharge, setDeliveryCharge] = useState(350);
   const [depositPaid, setDepositPaid] = useState(!!preOrder.depositPaid);
 
-  // Editable item availability (defaults to "available" for older records)
-  const initialItems = (preOrder.items?.length
+  const [error, setError] = useState<string | null>(null);
+
+  // Saved item state — the baseline every draft edit is compared against
+  const savedItems: PreOrderItem[] = preOrder.items?.length
     ? preOrder.items
-    : [{ productBrand: preOrder.productBrand, productName: preOrder.productName, productLink: preOrder.productLink, quantity: preOrder.quantity, unitPrice: undefined, productImage: undefined, availability: undefined as ("available" | "unavailable" | undefined) }]
-  ).map((it) => ({ ...it, availability: it.availability ?? ("available" as const) }));
-  const [items, setItems] = useState(initialItems);
+    : [{
+        productBrand: preOrder.productBrand,
+        productName: preOrder.productName,
+        productLink: preOrder.productLink,
+        quantity: preOrder.quantity,
+      }];
+
+  // Editable item availability + unit price (availability defaults to "available" for older records)
+  const initialItems: DraftItem[] = savedItems.map((it) => ({
+    ...it,
+    availability: it.availability ?? "available",
+  }));
+  const [items, setItems] = useState<DraftItem[]>(initialItems);
+
+  // Inline unit-price editor
+  const [editingPriceIdx, setEditingPriceIdx] = useState<number | null>(null);
+  const [draftPrice, setDraftPrice] = useState("");
+  const [draftReason, setDraftReason] = useState("");
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   const setItemAvailability = (idx: number, availability: "available" | "unavailable") =>
     setItems((rows) => rows.map((r, i) => (i === idx ? { ...r, availability } : r)));
+
+  const openPriceEditor = (idx: number) => {
+    setEditingPriceIdx(idx);
+    setDraftPrice(items[idx].unitPrice?.toString() ?? "");
+    setDraftReason(items[idx].priceChangeReason ?? "");
+    setPriceError(null);
+  };
+
+  const closePriceEditor = () => {
+    setEditingPriceIdx(null);
+    setDraftPrice("");
+    setDraftReason("");
+    setPriceError(null);
+  };
+
+  const applyPriceChange = (idx: number) => {
+    const value = parseFloat(draftPrice);
+    if (!Number.isFinite(value) || value < 0) {
+      setPriceError("Enter a valid price.");
+      return;
+    }
+    const savedPrice = savedItems[idx]?.unitPrice;
+    if (value === savedPrice) {
+      setPriceError("That's the same as the current price.");
+      return;
+    }
+    // A reason is mandatory whenever an existing quote is revised
+    if (savedPrice != null && !draftReason.trim()) {
+      setPriceError("A reason is required — it's shown to the customer in the email.");
+      return;
+    }
+    setItems((rows) =>
+      rows.map((r, i) =>
+        i === idx ? { ...r, unitPrice: value, priceChangeReason: draftReason.trim() || undefined } : r
+      )
+    );
+    closePriceEditor();
+  };
+
+  const revertPriceChange = (idx: number) =>
+    setItems((rows) =>
+      rows.map((r, i) =>
+        i === idx
+          ? { ...r, unitPrice: savedItems[idx]?.unitPrice, priceChangeReason: undefined }
+          : r
+      )
+    );
 
   useEffect(() => {
     fetch("/api/settings")
@@ -352,8 +427,9 @@ function PreOrderDrawer({
 
   const save = async () => {
     setSaving(true);
+    setError(null);
     try {
-      await fetch(`/api/pre-orders/${preOrder._id}`, {
+      const res = await fetch(`/api/pre-orders/${preOrder._id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -362,10 +438,21 @@ function PreOrderDrawer({
           estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice) : undefined,
           estimatedAvailability: estimatedAvailability || undefined,
           depositPaid,
-          items: items.map((it) => ({ availability: it.availability })),
+          items: items.map((it) => ({
+            availability: it.availability,
+            unitPrice: it.unitPrice,
+            priceChangeReason: it.priceChangeReason,
+          })),
         }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? "Could not save changes. Please try again.");
+        return;
+      }
       onUpdate();
+    } catch {
+      setError("Could not save changes. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -442,6 +529,10 @@ function PreOrderDrawer({
               {items.map((it, i) => {
                 const unavail = it.availability === "unavailable";
                 const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
+                const savedPrice = savedItems[i]?.unitPrice;
+                // Unsaved reprice of this row
+                const pending = it.unitPrice !== savedPrice;
+                const history = it.priceHistory ?? [];
                 return (
                   <div key={i} className={cn("px-4 py-3", i > 0 && "border-t border-ink-100", unavail && "bg-ink-50/50")}>
                     <div className="flex items-start gap-3">
@@ -461,9 +552,24 @@ function PreOrderDrawer({
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-xs text-ink-500">×{it.quantity}</p>
-                        <p className={cn("text-sm font-semibold whitespace-nowrap", unavail ? "text-ink-400 line-through" : "text-ink-900")}>
-                          {lineTotal != null ? formatPrice(lineTotal) : <span className="text-ink-300 italic text-xs">TBQ</span>}
-                        </p>
+                        {it.unitPrice != null ? (
+                          <>
+                            <p className="text-[11px] whitespace-nowrap leading-tight mt-0.5">
+                              {pending && savedPrice != null && (
+                                <span className="text-ink-400 line-through mr-1">{formatPrice(savedPrice)}</span>
+                              )}
+                              <span className={cn(pending ? "text-rose-600 font-semibold" : "text-ink-500")}>
+                                {formatPrice(it.unitPrice)}
+                              </span>
+                              <span className="text-ink-400"> each</span>
+                            </p>
+                            <p className={cn("text-sm font-semibold whitespace-nowrap", unavail ? "text-ink-400 line-through" : "text-ink-900")}>
+                              {formatPrice(lineTotal!)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-ink-300 italic text-xs mt-0.5">TBQ</p>
+                        )}
                       </div>
                     </div>
                     {/* Availability toggle */}
@@ -486,7 +592,122 @@ function PreOrderDrawer({
                       >
                         <XCircle size={11} /> Unavailable
                       </button>
+
+                      <button
+                        onClick={() => (editingPriceIdx === i ? closePriceEditor() : openPriceEditor(i))}
+                        className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full border border-ink-200 text-ink-600 hover:border-rose-300 hover:text-rose-600 transition-colors"
+                      >
+                        <Pencil size={11} /> {it.unitPrice != null ? "Change price" : "Set price"}
+                      </button>
                     </div>
+
+                    {/* Pending (unsaved) price change */}
+                    {pending && editingPriceIdx !== i && (
+                      <div className="mt-2.5 ml-[52px] flex items-start gap-2 bg-rose-25/60 border border-rose-200 rounded-sm px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] text-ink-700">
+                            <span className="font-semibold uppercase tracking-wider text-rose-600 text-[10px]">Price change pending</span>
+                            <br />
+                            {savedPrice != null ? formatPrice(savedPrice) : "Not quoted"} → <strong>{formatPrice(it.unitPrice!)}</strong> per unit
+                          </p>
+                          {it.priceChangeReason && (
+                            <p className="text-[11px] text-ink-500 mt-1 italic break-words">&quot;{it.priceChangeReason}&quot;</p>
+                          )}
+                          <p className="text-[10px] text-ink-400 mt-1">The customer is emailed the old and new price on save.</p>
+                        </div>
+                        <button
+                          onClick={() => revertPriceChange(i)}
+                          className="inline-flex items-center gap-1 text-[11px] text-ink-500 hover:text-rose-600 flex-shrink-0"
+                          title="Undo price change"
+                        >
+                          <RotateCcw size={11} /> Undo
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Inline price editor */}
+                    {editingPriceIdx === i && (
+                      <div className="mt-2.5 ml-[52px] border border-rose-200 bg-rose-25/40 rounded-sm p-3 space-y-2.5">
+                        <div className="grid sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="text-[10px] uppercase tracking-widest text-ink-700 font-semibold block mb-1">
+                              New unit price (LKR)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={draftPrice}
+                              onChange={(e) => setDraftPrice(e.target.value)}
+                              placeholder="e.g. 7500"
+                              className="input-field text-sm"
+                              autoFocus
+                            />
+                            <p className="text-[10px] text-ink-400 mt-1">
+                              {savedPrice != null ? `Current: ${formatPrice(savedPrice)} each` : "No price quoted yet"}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-[10px] uppercase tracking-widest text-ink-700 font-semibold block mb-1">
+                              Reason {savedPrice != null && <span className="text-rose-600">*</span>}
+                            </label>
+                            <input
+                              type="text"
+                              value={draftReason}
+                              onChange={(e) => setDraftReason(e.target.value)}
+                              placeholder="e.g. Seasonal offer — 10% off"
+                              className="input-field text-sm"
+                            />
+                            <p className="text-[10px] text-ink-400 mt-1">Shown to the customer in the email.</p>
+                          </div>
+                        </div>
+
+                        {draftPrice !== "" && Number.isFinite(parseFloat(draftPrice)) && (
+                          <p className="text-[11px] text-ink-600">
+                            New line total for ×{it.quantity}:{" "}
+                            <strong className="text-ink-900">{formatPrice(parseFloat(draftPrice) * it.quantity)}</strong>
+                          </p>
+                        )}
+
+                        {priceError && <p className="text-[11px] text-rose-600">{priceError}</p>}
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => applyPriceChange(i)}
+                            className="text-[11px] font-semibold uppercase tracking-wider bg-ink-900 text-white px-3 py-1.5 rounded-sm hover:bg-ink-700 transition-colors"
+                          >
+                            Apply
+                          </button>
+                          <button
+                            onClick={closePriceEditor}
+                            className="text-[11px] text-ink-500 hover:text-ink-900"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Saved price history */}
+                    {history.length > 0 && (
+                      <details className="mt-2.5 ml-[52px]">
+                        <summary className="text-[11px] text-ink-500 hover:text-ink-900 cursor-pointer inline-flex items-center gap-1 list-none">
+                          <History size={11} /> Price history ({history.length})
+                        </summary>
+                        <ul className="mt-1.5 space-y-1.5 border-l-2 border-ink-100 pl-3">
+                          {history.map((h: PreOrderPriceChange, hi: number) => (
+                            <li key={hi} className="text-[11px] text-ink-600">
+                              <span className="text-ink-400 line-through">
+                                {h.previousUnitPrice != null ? formatPrice(h.previousUnitPrice) : "Not quoted"}
+                              </span>{" "}
+                              → <strong className="text-ink-900">{formatPrice(h.newUnitPrice)}</strong>
+                              <span className="text-ink-400"> · {relativeDate(h.changedAt)}</span>
+                              <span className="block text-ink-500 italic">&quot;{h.reason}&quot;</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                   </div>
                 );
               })}
@@ -501,6 +722,17 @@ function PreOrderDrawer({
                   : null;
                 const estTotal = subtotal != null ? subtotal + deliveryCharge : null;
                 const deposit = estTotal != null ? Math.round(estTotal * 0.25) : null;
+
+                // Same basket at the prices currently on record — shown struck
+                // through while unsaved price changes are pending.
+                const hasPendingPrice = items.some((it, i) => it.unitPrice !== savedItems[i]?.unitPrice);
+                const savedSubtotal = hasPendingPrice && allPriced
+                  ? items.reduce(
+                      (s, it, i) =>
+                        it.availability === "unavailable" ? s : s + (savedItems[i]?.unitPrice ?? 0) * it.quantity,
+                      0
+                    )
+                  : null;
                 const balanceLabel = preOrder.balancePaymentMethod === "bank" ? "Bank Transfer"
                   : preOrder.balancePaymentMethod === "cod" ? "Cash on Delivery" : null;
                 return (
@@ -510,7 +742,12 @@ function PreOrderDrawer({
                     )}
                     <div className="flex justify-between text-ink-500">
                       <span>Subtotal (available)</span>
-                      <span>{subtotal != null ? formatPrice(subtotal) : <span className="italic text-xs text-ink-400">Pending quotes</span>}</span>
+                      <span>
+                        {savedSubtotal != null && savedSubtotal !== subtotal && (
+                          <span className="text-ink-400 line-through mr-2">{formatPrice(savedSubtotal)}</span>
+                        )}
+                        {subtotal != null ? formatPrice(subtotal) : <span className="italic text-xs text-ink-400">Pending quotes</span>}
+                      </span>
                     </div>
                     <div className="flex justify-between text-ink-500">
                       <span>Delivery Charge</span>
@@ -519,6 +756,11 @@ function PreOrderDrawer({
                     <div className="flex justify-between font-semibold text-ink-900 pt-1.5 border-t border-ink-200">
                       <span>Est. Total</span>
                       <span className="text-rose-600 font-display text-base">
+                        {savedSubtotal != null && savedSubtotal !== subtotal && (
+                          <span className="text-ink-400 line-through text-sm font-sans mr-2">
+                            {formatPrice(savedSubtotal + deliveryCharge)}
+                          </span>
+                        )}
                         {estTotal != null ? formatPrice(estTotal) : "—"}
                       </span>
                     </div>
@@ -660,6 +902,12 @@ function PreOrderDrawer({
               className="input-field resize-none"
             />
           </section>
+
+          {error && (
+            <p className="text-sm text-rose-600 bg-rose-25/60 border border-rose-200 rounded-sm px-3 py-2">
+              {error}
+            </p>
+          )}
 
           <section className="flex flex-wrap gap-3 pt-4 border-t border-ink-100">
             <button
