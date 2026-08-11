@@ -64,6 +64,8 @@ export interface Category {
 export interface CartItem {
   product: Product;
   quantity: number;
+  /** Epoch ms when this line was added — used to expire pre-order bag items after 24h. */
+  addedAt?: number;
 }
 
 export interface SubscriptionPlan {

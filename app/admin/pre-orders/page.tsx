@@ -18,6 +18,7 @@ import {
   Pencil,
   RotateCcw,
   History,
+  Trash2,
   type LucideIcon,
 } from "lucide-react";
 import { cn, relativeDate, formatPrice } from "@/lib/utils";
@@ -321,6 +322,25 @@ type DraftItem = PreOrderItem & {
   priceChangeReason?: string;
 };
 
+/** A product staged to be added to this pre-order — not yet saved. */
+type NewItemDraft = {
+  productBrand: string;
+  productName: string;
+  productLink?: string;
+  productImage?: string;
+  quantity: number;
+  unitPrice?: number;
+};
+
+type ProductSearchResult = {
+  _id: string;
+  name: string;
+  slug: string;
+  brand?: string;
+  images: string[];
+  price: number;
+};
+
 function PreOrderDrawer({
   preOrder,
   onClose,
@@ -367,6 +387,59 @@ function PreOrderDrawer({
   const [draftPrice, setDraftPrice] = useState("");
   const [draftReason, setDraftReason] = useState("");
   const [priceError, setPriceError] = useState<string | null>(null);
+
+  // Add-product picker — products staged here are appended on Save
+  const [stagedItems, setStagedItems] = useState<NewItemDraft[]>([]);
+  const [newItemMessage, setNewItemMessage] = useState("");
+  const [productQuery, setProductQuery] = useState("");
+  const [productResults, setProductResults] = useState<ProductSearchResult[]>([]);
+  const [searchingProducts, setSearchingProducts] = useState(false);
+
+  useEffect(() => {
+    if (productQuery.trim().length < 2) {
+      setProductResults([]);
+      return;
+    }
+    setSearchingProducts(true);
+    const debounce = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/products?admin=true&limit=8&search=${encodeURIComponent(productQuery.trim())}`
+        );
+        const data = await res.json();
+        setProductResults(data.products ?? []);
+      } catch {
+        setProductResults([]);
+      } finally {
+        setSearchingProducts(false);
+      }
+    }, 300);
+    return () => clearTimeout(debounce);
+  }, [productQuery]);
+
+  const addStagedItem = (product: ProductSearchResult) => {
+    setStagedItems((rows) => [
+      ...rows,
+      {
+        productBrand: product.brand || "—",
+        productName: product.name,
+        productLink: `${window.location.origin}/shop/${product.slug ?? product._id}`,
+        productImage: product.images?.[0],
+        quantity: 1,
+        unitPrice: product.price,
+      },
+    ]);
+    setProductQuery("");
+    setProductResults([]);
+  };
+
+  const removeStagedItem = (idx: number) =>
+    setStagedItems((rows) => rows.filter((_, i) => i !== idx));
+
+  const setStagedQty = (idx: number, quantity: number) =>
+    setStagedItems((rows) =>
+      rows.map((r, i) => (i === idx ? { ...r, quantity: Math.max(1, quantity) } : r))
+    );
 
   const setItemAvailability = (idx: number, availability: "available" | "unavailable") =>
     setItems((rows) => rows.map((r, i) => (i === idx ? { ...r, availability } : r)));
@@ -426,6 +499,10 @@ function PreOrderDrawer({
   }, []);
 
   const save = async () => {
+    if (stagedItems.length > 0 && !newItemMessage.trim()) {
+      setError("A message is required when adding new products — it's shown to the customer in the email.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -443,6 +520,9 @@ function PreOrderDrawer({
             unitPrice: it.unitPrice,
             priceChangeReason: it.priceChangeReason,
           })),
+          ...(stagedItems.length > 0
+            ? { newItems: stagedItems, newItemsMessage: newItemMessage.trim() }
+            : {}),
         }),
       });
       if (!res.ok) {
@@ -791,6 +871,101 @@ function PreOrderDrawer({
                 </div>
               )}
             </div>
+          </section>
+
+          {/* Add product */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
+              Add Product
+            </h3>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+              <input
+                type="text"
+                value={productQuery}
+                onChange={(e) => setProductQuery(e.target.value)}
+                placeholder="Search products by name or brand…"
+                className="input-field pl-9"
+              />
+              {productQuery.trim().length >= 2 && (
+                <div className="absolute z-20 mt-1 w-full bg-white border border-ink-200 rounded-sm shadow-lg max-h-64 overflow-y-auto">
+                  {searchingProducts ? (
+                    <p className="p-3 text-xs text-ink-400">Searching…</p>
+                  ) : productResults.length === 0 ? (
+                    <p className="p-3 text-xs text-ink-400">No products found.</p>
+                  ) : (
+                    productResults.map((p) => (
+                      <button
+                        key={p._id}
+                        onClick={() => addStagedItem(p)}
+                        className="w-full flex items-center gap-2.5 p-2.5 hover:bg-rose-25/50 text-left border-b border-ink-50 last:border-0"
+                      >
+                        {p.images?.[0] ? (
+                          <img src={p.images[0]} alt={p.name} className="w-8 h-8 rounded object-cover border border-ink-100 flex-shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-ink-50 border border-ink-100 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold truncate">{p.brand}</p>
+                          <p className="text-xs text-ink-900 truncate">{p.name}</p>
+                        </div>
+                        <p className="text-xs text-ink-500 flex-shrink-0">{formatPrice(p.price)}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {stagedItems.length > 0 && (
+              <div className="mt-3 border border-rose-200 bg-rose-25/40 rounded-sm overflow-hidden">
+                {stagedItems.map((it, i) => (
+                  <div key={i} className={cn("flex items-center gap-3 px-3 py-2.5", i > 0 && "border-t border-rose-100")}>
+                    {it.productImage ? (
+                      <img src={it.productImage} alt={it.productName} className="w-9 h-9 rounded object-cover border border-ink-100 flex-shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded bg-ink-50 border border-ink-100 flex-shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold truncate">{it.productBrand}</p>
+                      <p className="text-xs text-ink-900 truncate">{it.productName}</p>
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.quantity}
+                      onChange={(e) => setStagedQty(i, parseInt(e.target.value) || 1)}
+                      className="w-14 text-xs border border-ink-200 rounded-sm px-2 py-1 text-center flex-shrink-0"
+                    />
+                    <p className="text-xs text-ink-500 w-20 text-right flex-shrink-0">
+                      {it.unitPrice != null ? formatPrice(it.unitPrice) : "TBQ"}
+                    </p>
+                    <button
+                      onClick={() => removeStagedItem(i)}
+                      className="text-ink-400 hover:text-rose-600 flex-shrink-0"
+                      aria-label="Remove"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <div className="px-3 py-3 border-t border-rose-100 bg-white">
+                  <label className="text-[10px] uppercase tracking-widest text-ink-700 font-semibold block mb-1.5">
+                    Message to customer <span className="text-rose-600">*</span>
+                  </label>
+                  <textarea
+                    value={newItemMessage}
+                    onChange={(e) => setNewItemMessage(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. We found this matching serum in stock — added it to your order."
+                    className="input-field resize-none text-sm"
+                  />
+                  <p className="text-[10px] text-ink-400 mt-1">
+                    Sent to the customer by email along with the new product{stagedItems.length !== 1 ? "s" : ""} on save.
+                  </p>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Deposit tracking */}

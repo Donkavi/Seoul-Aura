@@ -9,14 +9,23 @@ interface CartState {
 }
 
 type CartAction =
-  | { type: "ADD_ITEM"; product: Product; quantity?: number }
-  | { type: "ADD_ITEM_SILENT"; product: Product; quantity?: number }
+  | { type: "ADD_ITEM"; product: Product; quantity?: number; addedAt?: number }
+  | { type: "ADD_ITEM_SILENT"; product: Product; quantity?: number; addedAt?: number }
   | { type: "REMOVE_ITEM"; productId: string }
   | { type: "UPDATE_QTY"; productId: string; quantity: number }
   | { type: "CLEAR" }
+  | { type: "PRUNE_EXPIRED" }
   | { type: "TOGGLE_DRAWER" }
   | { type: "OPEN_DRAWER" }
   | { type: "CLOSE_DRAWER" };
+
+// Pre-order bag items are just a "hold" while the customer builds a request —
+// drop them a day after being added so stale, never-submitted holds don't linger.
+const PRE_ORDER_TTL_MS = 24 * 60 * 60 * 1000;
+
+function isExpiredPreOrder(item: CartItem): boolean {
+  return !!item.product.isPreOrder && !!item.addedAt && Date.now() - item.addedAt > PRE_ORDER_TTL_MS;
+}
 
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
@@ -36,7 +45,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return {
         ...state,
         isOpen: true,
-        items: [...state.items, { product: action.product, quantity: action.quantity ?? 1 }],
+        items: [
+          ...state.items,
+          { product: action.product, quantity: action.quantity ?? 1, addedAt: action.addedAt ?? Date.now() },
+        ],
       };
     }
     case "ADD_ITEM_SILENT": {
@@ -53,7 +65,10 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       }
       return {
         ...state,
-        items: [...state.items, { product: action.product, quantity: action.quantity ?? 1 }],
+        items: [
+          ...state.items,
+          { product: action.product, quantity: action.quantity ?? 1, addedAt: action.addedAt ?? Date.now() },
+        ],
       };
     }
     case "REMOVE_ITEM":
@@ -71,6 +86,8 @@ function cartReducer(state: CartState, action: CartAction): CartState {
     case "CLEAR":
       // Clearing the cart (e.g. after a regular order) keeps pre-order items intact
       return { ...state, items: state.items.filter((i) => i.product.isPreOrder) };
+    case "PRUNE_EXPIRED":
+      return { ...state, items: state.items.filter((i) => !isExpiredPreOrder(i)) };
     case "TOGGLE_DRAWER":
       return { ...state, isOpen: !state.isOpen };
     case "OPEN_DRAWER":
@@ -111,13 +128,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem("sa-cart");
     if (saved) {
       const items: CartItem[] = JSON.parse(saved);
-      items.forEach((i) => dispatch({ type: "ADD_ITEM", product: i.product, quantity: i.quantity }));
+      items
+        .filter((i) => !isExpiredPreOrder(i))
+        .forEach((i) =>
+          dispatch({ type: "ADD_ITEM", product: i.product, quantity: i.quantity, addedAt: i.addedAt })
+        );
     }
   }, []);
 
   useEffect(() => {
     localStorage.setItem("sa-cart", JSON.stringify(state.items));
   }, [state.items]);
+
+  // Catch pre-order items expiring while the tab stays open (reload only checks on load)
+  useEffect(() => {
+    const interval = setInterval(() => dispatch({ type: "PRUNE_EXPIRED" }), 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const cartItems = state.items.filter((i) => !i.product.isPreOrder);
   const preOrderItems = state.items.filter((i) => i.product.isPreOrder);

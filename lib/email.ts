@@ -1030,7 +1030,83 @@ export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailDat
   });
 }
 
-// ─── 8. Marketing campaign (Notify) → Users / Notifiers ──────────────────────
+// ─── 8. Pre-order — new product(s) added → Buyer ─────────────────────────────
+interface PreOrderItemsAddedEmailData {
+  requestNumber: string;
+  customerName: string;
+  customerEmail: string;
+  phoneNumber?: string;
+  addedItems: PreOrderItemData[];
+  message: string;
+  items: PreOrderItemData[];
+  deliveryCharge?: number;
+  currencySymbol?: string;
+  balancePaymentMethod?: "cod" | "bank";
+  depositPaid?: boolean;
+}
+
+export async function sendPreOrderItemsAddedToBuyer(data: PreOrderItemsAddedEmailData) {
+  const sym = data.currencySymbol ?? "Rs.";
+  const delivery = data.deliveryCharge ?? 0;
+  const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+  const plural = data.addedItems.length !== 1;
+
+  const html = layout(`
+    <h1 style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">
+      New product${plural ? "s" : ""} added to your pre-order 🛍️
+    </h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.7;">
+      Hi ${data.customerName}, our team has added the following item${plural ? "s" : ""} to your pre-order request.
+    </p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
+          <p style="margin:4px 0 0;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
+        </td>
+        <td style="padding:16px 20px;text-align:right;">
+          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Updated</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#1c1917;">${now}</p>
+        </td>
+      </tr>
+    </table>
+
+    <div style="background:#faf9f8;border-left:3px solid #e11d48;border-radius:2px;padding:14px 16px;margin-bottom:24px;">
+      <p style="margin:0 0 4px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Message from our team</p>
+      <p style="margin:0;font-size:13px;color:#1c1917;line-height:1.7;">${data.message}</p>
+    </div>
+
+    <h3 style="margin:0 0 10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">
+      Newly Added (${data.addedItems.length})
+    </h3>
+    ${preOrderInvoiceTable(data.addedItems, sym)}
+
+    <div style="height:16px;"></div>
+
+    ${preOrderAvailabilityTable(data.items, sym)}
+    ${preOrderTotalsTable(data.items, delivery, sym, data.balancePaymentMethod, data.depositPaid, "Updated Total")}
+
+    <div style="margin-top:24px;text-align:center;">
+      <a href="${SITE}/account?tab=pre-orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
+        View My Pre-Orders
+      </a>
+    </div>
+
+    <p style="margin-top:20px;font-size:12px;color:#a8a29e;text-align:center;">
+      Questions? <a href="mailto:seoulaurateam@gmail.com" style="color:#e11d48;">seoulaurateam@gmail.com</a>
+    </p>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: data.customerEmail,
+    subject: `🛍️ New product added · Pre-order ${data.requestNumber} — Seoul Aura`,
+    html,
+  });
+}
+
+// ─── 9. Marketing campaign (Notify) → Users / Notifiers ──────────────────────
 interface CampaignEmailData {
   recipients: string[];
   subject: string;

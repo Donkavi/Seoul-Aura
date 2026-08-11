@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import PreOrder from "@/models/PreOrder";
 import Settings from "@/models/Settings";
-import { sendPreOrderStatusUpdateToBuyer, sendPreOrderRevisionToBuyer } from "@/lib/email";
+import {
+  sendPreOrderStatusUpdateToBuyer,
+  sendPreOrderRevisionToBuyer,
+  sendPreOrderItemsAddedToBuyer,
+} from "@/lib/email";
 
 interface IncomingPatchItem {
   productBrand?: string;
@@ -14,6 +18,15 @@ interface IncomingPatchItem {
   /** Required whenever unitPrice differs from the price already on record. */
   priceChangeReason?: string;
   availability?: "available" | "unavailable";
+}
+
+interface IncomingNewItem {
+  productBrand?: string;
+  productName?: string;
+  productLink?: string;
+  productImage?: string;
+  quantity?: number;
+  unitPrice?: number;
 }
 
 interface StoredPriceChange {
@@ -143,6 +156,50 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       allowed.items = merged;
     }
 
+    // Append newly-added products (admin picks products to add to an existing request)
+    const newlyAdded: StoredItem[] = [];
+    const newItemsMessage = typeof body.newItemsMessage === "string" ? body.newItemsMessage.trim() : "";
+    if (Array.isArray(body.newItems) && body.newItems.length > 0) {
+      if (!newItemsMessage) {
+        return NextResponse.json(
+          { error: "A message is required when adding new products — it's shown to the customer in the email." },
+          { status: 400 }
+        );
+      }
+      for (const raw of body.newItems as IncomingNewItem[]) {
+        const productBrand = (raw.productBrand ?? "").trim();
+        const productName = (raw.productName ?? "").trim();
+        const quantity = Number(raw.quantity ?? 1);
+        if (!productBrand || !productName || !Number.isFinite(quantity) || quantity < 1) {
+          return NextResponse.json(
+            { error: "Each new product needs a brand, name and valid quantity." },
+            { status: 400 }
+          );
+        }
+        let unitPrice: number | undefined;
+        if (raw.unitPrice !== undefined && raw.unitPrice !== null) {
+          unitPrice = Number(raw.unitPrice);
+          if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+            return NextResponse.json(
+              { error: `Invalid unit price for "${productName}"` },
+              { status: 400 }
+            );
+          }
+        }
+        newlyAdded.push({
+          productBrand,
+          productName,
+          productLink: raw.productLink?.trim() || undefined,
+          productImage: raw.productImage,
+          quantity,
+          unitPrice,
+          originalUnitPrice: unitPrice,
+          availability: "available",
+        });
+      }
+      allowed.items = [...((allowed.items as StoredItem[] | undefined) ?? previous.items ?? []), ...newlyAdded];
+    }
+
     const depositChanged =
       body.depositPaid !== undefined && !!body.depositPaid !== !!previous.depositPaid;
 
@@ -152,9 +209,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // Settings for totals in emails (delivery charge / currency)
     const statusChanged = body.status && body.status !== previous.status;
     const priceChanged = priceChanges.length > 0;
+    const itemsAdded = newlyAdded.length > 0;
     let deliveryCharge = 350;
     let currencySymbol = "Rs.";
-    if (statusChanged || availabilityChanged || depositChanged || priceChanged) {
+    if (statusChanged || availabilityChanged || depositChanged || priceChanged || itemsAdded) {
       const settingsDoc = await Settings.findOne().lean().catch(() => null);
       deliveryCharge = (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;
       currencySymbol = (settingsDoc as { currencySymbol?: string } | null)?.currencySymbol ?? "Rs.";
@@ -215,6 +273,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         balancePaymentMethod: updated.balancePaymentMethod,
         depositPaid: updated.depositPaid,
         reasons,
+      }).catch(console.error);
+    }
+
+    // Email buyer when the admin adds new products to their request
+    if (itemsAdded) {
+      sendPreOrderItemsAddedToBuyer({
+        requestNumber: updated.requestNumber,
+        customerName: updated.customerName,
+        customerEmail: updated.customerEmail,
+        phoneNumber: updated.phoneNumber,
+        addedItems: mappedItems.slice(mappedItems.length - newlyAdded.length),
+        message: newItemsMessage,
+        items: mappedItems,
+        deliveryCharge,
+        currencySymbol,
+        balancePaymentMethod: updated.balancePaymentMethod,
+        depositPaid: updated.depositPaid,
       }).catch(console.error);
     }
 
