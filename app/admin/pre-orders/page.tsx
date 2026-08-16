@@ -294,7 +294,10 @@ export default function AdminPreOrdersPage() {
                         {meta.label}
                       </span>
                     </td>
-                    <td className="p-4 text-xs text-ink-500">{relativeDate(p.createdAt)}</td>
+                    <td className="p-4 text-xs text-ink-500 whitespace-nowrap">
+                      {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                      <span className="text-ink-400"> · {new Date(p.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
+                    </td>
                   </tr>
                 );
               })}

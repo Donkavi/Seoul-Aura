@@ -682,8 +682,17 @@ const BANK_TRANSFER_DETAILS_HTML = `
         <td style="padding:3px 16px;font-size:13px;color:#1c1917;">Hatton National Bank (HNB) — Matale Branch</td>
       </tr>
       <tr>
-        <td style="padding:3px 16px 10px;font-size:12px;color:#78716c;">Account Number</td>
-        <td style="padding:3px 16px 10px;font-size:13px;color:#1c1917;font-family:monospace;font-weight:700;">065020379824</td>
+        <td style="padding:3px 16px;font-size:12px;color:#78716c;">Account Number</td>
+        <td style="padding:3px 16px;font-size:13px;color:#1c1917;font-family:monospace;font-weight:700;">065020379824</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="padding:8px 16px 10px;border-top:1px solid #f0ebe8;">
+          <p style="margin:8px 0 0;font-size:12px;color:#78716c;line-height:1.6;">
+            Once transferred, please send the payment slip via WhatsApp to
+            <a href="https://wa.me/94778362755" style="color:#e11d48;font-weight:600;text-decoration:none;"> +94 77 836 2755</a>
+            so we can confirm your deposit quickly.
+          </p>
+        </td>
       </tr>
     </tbody>
   </table>`;
