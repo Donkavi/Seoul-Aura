@@ -666,6 +666,28 @@ export async function sendPreOrderNotificationToAdmin(data: PreOrderEmailData) {
   });
 }
 
+// ─── Shared: bank transfer details for the 25% deposit ───────────────────────
+const BANK_TRANSFER_DETAILS_HTML = `
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:10px;background:#faf9f8;border:1px solid #f0ebe8;border-radius:4px;overflow:hidden;">
+    <tbody>
+      <tr>
+        <td colspan="2" style="padding:10px 16px 6px;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:#78716c;font-weight:600;">Bank Transfer Details</td>
+      </tr>
+      <tr>
+        <td style="padding:3px 16px;font-size:12px;color:#78716c;width:130px;">Account Name</td>
+        <td style="padding:3px 16px;font-size:13px;color:#1c1917;font-weight:600;">H.M.W.B. Kulathunga</td>
+      </tr>
+      <tr>
+        <td style="padding:3px 16px;font-size:12px;color:#78716c;">Bank</td>
+        <td style="padding:3px 16px;font-size:13px;color:#1c1917;">Hatton National Bank (HNB) — Matale Branch</td>
+      </tr>
+      <tr>
+        <td style="padding:3px 16px 10px;font-size:12px;color:#78716c;">Account Number</td>
+        <td style="padding:3px 16px 10px;font-size:13px;color:#1c1917;font-family:monospace;font-weight:700;">065020379824</td>
+      </tr>
+    </tbody>
+  </table>`;
+
 // ─── 6. Pre-order status update → Buyer ──────────────────────────────────────
 const PRE_ORDER_STATUS_MESSAGES: Record<string, { headline: string; detail: string; emoji: string }> = {
   reviewing: {
@@ -877,7 +899,7 @@ function preOrderTotalsTable(
         </tr>
       </tbody>
     </table>
-    ${!depositPaid ? `<p style="margin:12px 0 0;font-size:12px;color:#78716c;line-height:1.7;">To lock in your order, please pay the <strong>25% deposit (${fmt(deposit, sym)}) via bank transfer</strong>. Reply to this email and we'll share the bank details.</p>` : ""}`;
+    ${!depositPaid ? `<p style="margin:12px 0 0;font-size:12px;color:#78716c;line-height:1.7;">To lock in your order, please pay the <strong>25% deposit (${fmt(deposit, sym)}) via bank transfer</strong> using the details below.</p>${BANK_TRANSFER_DETAILS_HTML}` : ""}`;
 
   return html;
 }

@@ -218,7 +218,7 @@ const DEFAULT_FAQ_ITEMS: IFaqItem[] = [
   { question: "Are your products authentic?", answer: "Yes — 100%. Every product is sourced directly from Korea or authorized distributors.", category: "Products" },
   { question: "Do you have a product warranty?", answer: "We stand behind every product. If you receive a damaged or incorrect item, contact us immediately.", category: "Products" },
   { question: "How long does delivery take?", answer: "We deliver islandwide within 2–5 business days. Colombo orders are typically faster.", category: "Shipping" },
-  { question: "What is the shipping fee?", answer: "Standard shipping is Rs. 350. Orders over Rs. 5,000 qualify for free shipping.", category: "Shipping" },
+  { question: "What is the shipping fee?", answer: "Delivery charges vary by district and city, starting from Rs. 350. Your exact rate is shown at checkout once you select your delivery location. Orders over Rs. 5,000 qualify for free shipping.", category: "Shipping" },
 ];
 
 const FaqPageSchema = new Schema<IFaqPage>(
@@ -276,7 +276,7 @@ const ProductAccordionSchema = new Schema<IProductAccordion>(
 );
 
 const DEFAULT_BADGES: IProductBadge[] = [
-  { icon: "truck", text: "Delivery Charge LKR 350", enabled: true },
+  { icon: "truck", text: "Delivery Charges Vary by Location (from LKR 350)", enabled: true },
   { icon: "shield", text: "Guaranteed 100% Authentic Products", enabled: true },
   { icon: "globe", text: "Imported From {origin}", enabled: true },
   { icon: "lock", text: "Secure Payments", enabled: true },

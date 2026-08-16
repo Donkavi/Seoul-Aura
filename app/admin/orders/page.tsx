@@ -228,6 +228,7 @@ export default function AdminOrdersPage() {
                                 {o.shippingAddress.line2 && <>, {o.shippingAddress.line2}</>}
                                 <br />
                                 {o.shippingAddress.city}
+                                {o.shippingAddress.district && `, ${o.shippingAddress.district}`}
                                 {o.shippingAddress.province && `, ${o.shippingAddress.province}`}
                                 {o.shippingAddress.postalCode && ` ${o.shippingAddress.postalCode}`}
                                 <br />

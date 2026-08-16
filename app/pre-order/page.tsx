@@ -29,6 +29,7 @@ import {
   Clock,
   CreditCard,
   Tag,
+  MapPin,
 } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -166,6 +167,27 @@ const blankRow = (): ProductRow => ({
   productImage: undefined,
 });
 
+const FREE_RAMEN_THRESHOLD = 10000;
+
+function FreeRamenBanner() {
+  return (
+    <div className="relative overflow-hidden rounded-sm border border-gold-400/40 bg-gradient-to-r from-gold-50 via-rose-50 to-gold-50 px-4 py-3 animate-fade-up">
+      <span className="pointer-events-none absolute -top-3 -right-3 text-4xl opacity-20 rotate-12">🍜</span>
+      <div className="relative flex items-center gap-3">
+        <span className="text-2xl leading-none animate-bounce" style={{ animationDuration: "1.6s" }}>🍜</span>
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-gold-600">
+            Free Gift Unlocked
+          </p>
+          <p className="text-xs text-ink-700 leading-snug">
+            You&apos;ve scored a <strong>FREE Korean Ramen</strong> on us — added automatically, no code needed! 🎉
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const steps = [
   {
     icon: MessageSquare,
@@ -222,6 +244,7 @@ export default function PreOrderPage() {
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [refs, setRefs] = useState<string[]>([]);
+  const [wonFreeRamen, setWonFreeRamen] = useState(false);
 
   // Confirmation modal
   const [showConfirm, setShowConfirm] = useState(false);
@@ -232,19 +255,43 @@ export default function PreOrderPage() {
   // DB data for comboboxes
   const [dbBrands, setDbBrands] = useState<DbBrand[]>([]);
   const [dbProductsCache, setDbProductsCache] = useState<Record<string, DbProduct[]>>({});
-  const [deliveryCharge, setDeliveryCharge] = useState(350);
   const [allowManualEntry, setAllowManualEntry] = useState(true);
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
-  // Fetch brands + settings once
+  // Delivery location (district/city drive the delivery charge)
+  const [district, setDistrict] = useState("");
+  const [city, setCity] = useState("");
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [cities, setCities] = useState<{ city: string; charge: number }[]>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
+
+  const selectedCity = cities.find((c) => c.city === city);
+  const deliveryCharge = selectedCity?.charge ?? 0;
+
+  const onDistrictChange = (d: string) => {
+    setDistrict(d);
+    setCity("");
+    setCities([]);
+    if (!d) return;
+    setLoadingCities(true);
+    fetch(`/api/delivery-rates?district=${encodeURIComponent(d)}`)
+      .then((r) => r.json())
+      .then((res) => setCities(Array.isArray(res?.cities) ? res.cities : []))
+      .catch(() => {})
+      .finally(() => setLoadingCities(false));
+  };
+
+  // Fetch brands + settings + districts once
   useEffect(() => {
     fetch("/api/brands").then((r) => r.json()).then((d) => {
       if (Array.isArray(d)) setDbBrands(d);
     }).catch(() => {});
     fetch("/api/settings").then((r) => r.json()).then((d) => {
-      if (d?.shippingFee != null) setDeliveryCharge(d.shippingFee);
       if (d?.allowManualPreOrderEntry != null) setAllowManualEntry(d.allowManualPreOrderEntry);
       if (d?.whatsappNumber) setWhatsappNumber(d.whatsappNumber);
+    }).catch(() => {});
+    fetch("/api/delivery-rates").then((r) => r.json()).then((d) => {
+      if (Array.isArray(d?.districts)) setDistricts(d.districts);
     }).catch(() => {});
   }, []);
 
@@ -443,6 +490,11 @@ export default function PreOrderPage() {
       return;
     }
 
+    if (!district || !city) {
+      setError("Please select your delivery district and city.");
+      return;
+    }
+
     const validRows = products.filter((p) => p.productBrand.trim() && p.productName.trim());
     if (validRows.length === 0) {
       setError("Add at least one product with a brand and product name.");
@@ -477,6 +529,8 @@ export default function PreOrderPage() {
           phoneNumber: contact.phoneNumber,
           notes: contact.notes,
           balancePaymentMethod: balanceMethod,
+          shippingAddress: { district, city },
+          shippingFee: deliveryCharge,
           items: validRows.map((row) => ({
             productBrand: row.productBrand,
             productName: row.productName,
@@ -489,6 +543,11 @@ export default function PreOrderPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed");
+
+      const submittedSubtotal = validRows
+        .filter((r) => r.unitPrice != null)
+        .reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
+      setWonFreeRamen(submittedSubtotal + deliveryCharge >= FREE_RAMEN_THRESHOLD);
 
       setRefs(data.requestNumber ? [data.requestNumber] : []);
       clearPreOrders();
@@ -517,10 +576,15 @@ export default function PreOrderPage() {
               <>: <span className="font-mono font-semibold text-ink-900">{refs.join(", ")}</span></>
             )}
           </p>
-          <p className="text-sm text-ink-500 mb-8 max-w-md mx-auto leading-relaxed">
+          <p className="text-sm text-ink-500 mb-6 max-w-md mx-auto leading-relaxed">
             Our team will email you a price quote and ETA within <strong>48 hours</strong>. Track everything under
             Pre-Orders in your account.
           </p>
+          {wonFreeRamen && (
+            <div className="max-w-sm mx-auto mb-8">
+              <FreeRamenBanner />
+            </div>
+          )}
           <div className="flex flex-wrap gap-3 justify-center">
             <Link href="/account?tab=pre-orders" className="btn-primary">View My Pre-Orders</Link>
             <button onClick={() => setStatus("idle")} className="btn-outline">Submit Another</button>
@@ -635,6 +699,42 @@ export default function PreOrderPage() {
                       />
                     </FormField>
                   </div>
+                </div>
+              </div>
+
+              {/* Delivery Location */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-3">Delivery Location</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <FormField icon={MapPin} label="District *">
+                    <select
+                      value={district}
+                      onChange={(e) => onDistrictChange(e.target.value)}
+                      required
+                      className="flex-1 bg-transparent outline-none text-sm"
+                    >
+                      <option value="">Select district</option>
+                      {districts.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <FormField icon={MapPin} label="City *">
+                    <select
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      required
+                      disabled={!district || loadingCities}
+                      className="flex-1 bg-transparent outline-none text-sm disabled:text-ink-400"
+                    >
+                      <option value="">
+                        {loadingCities ? "Loading…" : district ? "Select city" : "Select district first"}
+                      </option>
+                      {cities.map((c) => (
+                        <option key={c.city} value={c.city}>{c.city}</option>
+                      ))}
+                    </select>
+                  </FormField>
                 </div>
               </div>
 
@@ -762,30 +862,34 @@ export default function PreOrderPage() {
                 const subtotal = pricedRows.reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
                 const total = subtotal + deliveryCharge;
                 const allPriced = pricedRows.length === validRows.length;
+                const earnedFreeRamen = total >= FREE_RAMEN_THRESHOLD;
                 return (
-                  <div className="bg-rose-50/60 border border-rose-100 rounded-sm p-4 space-y-2">
-                    <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold mb-3">Order Summary</p>
-                    {pricedRows.map((r, i) => (
-                      <div key={i} className="flex justify-between text-xs text-ink-600">
-                        <span className="truncate max-w-[220px]">{r.productName} <span className="text-ink-400">× {r.quantity}</span></span>
-                        <span className="font-medium ml-2 whitespace-nowrap">{formatPrice(r.unitPrice! * parseInt(r.quantity || "1"))}</span>
+                  <div className="space-y-3">
+                    {earnedFreeRamen && <FreeRamenBanner />}
+                    <div className="bg-rose-50/60 border border-rose-100 rounded-sm p-4 space-y-2">
+                      <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold mb-3">Order Summary</p>
+                      {pricedRows.map((r, i) => (
+                        <div key={i} className="flex justify-between text-xs text-ink-600">
+                          <span className="truncate max-w-[220px]">{r.productName} <span className="text-ink-400">× {r.quantity}</span></span>
+                          <span className="font-medium ml-2 whitespace-nowrap">{formatPrice(r.unitPrice! * parseInt(r.quantity || "1"))}</span>
+                        </div>
+                      ))}
+                      <div className="pt-2 border-t border-rose-100 space-y-1.5">
+                        <div className="flex justify-between text-xs text-ink-500">
+                          <span>{allPriced ? "Subtotal" : "Subtotal (partial)"}</span>
+                          <span>~{formatPrice(subtotal)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-ink-500">
+                          <span>Delivery Charge</span>
+                          <span>{selectedCity ? formatPrice(deliveryCharge) : "Select location"}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1.5 border-t border-rose-100">
+                          <span className="text-xs font-semibold text-ink-700">Est. Total</span>
+                          <span className="text-base font-bold text-rose-600">~{formatPrice(total)}</span>
+                        </div>
                       </div>
-                    ))}
-                    <div className="pt-2 border-t border-rose-100 space-y-1.5">
-                      <div className="flex justify-between text-xs text-ink-500">
-                        <span>{allPriced ? "Subtotal" : "Subtotal (partial)"}</span>
-                        <span>~{formatPrice(subtotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-ink-500">
-                        <span>Delivery Charge</span>
-                        <span>{formatPrice(deliveryCharge)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-1.5 border-t border-rose-100">
-                        <span className="text-xs font-semibold text-ink-700">Est. Total</span>
-                        <span className="text-base font-bold text-rose-600">~{formatPrice(total)}</span>
-                      </div>
+                      <p className="text-[10px] text-ink-400">Final pricing confirmed within 48 hrs. No payment until you approve.</p>
                     </div>
-                    <p className="text-[10px] text-ink-400">Final pricing confirmed within 48 hrs. No payment until you approve.</p>
                   </div>
                 );
               })()}
@@ -887,6 +991,7 @@ export default function PreOrderPage() {
         const subtotal = pricedRows.reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
         const estTotal = subtotal + deliveryCharge;
         const deposit = Math.round(estTotal * 0.25);
+        const earnedFreeRamen = estTotal >= FREE_RAMEN_THRESHOLD;
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -907,6 +1012,8 @@ export default function PreOrderPage() {
               </div>
 
               <div className="px-6 py-5 space-y-4">
+                {earnedFreeRamen && <FreeRamenBanner />}
+
                 <p className="text-sm text-ink-600 leading-relaxed">
                   Please review and acknowledge how pre-orders work before we submit your request:
                 </p>

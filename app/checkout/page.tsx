@@ -38,16 +38,22 @@ function CheckoutContent() {
     phone: "",
     line1: "",
     line2: "",
-    city: "Colombo",
-    province: "Western",
+    district: "",
+    city: "",
     postalCode: "",
     country: "Sri Lanka",
-    shippingMethod: "standard",
     paymentMethod: "cod",
     notes: "",
   });
 
-  const shippingFee = form.shippingMethod === "express" ? 950 : total >= 10000 ? 0 : 450;
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [cities, setCities] = useState<{ city: string; charge: number }[]>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState(0);
+
+  const selectedCity = cities.find((c) => c.city === form.city);
+  const deliveryCharge = selectedCity?.charge ?? 0;
+  const shippingFee = freeShippingThreshold > 0 && total >= freeShippingThreshold ? 0 : deliveryCharge;
   const tax = Math.round(total * 0.02);
   const grandTotal = total + shippingFee + tax;
 
@@ -64,7 +70,31 @@ function CheckoutContent() {
     }
   }, [session]);
 
+  // Load district list + free-shipping threshold once
+  useEffect(() => {
+    fetch("/api/delivery-rates")
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d?.districts)) setDistricts(d.districts); })
+      .catch(() => {});
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { if (d?.freeShippingThreshold != null) setFreeShippingThreshold(d.freeShippingThreshold); })
+      .catch(() => {});
+  }, []);
+
   const update = (key: string, value: string) => setForm({ ...form, [key]: value });
+
+  const onDistrictChange = (district: string) => {
+    setForm((prev) => ({ ...prev, district, city: "" }));
+    setCities([]);
+    if (!district) return;
+    setLoadingCities(true);
+    fetch(`/api/delivery-rates?district=${encodeURIComponent(district)}`)
+      .then((r) => r.json())
+      .then((d) => setCities(Array.isArray(d?.cities) ? d.cities : []))
+      .catch(() => {})
+      .finally(() => setLoadingCities(false));
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -88,8 +118,8 @@ function CheckoutContent() {
         shippingAddress: {
           line1: form.line1,
           line2: form.line2,
+          district: form.district,
           city: form.city,
-          province: form.province,
           postalCode: form.postalCode,
           country: form.country,
         },
@@ -312,18 +342,41 @@ function CheckoutContent() {
                       />
                     </div>
                     <div className="grid sm:grid-cols-3 gap-4">
-                      <input
-                        placeholder="City"
-                        value={form.city}
-                        onChange={(e) => update("city", e.target.value)}
-                        className="input-field"
-                      />
-                      <input
-                        placeholder="Province"
-                        value={form.province}
-                        onChange={(e) => update("province", e.target.value)}
-                        className="input-field"
-                      />
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
+                          District *
+                        </label>
+                        <select
+                          value={form.district}
+                          onChange={(e) => onDistrictChange(e.target.value)}
+                          required
+                          className="input-field"
+                        >
+                          <option value="">Select district</option>
+                          {districts.map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
+                          City *
+                        </label>
+                        <select
+                          value={form.city}
+                          onChange={(e) => update("city", e.target.value)}
+                          required
+                          disabled={!form.district || loadingCities}
+                          className="input-field disabled:bg-ink-50 disabled:text-ink-400"
+                        >
+                          <option value="">
+                            {loadingCities ? "Loading…" : form.district ? "Select city" : "Select district first"}
+                          </option>
+                          {cities.map((c) => (
+                            <option key={c.city} value={c.city}>{c.city}</option>
+                          ))}
+                        </select>
+                      </div>
                       <input
                         placeholder="Postal Code"
                         value={form.postalCode}
@@ -334,38 +387,25 @@ function CheckoutContent() {
 
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-3 mt-6">
-                        Shipping Method
+                        Delivery Charge
                       </h3>
-                      <div className="space-y-2">
-                        {[
-                          { id: "standard", label: "Standard Delivery", note: "3-5 business days", fee: total >= 10000 ? 0 : 450 },
-                          { id: "express", label: "Express Delivery", note: "1-2 business days", fee: 950 },
-                        ].map((opt) => (
-                          <label
-                            key={opt.id}
-                            className={cn(
-                              "flex items-center gap-3 border rounded-sm p-4 cursor-pointer transition-colors",
-                              form.shippingMethod === opt.id
-                                ? "border-rose-600 bg-rose-50/30"
-                                : "border-ink-200 hover:border-ink-300"
-                            )}
-                          >
-                            <input
-                              type="radio"
-                              checked={form.shippingMethod === opt.id}
-                              onChange={() => update("shippingMethod", opt.id)}
-                              className="accent-rose-600"
-                            />
-                            <Truck size={16} className="text-ink-500" />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-ink-900">{opt.label}</p>
-                              <p className="text-xs text-ink-500">{opt.note}</p>
-                            </div>
-                            <p className="text-sm font-semibold">
-                              {opt.fee === 0 ? "FREE" : formatPrice(opt.fee)}
-                            </p>
-                          </label>
-                        ))}
+                      <div className="flex items-center gap-3 border border-ink-200 rounded-sm p-4">
+                        <Truck size={16} className="text-ink-500 flex-shrink-0" />
+                        <div className="flex-1">
+                          {selectedCity ? (
+                            <>
+                              <p className="text-sm font-medium text-ink-900">{form.city}, {form.district}</p>
+                              <p className="text-xs text-ink-500">Islandwide delivery via courier</p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-ink-500">Select a district and city to see your delivery charge.</p>
+                          )}
+                        </div>
+                        {selectedCity && (
+                          <p className="text-sm font-semibold">
+                            {shippingFee === 0 ? "FREE" : formatPrice(shippingFee)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -436,7 +476,7 @@ function CheckoutContent() {
                     </section>
                     <section>
                       <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-2">Shipping</h3>
-                      <p>{form.line1}{form.line2 && `, ${form.line2}`}, {form.city}, {form.province}, {form.country}</p>
+                      <p>{form.line1}{form.line2 && `, ${form.line2}`}, {form.city}, {form.district}, {form.country}</p>
                     </section>
                     <section>
                       <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-2">Payment</h3>
@@ -468,14 +508,18 @@ function CheckoutContent() {
                   </Link>
                 )}
                 {step < steps.length - 1 ? (
-                  <button onClick={() => setStep(step + 1)} className="btn-primary">
+                  <button
+                    onClick={() => setStep(step + 1)}
+                    disabled={step === 1 && (!form.district || !form.city)}
+                    className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
                     Continue
                   </button>
                 ) : (
                   <button
                     onClick={handleSubmit}
-                    disabled={submitting}
-                    className="btn-primary disabled:opacity-60"
+                    disabled={submitting || !form.district || !form.city}
+                    className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {submitting ? "Placing Order…" : `Place Order · ${formatPrice(grandTotal)}`}
                   </button>
@@ -503,7 +547,10 @@ function CheckoutContent() {
 
               <dl className="space-y-2 text-sm border-t border-ink-100 pt-4">
                 <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatPrice(total)}</dd></div>
-                <div className="flex justify-between"><dt>Shipping</dt><dd>{shippingFee === 0 ? "FREE" : formatPrice(shippingFee)}</dd></div>
+                <div className="flex justify-between">
+                  <dt>Shipping</dt>
+                  <dd>{!selectedCity ? "Select location" : shippingFee === 0 ? "FREE" : formatPrice(shippingFee)}</dd>
+                </div>
                 <div className="flex justify-between"><dt>Tax</dt><dd>{formatPrice(tax)}</dd></div>
                 <div className="flex justify-between text-base pt-3 border-t border-ink-100">
                   <dt className="font-semibold text-ink-900">Total</dt>

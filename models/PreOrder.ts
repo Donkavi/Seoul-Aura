@@ -47,6 +47,11 @@ export interface IPreOrder extends Document {
   adminNotes?: string;
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
+  shippingAddress?: {
+    district: string;
+    city: string;
+  };
+  shippingFee?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -100,6 +105,11 @@ const PreOrderSchema = new Schema<IPreOrder>(
     adminNotes: { type: String, trim: true },
     balancePaymentMethod: { type: String, enum: ["cod", "bank"] },
     depositPaid: { type: Boolean, default: false },
+    shippingAddress: {
+      district: { type: String, trim: true },
+      city: { type: String, trim: true },
+    },
+    shippingFee: { type: Number },
   },
   { timestamps: true }
 );

@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const body = await req.json();
 
-    const { customerName, customerEmail, phoneNumber, origin, notes, balancePaymentMethod } = body;
+    const { customerName, customerEmail, phoneNumber, origin, notes, balancePaymentMethod, shippingAddress, shippingFee } = body;
 
     // Accept either a multi-item `items` array or legacy single-product fields
     const rawItems: IncomingItem[] = Array.isArray(body.items) && body.items.length
@@ -104,6 +104,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!shippingAddress?.district?.trim() || !shippingAddress?.city?.trim()) {
+      return NextResponse.json(
+        { error: "Please select a delivery district and city" },
+        { status: 400 }
+      );
+    }
+
     const first = items[0];
     const preOrder = await PreOrder.create({
       requestNumber: generateRequestNumber(),
@@ -120,11 +127,16 @@ export async function POST(req: NextRequest) {
       notes: notes?.trim(),
       balancePaymentMethod: balancePaymentMethod === "bank" || balancePaymentMethod === "cod" ? balancePaymentMethod : undefined,
       status: "pending",
+      shippingAddress: {
+        district: shippingAddress.district.trim(),
+        city: shippingAddress.city.trim(),
+      },
+      shippingFee: shippingFee != null ? Number(shippingFee) : undefined,
     });
 
-    // Fetch settings for delivery charge / currency in background
+    // Fetch settings for currency in background (delivery charge now comes from the order itself)
     const settingsDoc = await Settings.findOne().lean().catch(() => null);
-    const deliveryCharge = (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;
+    const deliveryCharge = preOrder.shippingFee ?? (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;
     const currencySymbol = (settingsDoc as { currencySymbol?: string } | null)?.currencySymbol ?? "Rs.";
 
     // Fire emails in background — don't block the response

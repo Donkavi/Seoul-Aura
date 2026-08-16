@@ -257,16 +257,18 @@ export default function AdminPreOrdersPage() {
                         const available = items.filter((it) => it.availability !== "unavailable");
                         const hasUnavailable = available.length < items.length;
 
+                        const rowDeliveryCharge = p.shippingFee ?? deliveryCharge;
+
                         // Updated total — available, priced items only
                         const availablePriced = available.length > 0 && available.every((it) => it.unitPrice != null);
                         const updatedTotal = availablePriced
-                          ? available.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0) + deliveryCharge
+                          ? available.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0) + rowDeliveryCharge
                           : null;
 
                         // Previous full total — all items priced
                         const allPriced = items.every((it) => it.unitPrice != null);
                         const fullTotal = allPriced
-                          ? items.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0) + deliveryCharge
+                          ? items.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0) + rowDeliveryCharge
                           : null;
 
                         if (updatedTotal == null) return <span className="text-xs text-ink-400 italic">TBQ</span>;
@@ -601,6 +603,20 @@ function PreOrderDrawer({
             </div>
           </section>
 
+          {preOrder.shippingAddress?.district && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
+                Delivery Location
+              </h3>
+              <p className="text-sm text-ink-700">
+                {preOrder.shippingAddress.city}, {preOrder.shippingAddress.district}
+                {preOrder.shippingFee != null && (
+                  <span className="text-ink-400"> · Delivery Rs. {preOrder.shippingFee}</span>
+                )}
+              </p>
+            </section>
+          )}
+
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
               Products ({items.length})
@@ -800,7 +816,8 @@ function PreOrderDrawer({
                 const subtotal = allPriced
                   ? available.reduce((s, it) => s + (it.unitPrice ?? 0) * it.quantity, 0)
                   : null;
-                const estTotal = subtotal != null ? subtotal + deliveryCharge : null;
+                const resolvedDeliveryCharge = preOrder.shippingFee ?? deliveryCharge;
+                const estTotal = subtotal != null ? subtotal + resolvedDeliveryCharge : null;
                 const deposit = estTotal != null ? Math.round(estTotal * 0.25) : null;
 
                 // Same basket at the prices currently on record — shown struck
@@ -831,14 +848,14 @@ function PreOrderDrawer({
                     </div>
                     <div className="flex justify-between text-ink-500">
                       <span>Delivery Charge</span>
-                      <span>{formatPrice(deliveryCharge)}</span>
+                      <span>{formatPrice(resolvedDeliveryCharge)}</span>
                     </div>
                     <div className="flex justify-between font-semibold text-ink-900 pt-1.5 border-t border-ink-200">
                       <span>Est. Total</span>
                       <span className="text-rose-600 font-display text-base">
                         {savedSubtotal != null && savedSubtotal !== subtotal && (
                           <span className="text-ink-400 line-through text-sm font-sans mr-2">
-                            {formatPrice(savedSubtotal + deliveryCharge)}
+                            {formatPrice(savedSubtotal + resolvedDeliveryCharge)}
                           </span>
                         )}
                         {estTotal != null ? formatPrice(estTotal) : "—"}

@@ -102,6 +102,7 @@ export interface Order {
   shippingAddress: {
     line1: string;
     line2?: string;
+    district: string;
     city: string;
     province?: string;
     postalCode?: string;
@@ -240,6 +241,11 @@ export interface PreOrder {
   adminNotes?: string;
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
+  shippingAddress?: {
+    district: string;
+    city: string;
+  };
+  shippingFee?: number;
   createdAt: string;
   updatedAt: string;
 }

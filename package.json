@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "npx tsx scripts/seed.ts"
+    "seed": "npx tsx scripts/seed.ts",
+    "import:delivery-rates": "node scripts/import-delivery-rates.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

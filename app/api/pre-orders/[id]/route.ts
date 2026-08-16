@@ -210,11 +210,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const statusChanged = body.status && body.status !== previous.status;
     const priceChanged = priceChanges.length > 0;
     const itemsAdded = newlyAdded.length > 0;
-    let deliveryCharge = 350;
+    let deliveryCharge = updated.shippingFee ?? 350;
     let currencySymbol = "Rs.";
     if (statusChanged || availabilityChanged || depositChanged || priceChanged || itemsAdded) {
       const settingsDoc = await Settings.findOne().lean().catch(() => null);
-      deliveryCharge = (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;
+      deliveryCharge = updated.shippingFee ?? (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;
       currencySymbol = (settingsDoc as { currencySymbol?: string } | null)?.currencySymbol ?? "Rs.";
     }
 

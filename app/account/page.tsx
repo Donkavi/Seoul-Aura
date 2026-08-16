@@ -360,6 +360,8 @@ interface PreOrder {
   adminNotes?: string;
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
+  shippingAddress?: { district: string; city: string };
+  shippingFee?: number;
   createdAt: string;
 }
 
@@ -367,13 +369,16 @@ function PreOrdersTab({ email }: { email: string }) {
   const [preOrders, setPreOrders] = useState<PreOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<PreOrder | null>(null);
-  const [deliveryCharge, setDeliveryCharge] = useState(350);
+  // Fallback only for older pre-orders placed before per-district delivery pricing existed
+  const [fallbackDeliveryCharge, setFallbackDeliveryCharge] = useState(350);
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then(d => {
-      if (d?.shippingFee != null) setDeliveryCharge(d.shippingFee);
+      if (d?.shippingFee != null) setFallbackDeliveryCharge(d.shippingFee);
     }).catch(() => {});
   }, []);
+
+  const getDeliveryCharge = (p: PreOrder) => p.shippingFee ?? fallbackDeliveryCharge;
 
   useEffect(() => {
     fetch(`/api/pre-orders?search=${encodeURIComponent(email)}&limit=50`)
@@ -408,7 +413,7 @@ function PreOrdersTab({ email }: { email: string }) {
         {preOrders.map((p) => {
           const items = getItems(p);
           const subtotal = calcSubtotal(items);
-          const total = subtotal + deliveryCharge;
+          const total = subtotal + getDeliveryCharge(p);
           const priced = hasPrices(items);
 
           return (
@@ -468,6 +473,7 @@ function PreOrdersTab({ email }: { email: string }) {
       {selected && (() => {
         const items = getItems(selected);
         const subtotal = calcSubtotal(items);
+        const deliveryCharge = getDeliveryCharge(selected);
         const total = subtotal + deliveryCharge;
         const priced = hasPrices(items);
 
@@ -494,6 +500,13 @@ function PreOrdersTab({ email }: { email: string }) {
               </div>
 
               <div className="p-5 space-y-4">
+                {/* Delivery location */}
+                {selected.shippingAddress?.district && (
+                  <p className="text-xs text-ink-500">
+                    Delivering to <span className="font-medium text-ink-700">{selected.shippingAddress.city}, {selected.shippingAddress.district}</span>
+                  </p>
+                )}
+
                 {/* Items */}
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-ink-500 font-semibold mb-3">
