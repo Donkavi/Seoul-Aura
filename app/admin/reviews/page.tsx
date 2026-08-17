@@ -156,7 +156,9 @@ export default function AdminReviewsPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-ink-900">{r.userName}</p>
-                        <p className="text-[10px] text-ink-400">Product #{r.productId.slice(-6)}</p>
+                        <p className="text-[10px] text-ink-400">
+                          {r.productId ? `Product #${r.productId.slice(-6)}` : "General Review"}
+                        </p>
                       </div>
                     </div>
                   </td>

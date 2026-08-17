@@ -27,6 +27,8 @@ interface SiteSettings {
     badge: string; title: string; highlight: string;
     subtitle: string; description: string;
     cta: string; ctaHref: string; align: "left" | "right";
+    vAlign?: "top" | "center" | "bottom";
+    fit?: "cover" | "contain";
     showText: boolean; showButton: boolean;
   }[];
   marqueeItems: string[];

@@ -42,7 +42,7 @@ export interface Product {
 
 export interface Review {
   _id: string;
-  productId: string;
+  productId?: string;
   userName: string;
   rating: number;
   title?: string;

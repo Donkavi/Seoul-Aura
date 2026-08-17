@@ -10,7 +10,7 @@ export default function WriteReview({
   productId,
   onSubmitted,
 }: {
-  productId: string;
+  productId?: string;
   onSubmitted?: () => void;
 }) {
   const [rating, setRating] = useState(0);
@@ -114,7 +114,11 @@ export default function WriteReview({
   return (
     <div className="bg-white border border-ink-100 rounded-sm p-6 lg:p-8">
       <h3 className="font-display text-2xl text-ink-900 mb-2">Write a Review</h3>
-      <p className="text-sm text-ink-500 mb-6">Share your experience with this product.</p>
+      <p className="text-sm text-ink-500 mb-6">
+        {productId
+          ? "Share your experience with this product."
+          : "Share your experience with Seoul Aura."}
+      </p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>

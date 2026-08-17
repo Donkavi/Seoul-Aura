@@ -19,6 +19,8 @@ interface HeroMedia {
   cta?: string;
   ctaHref?: string;
   align?: "left" | "right";
+  vAlign?: "top" | "center" | "bottom";
+  fit?: "cover" | "contain";
   showText?: boolean;
   showButton?: boolean;
 }
@@ -122,6 +124,9 @@ export default function HeroBanner({ heroSlides = [], marqueeItems = [], showArr
           {slides.map((slide, i) => {
             const cfg = heroMedia[i];
             const align = cfg?.align || slide.align;
+            const vAlign = cfg?.vAlign || "center";
+            const fit = cfg?.fit || "cover";
+            const horizontalPos = align === "left" ? "right" : "left";
             const showText = cfg ? (cfg.showText ?? true) : true;
             const showButton = cfg ? (cfg.showButton ?? true) : true;
             const badge = cfg?.badge || slide.badge;
@@ -147,10 +152,8 @@ export default function HeroBanner({ heroSlides = [], marqueeItems = [], showArr
                   muted
                   loop
                   playsInline
-                  className={cn(
-                    "absolute inset-0 w-full h-full object-cover",
-                    align === "left" ? "object-right" : "object-left"
-                  )}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  style={{ objectPosition: `${horizontalPos} ${vAlign}` }}
                 />
               ) : (
                 <>
@@ -159,10 +162,8 @@ export default function HeroBanner({ heroSlides = [], marqueeItems = [], showArr
                     src={cfg?.url ?? slide.image}
                     alt={title}
                     fill
-                    className={cn(
-                      "object-cover hidden md:block",
-                      align === "left" ? "object-right" : "object-left"
-                    )}
+                    className={cn("hidden md:block", fit === "contain" ? "object-contain" : "object-cover")}
+                    style={{ objectPosition: `${horizontalPos} ${vAlign}` }}
                     sizes="100vw"
                     priority={i === 0}
                   />
@@ -171,7 +172,8 @@ export default function HeroBanner({ heroSlides = [], marqueeItems = [], showArr
                     src={cfg?.mobileUrl || cfg?.url || slide.image}
                     alt={title}
                     fill
-                    className="object-cover object-center md:hidden"
+                    className={cn("md:hidden", fit === "contain" ? "object-contain" : "object-cover")}
+                    style={{ objectPosition: `center ${vAlign}` }}
                     sizes="100vw"
                     priority={i === 0}
                   />

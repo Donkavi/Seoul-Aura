@@ -45,6 +45,8 @@ interface HeroSlide {
   cta: string;
   ctaHref: string;
   align: "left" | "right";
+  vAlign: "top" | "center" | "bottom";
+  fit: "cover" | "contain";
   showText: boolean;
   showButton: boolean;
 }
@@ -453,7 +455,7 @@ export default function AdminSettingsPage() {
         {
           url, mobileUrl: "", type: newSlideType, label: newSlideLabel.trim(),
           badge: "", title: "", highlight: "", subtitle: "", description: "",
-          cta: "", ctaHref: "/shop", align: "left" as const,
+          cta: "", ctaHref: "/shop", align: "left" as const, vAlign: "center" as const, fit: "cover" as const,
           showText: true, showButton: true,
         },
       ],
@@ -1236,6 +1238,29 @@ export default function AdminSettingsPage() {
                             <option value="left">Text Left</option>
                             <option value="right">Text Right</option>
                           </select>
+                          {slide.type === "image" && (
+                            <select
+                              value={slide.fit ?? "cover"}
+                              onChange={(e) => updateSlideField(i, "fit", e.target.value)}
+                              className="text-xs border border-ink-100 rounded-sm px-2 py-1 text-ink-700 focus:outline-none"
+                              title="Cover fills the banner and crops overflow; Contain shows the whole image with color bars filling any gap"
+                            >
+                              <option value="cover">Fit: Cover</option>
+                              <option value="contain">Fit: Contain</option>
+                            </select>
+                          )}
+                          {slide.type === "image" && (slide.fit ?? "cover") === "cover" && (
+                            <select
+                              value={slide.vAlign ?? "center"}
+                              onChange={(e) => updateSlideField(i, "vAlign", e.target.value)}
+                              className="text-xs border border-ink-100 rounded-sm px-2 py-1 text-ink-700 focus:outline-none"
+                              title="Which part of the image stays visible when it's cropped to fit the banner"
+                            >
+                              <option value="top">Crop: Top</option>
+                              <option value="center">Crop: Center</option>
+                              <option value="bottom">Crop: Bottom</option>
+                            </select>
+                          )}
                         </div>
 
                         {/* Mobile image (images only) */}

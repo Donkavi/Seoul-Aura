@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
     const approved = searchParams.get("approved");
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const top = searchParams.get("top");
+    const general = searchParams.get("general");
 
     if (top === "true") {
       const reviews = await Review.find({ isApproved: true, rating: { $gte: 4 } })
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
 
     const query: Record<string, unknown> = {};
     if (productId) query.productId = productId;
+    if (general === "true") query.productId = { $exists: false };
     if (approved === "true") query.isApproved = true;
     if (approved === "false") query.isApproved = false;
 
@@ -38,12 +40,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { productId, userName, rating, title, comment, userEmail, images } = body;
 
-    if (!productId || !userName || !rating || !comment) {
+    if (!userName || !rating || !comment) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const review = await Review.create({
-      productId,
+      productId: productId || undefined,
       userName,
       userEmail,
       rating: Number(rating),

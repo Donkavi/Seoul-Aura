@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json();
     const review = await Review.findByIdAndUpdate(params.id, body, { new: true });
     if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    await recalcRating(review.productId.toString());
+    if (review.productId) await recalcRating(review.productId.toString());
     return NextResponse.json(review);
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -31,7 +31,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   try {
     await connectDB();
     const review = await Review.findByIdAndDelete(params.id);
-    if (review) await recalcRating(review.productId.toString());
+    if (review?.productId) await recalcRating(review.productId.toString());
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });

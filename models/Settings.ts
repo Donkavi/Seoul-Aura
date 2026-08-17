@@ -62,6 +62,8 @@ export interface IHeroSlide {
   cta: string;
   ctaHref: string;
   align: "left" | "right";
+  vAlign: "top" | "center" | "bottom";
+  fit: "cover" | "contain";
   showText: boolean;
   showButton: boolean;
 }
@@ -143,6 +145,8 @@ const HeroSlideSchema = new Schema<IHeroSlide>(
     cta: { type: String, default: "" },
     ctaHref: { type: String, default: "/shop" },
     align: { type: String, enum: ["left", "right"], default: "left" },
+    vAlign: { type: String, enum: ["top", "center", "bottom"], default: "center" },
+    fit: { type: String, enum: ["cover", "contain"], default: "cover" },
     showText: { type: Boolean, default: true },
     showButton: { type: Boolean, default: true },
   },

@@ -10,6 +10,8 @@ import {
   ChevronRight,
   BadgeCheck,
   Image as ImageIcon,
+  MessageSquarePlus,
+  X,
 } from "lucide-react";
 import { cn, relativeDate } from "@/lib/utils";
 
@@ -32,56 +34,24 @@ interface PopulatedReview {
       };
 }
 
-const fallbackReviews: PopulatedReview[] = [
-  {
-    _id: "f1",
-    userName: "Sanduni P.",
-    rating: 5,
-    title: "Skin transformation",
-    comment:
-      "I've been using this product for a month and I'm amazed at how much it brightened up dark spots on my face. Helped maintain moisture and overall brightened my complexion!",
-    images: ["https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=400&h=400&fit=crop"],
-    isVerifiedBuyer: true,
-    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-    productId: { _id: "d1", name: "COSRX Snail Mucin Essence", slug: "demo", images: [] },
-  },
-  {
-    _id: "f2",
-    userName: "Krishani R.",
-    rating: 5,
-    title: "Fast delivery, authentic",
-    comment:
-      "A 'go-to' place for genuine products at reasonable prices. Very much satisfied with their super fast delivery service. Highly recommended!",
-    isVerifiedBuyer: true,
-    createdAt: new Date(Date.now() - 14 * 86400000).toISOString(),
-    productId: { _id: "d2", name: "Monthly K-Beauty Box", slug: "demo", images: [] },
-  },
-  {
-    _id: "f3",
-    userName: "Tharushi M.",
-    rating: 5,
-    title: "Worth repurchasing",
-    comment:
-      "Look, love, look! I have repurchased twice already. The K-Beauty box was such a delightful surprise — every product was exactly what my skin needed.",
-    images: ["https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop"],
-    isVerifiedBuyer: true,
-    createdAt: new Date(Date.now() - 21 * 86400000).toISOString(),
-    productId: { _id: "d3", name: "Monthly K-Beauty Box", slug: "demo", images: [] },
-  },
-];
-
 export default function ReviewCarousel() {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: "start", slidesToScroll: 1 });
-  const [reviews, setReviews] = useState<PopulatedReview[]>(fallbackReviews);
+  const [reviews, setReviews] = useState<PopulatedReview[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(0);
+  const [activeImage, setActiveImage] = useState<Record<string, number>>({});
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number; reviewer: string } | null>(
+    null
+  );
 
   useEffect(() => {
     fetch("/api/reviews?top=true&limit=10")
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setReviews(data);
+        if (Array.isArray(data)) setReviews(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -93,6 +63,25 @@ export default function ReviewCarousel() {
     const id = setInterval(() => emblaApi.scrollNext(), 6500);
     return () => clearInterval(id);
   }, [emblaApi]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightbox(null);
+      if (e.key === "ArrowRight")
+        setLightbox((lb) => (lb ? { ...lb, index: (lb.index + 1) % lb.images.length } : null));
+      if (e.key === "ArrowLeft")
+        setLightbox((lb) =>
+          lb ? { ...lb, index: lb.index === 0 ? lb.images.length - 1 : lb.index - 1 } : null
+        );
+    };
+    window.addEventListener("keydown", handler);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handler);
+      document.body.style.overflow = "";
+    };
+  }, [lightbox]);
 
   const getProduct = (r: PopulatedReview) =>
     typeof r.productId === "object" ? r.productId : null;
@@ -112,16 +101,33 @@ export default function ReviewCarousel() {
           <p className="text-sm text-ink-500 mt-3 max-w-md mx-auto">
             Honest reflections from skincare devotees and curious foodies who let us into their daily ritual.
           </p>
+          <Link
+            href="/reviews/new"
+            className="inline-flex items-center gap-2 mt-6 text-sm font-medium text-rose-600 border border-rose-200 hover:border-rose-400 hover:bg-rose-50 rounded-full px-5 py-2.5 transition-colors"
+          >
+            <MessageSquarePlus size={15} />
+            Share Your Experience
+          </Link>
         </div>
 
+        {loading ? null : reviews.length === 0 ? (
+          <div className="max-w-md mx-auto text-center bg-white border border-ink-100 rounded-sm p-10 shadow-card">
+            <Quote size={28} className="mx-auto mb-3 text-rose-200 fill-rose-100" />
+            <p className="font-display text-xl text-ink-900 mb-2">No reviews yet</p>
+            <p className="text-sm text-ink-500">
+              Be the first to share your experience with the Aura family.
+            </p>
+          </div>
+        ) : (
         <div className="relative">
           <div className="overflow-hidden" ref={emblaRef}>
             <div className="flex">
               {reviews.map((r) => {
                 const product = getProduct(r);
                 const productImage = product?.images?.[0];
-                const reviewImage = r.images?.[0];
-                const heroImage = reviewImage ?? productImage;
+                const reviewImages = r.images ?? [];
+                const activeIdx = Math.min(activeImage[r._id] ?? 0, Math.max(reviewImages.length - 1, 0));
+                const heroImage = reviewImages[activeIdx] ?? productImage;
 
                 return (
                   <div
@@ -131,20 +137,52 @@ export default function ReviewCarousel() {
                     <article className="bg-white border border-ink-100 rounded-sm overflow-hidden h-full shadow-card hover:shadow-card-hover transition-all duration-300 group flex flex-col">
                       {heroImage && (
                         <div className="relative aspect-[4/3] overflow-hidden bg-ink-50">
-                          <img
-                            src={heroImage}
-                            alt={r.title ?? "Customer review"}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                          />
-                          {r.images && r.images.length > 1 && (
-                            <span className="absolute bottom-3 right-3 bg-white/90 backdrop-blur px-2.5 py-1 rounded-full text-[10px] font-semibold text-ink-700 flex items-center gap-1">
-                              <ImageIcon size={10} /> +{r.images.length - 1}
-                            </span>
-                          )}
-                          {reviewImage && (
-                            <span className="absolute top-3 left-3 bg-rose-600 text-white px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              reviewImages.length > 0 &&
+                              setLightbox({ images: reviewImages, index: activeIdx, reviewer: r.userName })
+                            }
+                            className={cn("block w-full h-full", reviewImages.length > 0 && "cursor-zoom-in")}
+                            aria-label={reviewImages.length > 0 ? "View full-size photo" : undefined}
+                          >
+                            <img
+                              src={heroImage}
+                              alt={r.title ?? "Customer review"}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                            />
+                          </button>
+                          {reviewImages.length > 0 && (
+                            <span className="absolute top-3 left-3 bg-rose-600 text-white px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider pointer-events-none">
                               Customer Photo
                             </span>
+                          )}
+
+                          {reviewImages.length > 1 && (
+                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-ink-900/70 to-transparent pt-6 pb-2.5 px-2.5 flex items-center gap-1.5">
+                              {reviewImages.map((img, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveImage((prev) => ({ ...prev, [r._id]: i }));
+                                  }}
+                                  aria-label={`View photo ${i + 1} of ${reviewImages.length}`}
+                                  className={cn(
+                                    "relative w-8 h-8 rounded-sm overflow-hidden border-2 flex-shrink-0 transition-all",
+                                    i === activeIdx
+                                      ? "border-white scale-105"
+                                      : "border-white/40 opacity-70 hover:opacity-100"
+                                  )}
+                                >
+                                  <img src={img} alt="" className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                              <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-white/90">
+                                <ImageIcon size={10} /> {reviewImages.length}
+                              </span>
+                            </div>
                           )}
                         </div>
                       )}
@@ -239,7 +277,78 @@ export default function ReviewCarousel() {
             ))}
           </div>
         </div>
+        )}
       </div>
+
+      {lightbox && (
+        <div className="fixed inset-0 z-[100] bg-ink-900/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <button
+            onClick={() => setLightbox(null)}
+            aria-label="Close"
+            className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors z-10"
+          >
+            <X size={20} />
+          </button>
+
+          <div className="absolute top-6 left-6 text-white">
+            <p className="text-xs uppercase tracking-widest text-rose-300 font-semibold">
+              Customer Photo by
+            </p>
+            <p className="text-sm font-medium">{lightbox.reviewer}</p>
+            <p className="text-xs text-white/60 mt-1">
+              {lightbox.index + 1} of {lightbox.images.length}
+            </p>
+          </div>
+
+          <div className="relative w-full max-w-4xl aspect-square">
+            <img
+              src={lightbox.images[lightbox.index]}
+              alt={`Review photo by ${lightbox.reviewer}`}
+              className="w-full h-full object-contain"
+            />
+          </div>
+
+          {lightbox.images.length > 1 && (
+            <>
+              <button
+                onClick={() =>
+                  setLightbox({
+                    ...lightbox,
+                    index: lightbox.index === 0 ? lightbox.images.length - 1 : lightbox.index - 1,
+                  })
+                }
+                aria-label="Previous"
+                className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                <ChevronLeft size={22} />
+              </button>
+              <button
+                onClick={() =>
+                  setLightbox({ ...lightbox, index: (lightbox.index + 1) % lightbox.images.length })
+                }
+                aria-label="Next"
+                className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                <ChevronRight size={22} />
+              </button>
+
+              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                {lightbox.images.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setLightbox({ ...lightbox, index: i })}
+                    aria-label={`Image ${i + 1}`}
+                    className={cn(
+                      "h-1 rounded-full transition-all",
+                      i === lightbox.index ? "w-8 bg-white" : "w-4 bg-white/40 hover:bg-white/60"
+                    )}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
