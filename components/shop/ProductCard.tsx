@@ -3,9 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { ShoppingBag, Heart, Star } from "lucide-react";
+import { ShoppingBag, Heart } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
+import StarRating, { formatRating } from "@/components/product/StarRating";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product } from "@/types";
 
@@ -135,20 +136,10 @@ export default function ProductCard({ product, priority = false }: { product: Pr
 
         {product.reviewCount > 0 && (
           <div className="flex items-center gap-1.5">
-            <div className="flex gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Star
-                  key={i}
-                  size={11}
-                  className={cn(
-                    i < Math.round(product.averageRating)
-                      ? "fill-gold-400 text-gold-400"
-                      : "fill-ink-100 text-ink-100"
-                  )}
-                />
-              ))}
-            </div>
-            <span className="text-[10px] text-ink-400">({product.reviewCount})</span>
+            <StarRating value={product.averageRating} readOnly size={11} />
+            <span className="text-[10px] text-ink-400">
+              {formatRating(product.averageRating)} ({product.reviewCount})
+            </span>
           </div>
         )}
 

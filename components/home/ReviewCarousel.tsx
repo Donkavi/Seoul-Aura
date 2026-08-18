@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import useEmblaCarousel from "embla-carousel-react";
 import {
-  Star,
   Quote,
   ChevronLeft,
   ChevronRight,
@@ -13,6 +12,7 @@ import {
   MessageSquarePlus,
   X,
 } from "lucide-react";
+import StarRating from "@/components/product/StarRating";
 import { cn, relativeDate } from "@/lib/utils";
 
 interface PopulatedReview {
@@ -192,18 +192,8 @@ export default function ReviewCarousel() {
                           size={32}
                           className="absolute top-5 right-5 text-rose-100 fill-rose-100"
                         />
-                        <div className="flex gap-0.5 mb-3">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              size={13}
-                              className={cn(
-                                i < r.rating
-                                  ? "fill-gold-400 text-gold-400"
-                                  : "fill-ink-100 text-ink-100"
-                              )}
-                            />
-                          ))}
+                        <div className="mb-3">
+                          <StarRating value={r.rating} readOnly size={13} showValue />
                         </div>
 
                         {r.title && (

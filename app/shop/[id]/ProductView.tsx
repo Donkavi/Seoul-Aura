@@ -332,7 +332,7 @@ export default function ProductView({
             </div>
 
             <a href="#reviews" className="inline-flex items-center gap-2 mt-3 hover:text-rose-600">
-              <StarRating value={Math.round(liveRating.avg)} readOnly size={14} />
+              <StarRating value={liveRating.avg} readOnly size={14} />
               <span className="text-xs text-ink-500">
                 {!liveRating.ready
                   ? "Loading…"

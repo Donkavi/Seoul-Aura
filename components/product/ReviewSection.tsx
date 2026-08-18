@@ -109,7 +109,7 @@ export default function ReviewSection({
               {average.toFixed(1)}
               <span className="text-3xl text-ink-400 font-light">/5</span>
             </div>
-            <StarRating value={Math.round(average)} readOnly className="justify-center mb-3" size={20} />
+            <StarRating value={average} readOnly className="mb-3" size={20} />
             <p className="text-sm text-ink-500 mb-6">Based on {total} reviews</p>
 
             <button
@@ -250,7 +250,7 @@ export default function ReviewSection({
                       <p className="text-xs text-ink-400 mt-0.5">{relativeDate(r.createdAt)}</p>
                     </div>
                   </div>
-                  <StarRating value={r.rating} readOnly size={14} />
+                  <StarRating value={r.rating} readOnly size={14} showValue />
                 </div>
 
                 {r.title && (

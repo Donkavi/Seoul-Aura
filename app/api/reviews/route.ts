@@ -44,11 +44,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Ratings may be fractional (e.g. 4.7) — keep one decimal so stored values stay clean.
+    const numericRating = Math.round(Number(rating) * 10) / 10;
+    if (!Number.isFinite(numericRating) || numericRating < 1 || numericRating > 5) {
+      return NextResponse.json({ error: "Rating must be between 1 and 5" }, { status: 400 });
+    }
+
     const review = await Review.create({
       productId: productId || undefined,
       userName,
       userEmail,
-      rating: Number(rating),
+      rating: numericRating,
       title,
       comment,
       images: Array.isArray(images) ? images.filter(Boolean).slice(0, 6) : [],

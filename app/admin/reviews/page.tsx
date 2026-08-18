@@ -5,12 +5,12 @@ import {
   Check,
   X,
   Flag,
-  Star,
   MessageSquare,
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import StarRating from "@/components/product/StarRating";
 import { cn, relativeDate } from "@/lib/utils";
 import type { Review } from "@/types";
 
@@ -163,19 +163,7 @@ export default function AdminReviewsPage() {
                     </div>
                   </td>
                   <td className="p-4">
-                    <div className="flex gap-0.5">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          size={11}
-                          className={
-                            i < r.rating
-                              ? "fill-gold-400 text-gold-400"
-                              : "fill-ink-100 text-ink-200"
-                          }
-                        />
-                      ))}
-                    </div>
+                    <StarRating value={r.rating} readOnly size={11} showValue />
                   </td>
                   <td className="p-4 max-w-md">
                     {r.title && (

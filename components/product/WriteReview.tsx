@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Check, AlertCircle, ImagePlus, X } from "lucide-react";
-import StarRating from "./StarRating";
+import { Send, Check, AlertCircle, ImagePlus, X, Minus, Plus } from "lucide-react";
+import StarRating, { clampRating, formatRating, RATING_STEP } from "./StarRating";
 
 const MAX_IMAGES = 6;
 
@@ -125,13 +125,47 @@ export default function WriteReview({
           <label className="block text-xs font-semibold uppercase tracking-widest text-ink-700 mb-2">
             Your Rating *
           </label>
-          <StarRating value={rating} onChange={setRating} size={28} />
-          {rating > 0 && (
-            <p className="text-xs text-ink-500 mt-1.5 animate-fade-in">
-              {["Poor", "Fair", "Good", "Very Good", "Excellent"][rating - 1]} ·{" "}
-              <span className="text-rose-600">{rating}/5</span>
-            </p>
-          )}
+
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <StarRating value={rating} onChange={setRating} size={30} showValue={rating > 0} />
+
+            {rating > 0 && (
+              <div className="inline-flex items-center gap-0.5 border border-ink-200 rounded-full p-0.5 animate-fade-in">
+                <button
+                  type="button"
+                  onClick={() => setRating(clampRating(rating - RATING_STEP))}
+                  aria-label="Decrease rating by 0.1"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-ink-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                >
+                  <Minus size={12} />
+                </button>
+                <span className="w-9 text-center text-xs font-semibold tabular-nums text-ink-800">
+                  {rating.toFixed(1)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRating(clampRating(rating + RATING_STEP))}
+                  aria-label="Increase rating by 0.1"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-ink-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-ink-500 mt-2">
+            {rating > 0 ? (
+              <span className="animate-fade-in">
+                <span className="text-rose-600 font-medium">
+                  {["Poor", "Fair", "Good", "Very Good", "Excellent"][Math.round(rating) - 1]}
+                </span>{" "}
+                · {formatRating(rating)} out of 5
+              </span>
+            ) : (
+              "Tap or drag across the stars — half and decimal scores like 4.7 are welcome."
+            )}
+          </p>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
