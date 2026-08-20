@@ -12,8 +12,10 @@ export async function GET(req: NextRequest) {
     const top = searchParams.get("top");
     const general = searchParams.get("general");
 
+    // Homepage slider feed: every approved review qualifies — admin moderation is
+    // the only gate — with the best-received ones surfaced first.
     if (top === "true") {
-      const reviews = await Review.find({ isApproved: true, rating: { $gte: 4 } })
+      const reviews = await Review.find({ isApproved: true })
         .sort({ helpfulVotes: -1, rating: -1, createdAt: -1 })
         .limit(limit)
         .populate("productId", "name slug images")
@@ -50,6 +52,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Rating must be between 1 and 5" }, { status: 400 });
     }
 
+    // Photos are uploaded to Cloudinary from the browser, so only URLs arrive here.
+    // Older cached clients may still post base64 data URLs — reject those with a
+    // clear message rather than storing megabytes per document.
+    const submittedImages: string[] = Array.isArray(images)
+      ? images.filter((img: unknown): img is string => typeof img === "string" && img.length > 0)
+      : [];
+    if (submittedImages.some((img) => img.startsWith("data:"))) {
+      return NextResponse.json(
+        { error: "Please refresh the page and re-attach your photos." },
+        { status: 400 }
+      );
+    }
+    const reviewImages = submittedImages
+      .filter((img) => /^https?:\/\//i.test(img) && img.length <= 2048)
+      .slice(0, 6);
+
     const review = await Review.create({
       productId: productId || undefined,
       userName,
@@ -57,7 +75,7 @@ export async function POST(req: NextRequest) {
       rating: numericRating,
       title,
       comment,
-      images: Array.isArray(images) ? images.filter(Boolean).slice(0, 6) : [],
+      images: reviewImages,
       isApproved: false,
       isVerifiedBuyer: false,
     });

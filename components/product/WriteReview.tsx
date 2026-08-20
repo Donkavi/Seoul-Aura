@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Check, AlertCircle, ImagePlus, X, Minus, Plus } from "lucide-react";
+import { Send, Check, AlertCircle, ImagePlus, X, Minus, Plus, Loader2 } from "lucide-react";
 import StarRating, { clampRating, formatRating, RATING_STEP } from "./StarRating";
+import { uploadReviewImage } from "@/lib/uploadImage";
+import { cn } from "@/lib/utils";
 
 const MAX_IMAGES = 6;
 
@@ -20,6 +22,7 @@ export default function WriteReview({
   const [comment, setComment] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [imageInput, setImageInput] = useState("");
+  const [uploading, setUploading] = useState(0);
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [error, setError] = useState("");
 
@@ -39,21 +42,31 @@ export default function WriteReview({
     setError("");
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    const available = MAX_IMAGES - images.length;
-    const toRead = files.slice(0, available);
-
-    toRead.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (typeof ev.target?.result === "string") {
-          setImages((prev) => [...prev, ev.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
     e.target.value = "";
+    if (files.length === 0) return;
+
+    const available = MAX_IMAGES - images.length;
+    const queued = files.slice(0, available);
+    if (files.length > available) {
+      setError(`Only ${MAX_IMAGES} photos can be added — the extras were skipped.`);
+    } else {
+      setError("");
+    }
+
+    setUploading((n) => n + queued.length);
+    // One at a time keeps mobile connections from stalling on parallel uploads.
+    for (const file of queued) {
+      try {
+        const url = await uploadReviewImage(file);
+        setImages((prev) => [...prev, url]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "That photo could not be uploaded.");
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
   };
 
   const removeImage = (i: number) => setImages(images.filter((_, idx) => idx !== i));
@@ -64,6 +77,7 @@ export default function WriteReview({
 
     if (rating === 0) return setError("Please select a star rating");
     if (!name.trim() || !comment.trim()) return setError("Please fill in your name and review");
+    if (uploading > 0) return setError("Please wait for your photos to finish uploading");
 
     setStatus("submitting");
     try {
@@ -81,7 +95,10 @@ export default function WriteReview({
         }),
       });
 
-      if (!res.ok) throw new Error("Submission failed");
+      if (!res.ok) {
+        const { error: apiError } = await res.json().catch(() => ({ error: null }));
+        throw new Error(apiError ?? `Submission failed (${res.status})`);
+      }
       setStatus("success");
       setRating(0);
       setName("");
@@ -91,9 +108,9 @@ export default function WriteReview({
       setImages([]);
       onSubmitted?.();
       setTimeout(() => setStatus("idle"), 4000);
-    } catch {
+    } catch (err) {
       setStatus("error");
-      setError("Something went wrong. Please try again.");
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     }
   };
 
@@ -232,7 +249,7 @@ export default function WriteReview({
             Add Photos (optional · up to {MAX_IMAGES})
           </label>
 
-          {images.length > 0 && (
+          {(images.length > 0 || uploading > 0) && (
             <div className="flex gap-3 mb-3 overflow-x-auto pb-2">
               {images.map((img, i) => (
                 <div
@@ -248,6 +265,14 @@ export default function WriteReview({
                   >
                     <X size={10} />
                   </button>
+                </div>
+              ))}
+              {Array.from({ length: uploading }, (_, i) => (
+                <div
+                  key={`pending-${i}`}
+                  className="w-20 h-20 flex-shrink-0 rounded-sm border border-dashed border-rose-200 bg-rose-50/40 flex items-center justify-center"
+                >
+                  <Loader2 size={16} className="text-rose-500 animate-spin" />
                 </div>
               ))}
             </div>
@@ -278,13 +303,32 @@ export default function WriteReview({
                 </button>
               </div>
 
-              <label className="cursor-pointer flex items-center justify-center gap-2 border border-dashed border-ink-200 hover:border-rose-400 hover:bg-rose-50/30 py-3 text-sm text-ink-600 transition-colors">
-                <ImagePlus size={14} />
-                <span>Or upload from device</span>
+              <label
+                className={cn(
+                  "flex items-center justify-center gap-2 border border-dashed py-3 text-sm transition-colors",
+                  uploading > 0
+                    ? "border-rose-200 bg-rose-50/40 text-rose-600 cursor-wait"
+                    : "cursor-pointer border-ink-200 text-ink-600 hover:border-rose-400 hover:bg-rose-50/30"
+                )}
+              >
+                {uploading > 0 ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>
+                      Uploading {uploading} photo{uploading > 1 ? "s" : ""}…
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus size={14} />
+                    <span>Or upload from device</span>
+                  </>
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   multiple
+                  disabled={uploading > 0}
                   onChange={handleFileUpload}
                   className="sr-only"
                 />
@@ -302,11 +346,15 @@ export default function WriteReview({
 
         <button
           type="submit"
-          disabled={status === "submitting"}
+          disabled={status === "submitting" || uploading > 0}
           className="btn-primary inline-flex items-center gap-2 disabled:opacity-60"
         >
           {status === "submitting" ? (
             "Submitting…"
+          ) : uploading > 0 ? (
+            <>
+              <Loader2 size={14} className="animate-spin" /> Uploading photos…
+            </>
           ) : (
             <>
               <Send size={14} /> Submit Review
