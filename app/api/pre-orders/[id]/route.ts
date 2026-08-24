@@ -272,6 +272,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         currencySymbol,
         balancePaymentMethod: updated.balancePaymentMethod,
         depositPaid: updated.depositPaid,
+        status: updated.status,
         reasons,
       }).catch(console.error);
     }
@@ -290,6 +291,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         currencySymbol,
         balancePaymentMethod: updated.balancePaymentMethod,
         depositPaid: updated.depositPaid,
+        status: updated.status,
       }).catch(console.error);
     }
 

@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { paymentVisibility, isPaymentComplete } from "@/lib/preOrderStatus";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -704,6 +705,11 @@ const PRE_ORDER_STATUS_MESSAGES: Record<string, { headline: string; detail: stri
     headline: "We're reviewing your pre-order",
     detail: "Our team is looking into sourcing this product for you. We'll update you soon.",
   },
+  availability: {
+    emoji: "📋",
+    headline: "Availability confirmed",
+    detail: "We've checked what we can source for you and priced your order below. No payment is needed yet — we'll send payment details once your order is confirmed.",
+  },
   confirmed: {
     emoji: "✅",
     headline: "Pre-order confirmed!",
@@ -713,6 +719,11 @@ const PRE_ORDER_STATUS_MESSAGES: Record<string, { headline: string; detail: stri
     emoji: "🎁",
     headline: "Your pre-order has been fulfilled!",
     detail: "Great news — your pre-ordered product is ready and on its way to you. Thank you for your patience!",
+  },
+  done: {
+    emoji: "🎉",
+    headline: "Order completed — thank you!",
+    detail: "Your order is complete and your payment has been received in full. Thank you so much for shopping with Seoul Aura — we truly appreciate your trust and we hope you love every piece.",
   },
   rejected: {
     emoji: "😔",
@@ -743,8 +754,12 @@ export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailD
 
   const sym = data.currencySymbol ?? "Rs.";
   const delivery = data.deliveryCharge ?? 0;
-  // Show items + totals on every status except rejected (where nothing is being fulfilled)
-  const showInvoice = !!data.items?.length && data.status !== "rejected";
+  const visibility = paymentVisibility(data.status);
+  const paymentComplete = isPaymentComplete(data.status);
+  // Money stays hidden while we're still reviewing, and on rejected requests
+  // where nothing is being fulfilled.
+  const showInvoice =
+    !!data.items?.length && data.status !== "rejected" && visibility !== "none";
 
   const html = layout(`
     <div style="text-align:center;margin-bottom:28px;">
@@ -761,7 +776,16 @@ export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailD
 
     ${showInvoice ? `
       ${preOrderAvailabilityTable(data.items!, sym)}
-      ${preOrderTotalsTable(data.items!, delivery, sym, data.balancePaymentMethod, data.depositPaid)}
+      ${preOrderTotalsTable(
+        data.items!,
+        delivery,
+        sym,
+        data.balancePaymentMethod,
+        data.depositPaid,
+        paymentComplete ? "Total Paid" : "Estimated Total",
+        visibility === "full",
+        paymentComplete
+      )}
       <div style="height:8px;"></div>
     ` : ""}
 
@@ -773,7 +797,7 @@ export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailD
       </tr>
     </table>` : ""}
 
-    ${!showInvoice && data.estimatedPrice ? `
+    ${!showInvoice && data.estimatedPrice && visibility !== "none" ? `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:20px;background:#faf9f8;border-radius:4px;padding:16px;">
       <tr>
         <td style="font-size:12px;color:#78716c;padding:4px 0;width:140px;">Estimated Price</td>
@@ -871,7 +895,11 @@ function preOrderTotalsTable(
   sym: string,
   balancePaymentMethod?: "cod" | "bank",
   depositPaid?: boolean,
-  totalLabel = "Estimated Total"
+  totalLabel = "Estimated Total",
+  /** `false` at the availability stage — prices are known but no deposit is due yet. */
+  showDeposit = true,
+  /** `true` once the order is done: everything is settled, never ask for money. */
+  paymentComplete = false
 ) {
   const available = items.filter((it) => it.availability !== "unavailable");
   const availablePriced = available.filter((it) => it.unitPrice != null);
@@ -898,17 +926,19 @@ function preOrderTotalsTable(
           <td style="padding:12px 16px;font-size:14px;font-weight:700;color:#1c1917;">${allAvailablePriced ? totalLabel : `${totalLabel} (partial)`}</td>
           <td style="padding:12px 16px;font-size:16px;font-weight:700;color:#e11d48;text-align:right;white-space:nowrap;">${fmt(total, sym)}</td>
         </tr>
+        ${showDeposit ? `
         <tr>
-          <td style="padding:8px 16px;font-size:13px;color:#78716c;">25% Deposit <span style="color:#a8a29e;">· Bank Transfer</span>${depositPaid ? ' <span style="color:#16a34a;font-weight:600;">(Paid ✓)</span>' : ""}</td>
+          <td style="padding:8px 16px;font-size:13px;color:#78716c;">25% Deposit <span style="color:#a8a29e;">· Bank Transfer</span>${depositPaid || paymentComplete ? ' <span style="color:#16a34a;font-weight:600;">(Paid ✓)</span>' : ""}</td>
           <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;font-weight:600;">${fmt(deposit, sym)}</td>
         </tr>
         <tr>
-          <td style="padding:8px 16px;font-size:13px;color:#78716c;">Balance${balanceLabel ? ` <span style="color:#a8a29e;">· ${balanceLabel}</span>` : ""}</td>
+          <td style="padding:8px 16px;font-size:13px;color:#78716c;">Balance${balanceLabel ? ` <span style="color:#a8a29e;">· ${balanceLabel}</span>` : ""}${paymentComplete ? ' <span style="color:#16a34a;font-weight:600;">(Paid ✓)</span>' : ""}</td>
           <td style="padding:8px 16px;font-size:13px;color:#1c1917;text-align:right;white-space:nowrap;">${fmt(balance, sym)}</td>
-        </tr>
+        </tr>` : ""}
       </tbody>
     </table>
-    ${!depositPaid ? `<p style="margin:12px 0 0;font-size:12px;color:#78716c;line-height:1.7;">To lock in your order, please pay the <strong>25% deposit (${fmt(deposit, sym)}) via bank transfer</strong> using the details below.</p>${BANK_TRANSFER_DETAILS_HTML}` : ""}`;
+    ${showDeposit && !depositPaid && !paymentComplete ? `<p style="margin:12px 0 0;font-size:12px;color:#78716c;line-height:1.7;">To lock in your order, please pay the <strong>25% deposit (${fmt(deposit, sym)}) via bank transfer</strong> using the details below.</p>${BANK_TRANSFER_DETAILS_HTML}` : ""}
+    ${!showDeposit ? `<p style="margin:12px 0 0;font-size:12px;color:#78716c;line-height:1.7;">No payment is needed yet — we'll send payment instructions once your order is confirmed.</p>` : ""}`;
 
   return html;
 }
@@ -984,11 +1014,15 @@ interface PreOrderRevisionEmailData {
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
   reasons: ("availability" | "deposit" | "price")[];
+  /** Drives whether the 25% deposit split is shown. */
+  status?: string;
 }
 
 export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailData) {
   const sym = data.currencySymbol ?? "Rs.";
   const delivery = data.deliveryCharge ?? 0;
+  const showDeposit = paymentVisibility(data.status ?? "confirmed") === "full";
+  const paidInFull = isPaymentComplete(data.status ?? "");
   const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
 
   const reasons = data.reasons ?? [];
@@ -1038,7 +1072,7 @@ export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailDat
 
     ${preOrderAvailabilityTable(data.items, sym)}
 
-    ${preOrderTotalsTable(data.items, delivery, sym, data.balancePaymentMethod, data.depositPaid, "Updated Total")}
+    ${preOrderTotalsTable(data.items, delivery, sym, data.balancePaymentMethod, data.depositPaid, "Updated Total", showDeposit, paidInFull)}
 
     <div style="margin-top:24px;text-align:center;">
       <a href="${SITE}/account?tab=pre-orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
@@ -1074,11 +1108,15 @@ interface PreOrderItemsAddedEmailData {
   currencySymbol?: string;
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
+  /** Drives whether the 25% deposit split is shown. */
+  status?: string;
 }
 
 export async function sendPreOrderItemsAddedToBuyer(data: PreOrderItemsAddedEmailData) {
   const sym = data.currencySymbol ?? "Rs.";
   const delivery = data.deliveryCharge ?? 0;
+  const showDeposit = paymentVisibility(data.status ?? "confirmed") === "full";
+  const paidInFull = isPaymentComplete(data.status ?? "");
   const now = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
   const plural = data.addedItems.length !== 1;
 
@@ -1116,7 +1154,7 @@ export async function sendPreOrderItemsAddedToBuyer(data: PreOrderItemsAddedEmai
     <div style="height:16px;"></div>
 
     ${preOrderAvailabilityTable(data.items, sym)}
-    ${preOrderTotalsTable(data.items, delivery, sym, data.balancePaymentMethod, data.depositPaid, "Updated Total")}
+    ${preOrderTotalsTable(data.items, delivery, sym, data.balancePaymentMethod, data.depositPaid, "Updated Total", showDeposit, paidInFull)}
 
     <div style="margin-top:24px;text-align:center;">
       <a href="${SITE}/account?tab=pre-orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">

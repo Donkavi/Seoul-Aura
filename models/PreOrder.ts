@@ -3,9 +3,11 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export type PreOrderStatus =
   | "pending"
   | "reviewing"
+  | "availability"
   | "confirmed"
   | "rejected"
-  | "fulfilled";
+  | "fulfilled"
+  | "done";
 
 export interface IPreOrderPriceChange {
   previousUnitPrice?: number;
@@ -97,7 +99,15 @@ const PreOrderSchema = new Schema<IPreOrder>(
     notes: { type: String, trim: true },
     status: {
       type: String,
-      enum: ["pending", "reviewing", "confirmed", "rejected", "fulfilled"],
+      enum: [
+        "pending",
+        "reviewing",
+        "availability",
+        "confirmed",
+        "rejected",
+        "fulfilled",
+        "done",
+      ],
       default: "pending",
     },
     estimatedPrice: { type: Number },

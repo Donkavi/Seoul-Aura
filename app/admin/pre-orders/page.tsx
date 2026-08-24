@@ -8,6 +8,8 @@ import {
   Eye,
   Check,
   CheckCircle,
+  ClipboardCheck,
+  BadgeCheck,
   XCircle,
   Package,
   Mail,
@@ -33,6 +35,11 @@ const STATUS_META: Record<
 > = {
   pending: { label: "Pending", color: "bg-gold-50 text-gold-700 border-gold-200", icon: Clock },
   reviewing: { label: "Reviewing", color: "bg-blue-50 text-blue-700 border-blue-200", icon: Eye },
+  availability: {
+    label: "Availability",
+    color: "bg-indigo-50 text-indigo-700 border-indigo-200",
+    icon: ClipboardCheck,
+  },
   confirmed: {
     label: "Confirmed",
     color: "bg-green-50 text-green-700 border-green-200",
@@ -47,6 +54,11 @@ const STATUS_META: Record<
     label: "Fulfilled",
     color: "bg-ink-900 text-white border-ink-900",
     icon: Package,
+  },
+  done: {
+    label: "Done",
+    color: "bg-emerald-600 text-white border-emerald-600",
+    icon: BadgeCheck,
   },
 };
 
@@ -119,8 +131,8 @@ export default function AdminPreOrdersPage() {
         </div>
       </header>
 
-      <div className="grid sm:grid-cols-5 gap-3 mb-6">
-        {(["pending", "reviewing", "confirmed", "rejected", "fulfilled"] as PreOrderStatus[]).map(
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+        {(["pending", "reviewing", "availability", "confirmed", "rejected", "fulfilled", "done"] as PreOrderStatus[]).map(
           (status) => {
             const meta = STATUS_META[status];
             return (
@@ -150,7 +162,7 @@ export default function AdminPreOrdersPage() {
       <div className="bg-white border border-ink-100 rounded-sm overflow-hidden">
         <div className="border-b border-ink-100 p-3 flex items-center gap-3">
           <div className="flex items-center gap-1 flex-wrap">
-            {(["pending", "reviewing", "confirmed", "rejected", "fulfilled", "all"] as FilterTab[]).map(
+            {(["pending", "reviewing", "availability", "confirmed", "rejected", "fulfilled", "done", "all"] as FilterTab[]).map(
               (t) => (
                 <button
                   key={t}
@@ -1023,7 +1035,7 @@ function PreOrderDrawer({
               Update Status
             </h3>
             <div className="grid grid-cols-5 gap-2">
-              {(["pending", "reviewing", "confirmed", "rejected", "fulfilled"] as PreOrderStatus[]).map(
+              {(["pending", "reviewing", "availability", "confirmed", "rejected", "fulfilled", "done"] as PreOrderStatus[]).map(
                 (s) => {
                   const meta = STATUS_META[s];
                   const Icon = meta.icon;

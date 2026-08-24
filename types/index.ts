@@ -127,9 +127,11 @@ export interface AdminStats {
 export type PreOrderStatus =
   | "pending"
   | "reviewing"
+  | "availability"
   | "confirmed"
   | "rejected"
-  | "fulfilled";
+  | "fulfilled"
+  | "done";
 
 export interface StockNotification {
   _id: string;

@@ -11,6 +11,7 @@ import {
   Plus, Trash2, Check, X, Shield, Plane, Mail, Lock, User, Phone,
 } from "lucide-react";
 import { cn, formatPrice, relativeDate } from "@/lib/utils";
+import { paymentVisibility, isPaymentComplete } from "@/lib/preOrderStatus";
 import VerifyPhone from "@/components/auth/VerifyPhone";
 import type { Order, Subscription } from "@/types";
 
@@ -324,11 +325,13 @@ function SubscriptionsTab({ email }: { email: string }) {
 
 // ─── Tab: Pre-Orders ─────────────────────────────────────────────────────────
 const PRE_ORDER_STATUS: Record<string, string> = {
-  pending:   "bg-gold-50 text-gold-700",
-  reviewing: "bg-blue-50 text-blue-700",
-  confirmed: "bg-rose-50 text-rose-700",
-  rejected:  "bg-ink-100 text-ink-500",
-  fulfilled: "bg-green-50 text-green-700",
+  pending:      "bg-gold-50 text-gold-700",
+  reviewing:    "bg-blue-50 text-blue-700",
+  availability: "bg-indigo-50 text-indigo-700",
+  confirmed:    "bg-rose-50 text-rose-700",
+  rejected:     "bg-ink-100 text-ink-500",
+  fulfilled:    "bg-green-50 text-green-700",
+  done:         "bg-ink-900 text-white",
 };
 
 interface PreOrderItem {
@@ -458,9 +461,11 @@ function PreOrdersTab({ email }: { email: string }) {
                 </div>
               </div>
 
-              {priced && (
+              {priced && paymentVisibility(p.status) !== "none" && (
                 <div className="flex items-center justify-between pt-2 border-t border-ink-50">
-                  <span className="text-xs text-ink-400">Est. Total (incl. delivery)</span>
+                  <span className="text-xs text-ink-400">
+                    {isPaymentComplete(p.status) ? "Total Paid" : "Est. Total (incl. delivery)"}
+                  </span>
                   <span className="text-sm font-semibold text-ink-900">{formatPrice(total)}</span>
                 </div>
               )}
@@ -476,6 +481,8 @@ function PreOrdersTab({ email }: { email: string }) {
         const deliveryCharge = getDeliveryCharge(selected);
         const total = subtotal + deliveryCharge;
         const priced = hasPrices(items);
+        const visibility = paymentVisibility(selected.status);
+        const paymentComplete = isPaymentComplete(selected.status);
 
         return (
           <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setSelected(null)}>
@@ -563,8 +570,19 @@ function PreOrdersTab({ email }: { email: string }) {
                   </div>
                 </div>
 
-                {/* Price summary */}
-                {priced && (() => {
+                {/* Order complete banner */}
+                {selected.status === "done" && (
+                  <div className="bg-ink-900 rounded-sm px-4 py-4 text-center">
+                    <p className="text-2xl mb-1">🎉</p>
+                    <p className="text-sm font-semibold text-white">Order completed &amp; payment received in full</p>
+                    <p className="text-xs text-white/70 mt-1">
+                      Thank you for shopping with Seoul Aura — we hope you love it!
+                    </p>
+                  </div>
+                )}
+
+                {/* Price summary — how much is shown depends on the stage */}
+                {priced && visibility !== "none" && (() => {
                   const deposit = Math.round(total * 0.25);
                   const balanceLabel = selected.balancePaymentMethod === "bank" ? "Bank Transfer"
                     : selected.balancePaymentMethod === "cod" ? "Cash on Delivery" : null;
@@ -579,36 +597,53 @@ function PreOrdersTab({ email }: { email: string }) {
                         <span className="text-sm text-ink-900">{formatPrice(deliveryCharge)}</span>
                       </div>
                       <div className="flex items-center justify-between px-4 py-3 bg-rose-50">
-                        <span className="text-xs font-semibold text-ink-700 uppercase tracking-wide">Estimated Total</span>
+                        <span className="text-xs font-semibold text-ink-700 uppercase tracking-wide">
+                          {paymentComplete ? "Total Paid" : "Estimated Total"}
+                        </span>
                         <span className="text-base font-bold text-rose-600">{formatPrice(total)}</span>
                       </div>
-                      <div className="flex items-center justify-between px-4 py-2.5 border-t border-ink-50">
-                        <span className="text-xs text-ink-500">
-                          25% Deposit <span className="text-ink-400">· Bank Transfer</span>
-                          {selected.depositPaid && <span className="text-green-600 font-semibold"> · Paid ✓</span>}
-                        </span>
-                        <span className="text-sm font-medium text-ink-900">{formatPrice(deposit)}</span>
-                      </div>
-                      <div className="flex items-center justify-between px-4 py-2.5 border-t border-ink-50">
-                        <span className="text-xs text-ink-500">Balance{balanceLabel && <span className="text-ink-400"> · {balanceLabel}</span>}</span>
-                        <span className="text-sm text-ink-900">{formatPrice(total - deposit)}</span>
-                      </div>
+                      {visibility === "full" && (
+                        <>
+                          <div className="flex items-center justify-between px-4 py-2.5 border-t border-ink-50">
+                            <span className="text-xs text-ink-500">
+                              25% Deposit <span className="text-ink-400">· Bank Transfer</span>
+                              {(selected.depositPaid || paymentComplete) && <span className="text-green-600 font-semibold"> · Paid ✓</span>}
+                            </span>
+                            <span className="text-sm font-medium text-ink-900">{formatPrice(deposit)}</span>
+                          </div>
+                          <div className="flex items-center justify-between px-4 py-2.5 border-t border-ink-50">
+                            <span className="text-xs text-ink-500">
+                              Balance{balanceLabel && <span className="text-ink-400"> · {balanceLabel}</span>}
+                              {paymentComplete && <span className="text-green-600 font-semibold"> · Paid ✓</span>}
+                            </span>
+                            <span className="text-sm text-ink-900">{formatPrice(total - deposit)}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })()}
 
+                {/* Prices are known but the deposit isn't due until we confirm */}
+                {priced && visibility === "pricing" && selected.status === "availability" && (
+                  <p className="text-xs text-ink-500 bg-ink-50 rounded-sm px-4 py-3 text-center">
+                    We&apos;ve confirmed what&apos;s available and priced your order. No payment is
+                    needed yet — we&apos;ll send payment instructions once your order is confirmed.
+                  </p>
+                )}
+
                 {/* Deposit paid banner */}
-                {selected.depositPaid && (
+                {selected.depositPaid && visibility === "full" && !paymentComplete && (
                   <div className="bg-green-50 border border-green-200 rounded-sm px-4 py-3 text-center">
                     <p className="text-sm font-semibold text-green-700">✅ 25% deposit received — your order is locked in.</p>
                   </div>
                 )}
 
                 {/* Admin info */}
-                {(selected.estimatedPrice || selected.estimatedAvailability || selected.adminNotes) && (
+                {((selected.estimatedPrice && visibility !== "none") || selected.estimatedAvailability || selected.adminNotes) && (
                   <div className="bg-blue-50 border border-blue-100 rounded-sm p-4 space-y-1.5">
                     <p className="text-[10px] uppercase tracking-widest text-blue-600 font-semibold mb-2">From Our Team</p>
-                    {selected.estimatedPrice && (
+                    {selected.estimatedPrice && visibility !== "none" && (
                       <p className="text-xs text-ink-700">
                         <span className="text-ink-400">Confirmed price:</span>{" "}
                         <strong>{formatPrice(selected.estimatedPrice)}</strong>
