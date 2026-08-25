@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Review from "@/models/Review";
+// Required: .populate("productId") resolves the "Product" model by name, and in a
+// serverless instance nothing else imports it — without this the populate throws
+// MissingSchemaError. Do not remove even though it looks unused.
+import "@/models/Product";
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,11 +19,20 @@ export async function GET(req: NextRequest) {
     // Homepage slider feed: every approved review qualifies — admin moderation is
     // the only gate — with the best-received ones surfaced first.
     if (top === "true") {
-      const reviews = await Review.find({ isApproved: true })
+      const feed = Review.find({ isApproved: true })
         .sort({ helpfulVotes: -1, rating: -1, createdAt: -1 })
-        .limit(limit)
+        .limit(limit);
+
+      // The product link is a nice-to-have; never fail the whole slider over it.
+      const reviews = await feed
+        .clone()
         .populate("productId", "name slug images")
-        .lean();
+        .lean()
+        .catch(async (err) => {
+          console.error("[/api/reviews] populate failed, serving unpopulated:", err);
+          return feed.lean();
+        });
+
       return NextResponse.json(reviews);
     }
 
@@ -31,7 +44,8 @@ export async function GET(req: NextRequest) {
 
     const reviews = await Review.find(query).sort({ createdAt: -1 }).limit(limit).lean();
     return NextResponse.json(reviews);
-  } catch {
+  } catch (err) {
+    console.error("[app/api/reviews/route.ts]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -81,7 +95,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(review, { status: 201 });
-  } catch {
+  } catch (err) {
+    console.error("[app/api/reviews/route.ts]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

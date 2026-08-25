@@ -22,7 +22,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!review) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (review.productId) await recalcRating(review.productId.toString());
     return NextResponse.json(review);
-  } catch {
+  } catch (err) {
+    console.error("[app/api/reviews/[id]/route.ts]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -33,7 +34,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const review = await Review.findByIdAndDelete(params.id);
     if (review?.productId) await recalcRating(review.productId.toString());
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("[app/api/reviews/[id]/route.ts]", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
