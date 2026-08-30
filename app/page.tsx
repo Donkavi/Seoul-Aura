@@ -23,7 +23,7 @@ const DEFAULT_SECTION_ORDER = [
 interface SiteSettings {
   homeSections: { id: string; enabled: boolean; order: number }[];
   heroSlides: {
-    url: string; type: "image" | "video"; label: string;
+    url: string; mobileUrl?: string; type: "image" | "video"; label: string;
     badge: string; title: string; highlight: string;
     subtitle: string; description: string;
     cta: string; ctaHref: string; align: "left" | "right";

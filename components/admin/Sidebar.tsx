@@ -21,6 +21,7 @@ import {
   Store,
   Send,
   Calculator,
+  PackagePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +36,7 @@ const navItems = [
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
   { href: "/admin/pre-orders", label: "Pre-Orders", icon: Plane },
   { href: "/admin/stock-notifications", label: "Restock Alerts", icon: Bell },
+  { href: "/admin/product-requests", label: "Product Requests", icon: PackagePlus },
   { href: "/admin/subscriptions", label: "Sub Plans", icon: Box },
   { href: "/admin/subscribers", label: "Subscribers", icon: UserCheck },
   { href: "/admin/notify", label: "Notify", icon: Send },

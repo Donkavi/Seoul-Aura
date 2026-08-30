@@ -52,6 +52,22 @@ function optimizedUrl(secureUrl: string): string {
   return secureUrl.replace("/image/upload/", "/image/upload/f_auto,q_auto,w_1600/");
 }
 
+/**
+ * Rewrites the transformation segment to Cloudinary's slash-chained form so the
+ * URL contains no commas.
+ *
+ * The admin product form stores images as a single comma-separated string, so a
+ * URL like `.../f_auto,q_auto,w_1600/pic.jpg` would be torn into three broken
+ * fragments the moment it were saved there. Chained transformations deliver the
+ * same image.
+ */
+export function commaFreeImageUrl(url: string): string {
+  return url.replace(
+    /\/image\/upload\/([^/]*,[^/]*)\//,
+    (_match, transform: string) => `/image/upload/${transform.split(",").join("/")}/`
+  );
+}
+
 export async function uploadReviewImage(file: File): Promise<string> {
   const sigRes = await fetch("/api/upload/signature", { method: "POST" });
   if (!sigRes.ok) {

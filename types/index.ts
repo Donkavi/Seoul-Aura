@@ -251,3 +251,72 @@ export interface PreOrder {
   createdAt: string;
   updatedAt: string;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Beauty assistant (chat)                                            */
+/* ------------------------------------------------------------------ */
+
+/** One plain-text turn, kept in the browser and replayed to the model. */
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+/** Product cards with working Add to Cart buttons. */
+export interface ChatProductsBlock {
+  kind: "products";
+  productIds: string[];
+  reason?: string;
+}
+
+/** A "we don't stock this yet — ask us to bring it in" card. */
+export interface ChatRequestBlock {
+  kind: "request";
+  productName: string;
+  brand?: string;
+  category?: string;
+  concern?: string;
+  reason?: string;
+}
+
+/** A button that navigates somewhere on this site. */
+export interface ChatLinkBlock {
+  kind: "link";
+  path: string;
+  label: string;
+}
+
+export type ChatBlock = ChatProductsBlock | ChatRequestBlock | ChatLinkBlock;
+
+/** A rendered message in the chat panel. */
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  blocks?: ChatBlock[];
+  /** Object URL of an image the shopper attached, for the outgoing bubble. */
+  imagePreview?: string;
+  error?: boolean;
+}
+
+export type ProductRequestStatus = "pending" | "sourcing" | "added" | "declined";
+
+export interface ProductRequest {
+  _id: string;
+  productName: string;
+  brand?: string;
+  category?: string;
+  concern?: string;
+  reason?: string;
+  images?: string[];
+  customerMessage?: string;
+  customerName?: string;
+  customerEmail?: string;
+  phoneNumber?: string;
+  source: "chat" | "manual";
+  status: ProductRequestStatus;
+  requestCount: number;
+  adminNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}

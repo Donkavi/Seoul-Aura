@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Plus, Pencil, Trash2, Search, X, Package, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, Package, Check, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product, Category, Concern, ProductVariant, Brand } from "@/types";
 
@@ -98,7 +99,7 @@ const emptyForm: FormState = {
   isNewArrival: true,
 };
 
-export default function AdminProductsPage() {
+function AdminProductsPageInner() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [concerns, setConcerns] = useState<Concern[]>([]);
@@ -116,6 +117,11 @@ export default function AdminProductsPage() {
   const [newBrandName, setNewBrandName] = useState("");
   const [newBrandOrigin, setNewBrandOrigin] = useState<"Korea" | "Dubai" | "Global" | "Other">("Korea");
   const [savingBrand, setSavingBrand] = useState(false);
+  // Set when we arrive from Admin → Product Requests, so saving can close that request out.
+  const [sourcedRequestId, setSourcedRequestId] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillApplied = useRef(false);
 
   const loadData = async () => {
     const [pRes, cRes, concRes, bRes] = await Promise.all([
@@ -151,6 +157,69 @@ export default function AdminProductsPage() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  /**
+   * Opens the new-product form pre-filled from a shopper request
+   * (Admin → Product Requests → Add).
+   *
+   * Waits for categories and concerns to load: the type/subtype and concern
+   * fields are pickers, so a value that is not already in the list would be
+   * silently dropped. Anything that does not match is simply left blank for the
+   * admin to choose rather than guessed at.
+   */
+  useEffect(() => {
+    if (prefillApplied.current) return;
+    if (searchParams.get("prefill") !== "1") return;
+    // Categories and concerns arrive with loadData; wait for them.
+    if (!categories.length) return;
+    prefillApplied.current = true;
+
+    const name = searchParams.get("name") ?? "";
+    const brandParam = searchParams.get("brand") ?? "";
+    const categoryHint = (searchParams.get("category") ?? "").toLowerCase();
+    const concernHint = (searchParams.get("concern") ?? "").toLowerCase();
+    const images = searchParams.getAll("image").map((s) => s.trim()).filter(Boolean);
+
+    // "Skincare / Serum" → type "Skincare", subtype "Serum", but only where both
+    // genuinely exist in the category tree.
+    let type = "";
+    let subtype = "";
+    for (const category of categories) {
+      if (categoryHint.includes(category.type.toLowerCase())) {
+        type = category.type;
+        const hit = category.subtypes.find((s) => categoryHint.includes(s.name.toLowerCase()));
+        if (hit) subtype = hit.name;
+        break;
+      }
+    }
+
+    const matchedConcerns = concerns
+      .filter((c) => concernHint.includes(c.name.toLowerCase()))
+      .map((c) => c.name);
+
+    // Match the brand against our own list so casing stays consistent.
+    const knownBrand = brands.find((b) => b.name.toLowerCase() === brandParam.toLowerCase());
+
+    setForm({
+      ...emptyForm,
+      name,
+      brand: knownBrand?.name ?? brandParam,
+      type,
+      subtype,
+      concerns: matchedConcerns,
+      images: images.join(", "),
+      // Requests are for things we do not hold — pre-order is the honest default.
+      isPreOrder: true,
+      stock: "0",
+    });
+    setDescSections([]);
+    setEditingId(null);
+    setSourcedRequestId(searchParams.get("requestId"));
+    setShowForm(true);
+
+    // Drop the params so a refresh does not reopen a form the admin dismissed.
+    router.replace("/admin/products");
+  }, [searchParams, categories, concerns, brands, router]);
 
   // Sync sections → form.description
   useEffect(() => {
@@ -201,6 +270,17 @@ export default function AdminProductsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      // The request that prompted this product is now fulfilled — mark it, so the
+      // admin never has to remember to go back and tidy the queue.
+      if (sourcedRequestId) {
+        await fetch(`/api/product-requests/${sourcedRequestId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "added" }),
+        }).catch(console.error);
+        setSourcedRequestId(null);
+      }
+
       await loadData();
       setShowForm(false);
       setForm(emptyForm);
@@ -423,12 +503,25 @@ export default function AdminProductsPage() {
                   setShowForm(false);
                   setForm(emptyForm);
                   setEditingId(null);
+                  setSourcedRequestId(null);
                 }}
                 className="p-2 hover:bg-ink-50 rounded"
               >
                 <X size={18} />
               </button>
             </header>
+
+            {sourcedRequestId && (
+              <div className="mx-6 mt-5 flex items-start gap-2.5 bg-rose-25 border border-rose-100 rounded-sm px-4 py-3">
+                <Sparkles size={15} className="text-rose-600 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-ink-600 leading-relaxed">
+                  Filled in from a{" "}
+                  <span className="font-medium text-ink-900">shopper request</span>. Check the
+                  details, add pricing and description, then save — the request will be marked as
+                  added automatically.
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
               {/* Product Type */}
@@ -886,6 +979,7 @@ export default function AdminProductsPage() {
                     setShowForm(false);
                     setForm(emptyForm);
                     setEditingId(null);
+                    setSourcedRequestId(null);
                   }}
                   className="btn-ghost"
                 >
@@ -897,5 +991,19 @@ export default function AdminProductsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * useSearchParams needs a Suspense boundary above it, which is also what lets the
+ * page render before the prefill params are read.
+ */
+export default function AdminProductsPage() {
+  return (
+    <Suspense
+      fallback={<div className="p-6 lg:p-10 text-sm text-ink-400">Loading products…</div>}
+    >
+      <AdminProductsPageInner />
+    </Suspense>
   );
 }

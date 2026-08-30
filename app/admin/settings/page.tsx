@@ -1159,6 +1159,26 @@ export default function AdminSettingsPage() {
                 Configure each slide&apos;s media, text content, and button. Leave text fields blank to use the default slide content.
               </p>
 
+              <div className="bg-rose-50/60 border border-rose-100 rounded-sm p-3 space-y-1.5">
+                <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold">
+                  Recommended image sizes
+                </p>
+                <p className="text-xs text-ink-600 leading-relaxed">
+                  <strong className="text-ink-900">Desktop — 1920 × 700 px</strong> (landscape).
+                  The banner is 640&nbsp;px tall on wide screens.
+                </p>
+                <p className="text-xs text-ink-600 leading-relaxed">
+                  <strong className="text-ink-900">Mobile — 1080 × 1440 px</strong> (portrait, 3:4).
+                  The banner is 520&nbsp;px tall and only ~360–430&nbsp;px wide on phones, so a
+                  landscape desktop banner gets cropped and any text baked into it is cut off.
+                </p>
+                <p className="text-xs text-ink-500 leading-relaxed">
+                  Phone widths vary, so keep logos and text inside the middle ~80% of the mobile
+                  image. Without a mobile image the desktop one is used and cropped. Keep files
+                  under ~300&nbsp;KB (JPG or WebP).
+                </p>
+              </div>
+
               {/* Slide list */}
               {settings.heroSlides.length === 0 ? (
                 <p className="text-xs text-ink-400 italic py-3 text-center border border-dashed border-ink-200 rounded-sm">
@@ -1282,7 +1302,7 @@ export default function AdminSettingsPage() {
                             <input
                               value={slide.mobileUrl ?? ""}
                               onChange={(e) => updateSlideField(i, "mobileUrl", e.target.value)}
-                              placeholder="Mobile image URL (portrait) — optional, falls back to main image"
+                              placeholder="Mobile image URL — portrait 1080 × 1440 px (falls back to the main image)"
                               className="flex-1 text-xs border border-ink-100 rounded-sm px-2 py-1.5 text-ink-700 placeholder:text-ink-300 focus:outline-none focus:border-rose-300 font-mono"
                             />
                           </div>
