@@ -10,7 +10,7 @@ import {
   ChevronRight, Sparkles, Calendar, Loader2, ShoppingBag,
   Plus, Trash2, Check, X, Shield, Plane, Mail, Lock, User, Phone,
 } from "lucide-react";
-import { cn, formatPrice, relativeDate } from "@/lib/utils";
+import { cn, formatPrice, relativeDate, lineSavings } from "@/lib/utils";
 import { paymentVisibility, isPaymentComplete } from "@/lib/preOrderStatus";
 import VerifyPhone from "@/components/auth/VerifyPhone";
 import type { Order, Subscription } from "@/types";
@@ -341,6 +341,8 @@ interface PreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** Shop compare-at price, so the buyer can see the discount they got. */
+  comparePrice?: number;
   /** First quoted unit price — present when the price was later revised. */
   originalUnitPrice?: number;
   availability?: "available" | "unavailable";
@@ -523,6 +525,10 @@ function PreOrdersTab({ email }: { email: string }) {
                     {items.map((it, i) => {
                       const unavail = it.availability === "unavailable";
                       const lineTotal = it.unitPrice != null ? it.unitPrice * it.quantity : null;
+                      const lineSaved =
+                        it.unitPrice != null && !unavail
+                          ? lineSavings(it.unitPrice, it.comparePrice, it.quantity)
+                          : 0;
                       return (
                         <div key={i} className={cn("flex gap-3 p-3 rounded-sm border border-ink-100", unavail ? "bg-ink-50" : "bg-ink-50/50")}>
                           <div className="w-16 h-16 rounded border border-ink-100 bg-white flex-shrink-0 overflow-hidden">
@@ -546,9 +552,13 @@ function PreOrdersTab({ email }: { email: string }) {
                                 {it.unitPrice != null && (
                                   <span className="text-ink-400">
                                     {" × "}
-                                    {it.originalUnitPrice != null && it.originalUnitPrice !== it.unitPrice && (
+                                    {/* A repriced item shows what it was first quoted at; a
+                                        discounted one shows the shop's compare-at price. */}
+                                    {it.originalUnitPrice != null && it.originalUnitPrice !== it.unitPrice ? (
                                       <span className="line-through mr-1">{formatPrice(it.originalUnitPrice)}</span>
-                                    )}
+                                    ) : lineSaved > 0 ? (
+                                      <span className="line-through mr-1">{formatPrice(it.comparePrice!)}</span>
+                                    ) : null}
                                     {formatPrice(it.unitPrice)}
                                   </span>
                                 )}
@@ -557,6 +567,11 @@ function PreOrdersTab({ email }: { email: string }) {
                                 <span className={cn("text-sm font-semibold", unavail ? "text-ink-400 line-through" : "text-ink-900")}>{formatPrice(lineTotal)}</span>
                               )}
                             </div>
+                            {lineSaved > 0 && !unavail && (
+                              <p className="text-[11px] font-medium text-gold-600 mt-0.5 text-right">
+                                Saved {formatPrice(lineSaved)}
+                              </p>
+                            )}
                             {it.productLink && (
                               <a href={it.productLink} target="_blank" rel="noopener noreferrer"
                                 className="text-[11px] text-rose-600 hover:underline mt-1 inline-block">
@@ -581,13 +596,35 @@ function PreOrdersTab({ email }: { email: string }) {
                   </div>
                 )}
 
-                {/* Price summary — how much is shown depends on the stage */}
-                {priced && visibility !== "none" && (() => {
+                {/* Price summary. The estimate itself is shown as soon as items are
+                    priced — the buyer can already see the line prices above, so hiding
+                    the sum only made the request look incomplete. The deposit and
+                    balance split stays gated until we have confirmed the order. */}
+                {priced && (() => {
                   const deposit = Math.round(total * 0.25);
                   const balanceLabel = selected.balancePaymentMethod === "bank" ? "Bank Transfer"
                     : selected.balancePaymentMethod === "cod" ? "Cash on Delivery" : null;
+                  const saved = items.reduce(
+                    (sum, it) =>
+                      it.availability !== "unavailable" && it.unitPrice != null
+                        ? sum + lineSavings(it.unitPrice, it.comparePrice, it.quantity)
+                        : sum,
+                    0
+                  );
                   return (
                     <div className="border border-ink-100 rounded-sm overflow-hidden">
+                      {saved > 0 && (
+                        <>
+                          <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
+                            <span className="text-xs text-ink-500">Original price</span>
+                            <span className="text-sm text-ink-400 line-through">{formatPrice(subtotal + saved)}</span>
+                          </div>
+                          <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
+                            <span className="text-xs font-medium text-gold-600">You saved</span>
+                            <span className="text-sm font-semibold text-gold-600">−{formatPrice(saved)}</span>
+                          </div>
+                        </>
+                      )}
                       <div className="flex items-center justify-between px-4 py-2.5 border-b border-ink-50">
                         <span className="text-xs text-ink-500">Subtotal (available)</span>
                         <span className="text-sm text-ink-900">{formatPrice(subtotal)}</span>

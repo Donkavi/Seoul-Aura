@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useReducer, useEffect } from "react";
+import { sumSavings } from "@/lib/utils";
 import type { CartItem, Product } from "@/types";
 
 interface CartState {
@@ -113,10 +114,17 @@ interface CartContextValue extends CartState {
   cartItems: CartItem[];
   total: number;
   itemCount: number;
+  /** Total saved against compare-at prices on the in-stock lines. */
+  savings: number;
+  /** What those lines would have cost before the savings. */
+  originalTotal: number;
   // Pre-order items
   preOrderItems: CartItem[];
   preOrderCount: number;
   preOrderTotal: number;
+  /** Same, for the pre-order bag. */
+  preOrderSavings: number;
+  preOrderOriginalTotal: number;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -155,6 +163,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const preOrderCount = preOrderItems.reduce((s, i) => s + i.quantity, 0);
   const preOrderTotal = preOrderItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
 
+  // Savings are shown everywhere a total is, so they are derived in one place.
+  const toLines = (items: CartItem[]) =>
+    items.map((i) => ({
+      price: i.product.price,
+      comparePrice: i.product.comparePrice,
+      quantity: i.quantity,
+    }));
+  const savings = sumSavings(toLines(cartItems));
+  const preOrderSavings = sumSavings(toLines(preOrderItems));
+
+  // What the same bag would have cost at the compare-at prices. Totals read as
+  // original − saved = payable, so the saving is visibly doing something rather
+  // than sitting between two identical numbers.
+  const originalTotal = total + savings;
+  const preOrderOriginalTotal = preOrderTotal + preOrderSavings;
+
   return (
     <CartContext.Provider
       value={{
@@ -163,8 +187,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         preOrderItems,
         total,
         itemCount,
+        savings,
+        originalTotal,
         preOrderCount,
         preOrderTotal,
+        preOrderSavings,
+        preOrderOriginalTotal,
         addItem: (p, q) => dispatch({ type: "ADD_ITEM", product: p, quantity: q }),
         addItemSilent: (p, q) => dispatch({ type: "ADD_ITEM_SILENT", product: p, quantity: q }),
         removeItem: (id) => dispatch({ type: "REMOVE_ITEM", productId: id }),

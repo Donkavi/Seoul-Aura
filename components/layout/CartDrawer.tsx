@@ -6,6 +6,7 @@ import Image from "next/image";
 import { X, Plus, Minus, ShoppingBag, Trash2, Plane } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice, cn } from "@/lib/utils";
+import SavingsLine, { OriginalPriceLine } from "@/components/cart/SavingsLine";
 import type { CartItem } from "@/types";
 
 type Tab = "bag" | "preorder";
@@ -13,7 +14,8 @@ type Tab = "bag" | "preorder";
 export default function CartDrawer() {
   const {
     isOpen, closeDrawer, updateQty, removeItem,
-    cartItems, total, itemCount,
+    cartItems, total, itemCount, savings, originalTotal,
+    preOrderSavings, preOrderOriginalTotal,
     preOrderItems, preOrderCount, preOrderTotal,
   } = useCart();
   const [tab, setTab] = useState<Tab>("bag");
@@ -110,10 +112,12 @@ export default function CartDrawer() {
 
             {tab === "bag" ? (
               <footer className="border-t border-ink-100 p-6 space-y-4 bg-ink-50/50">
-                <div className="flex justify-between text-sm">
-                  <span className="text-ink-500">Subtotal</span>
-                  <span className="font-medium text-ink-900">{formatPrice(total)}</span>
-                </div>
+                <OriginalPriceLine
+                  originalTotal={originalTotal}
+                  total={total}
+                  savings={savings}
+                />
+                <SavingsLine amount={savings} />
                 <div className="flex justify-between text-sm">
                   <span className="text-ink-500">Shipping</span>
                   <span className="text-ink-700">Calculated at checkout</span>
@@ -133,10 +137,14 @@ export default function CartDrawer() {
               <footer className="border-t border-ink-100 p-6 space-y-3 bg-rose-25/40">
                 {/* Estimated price breakdown */}
                 <div className="space-y-1.5">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-ink-500">Est. Subtotal</span>
-                    <span className="font-medium text-ink-900">~{formatPrice(preOrderTotal)}</span>
-                  </div>
+                  <OriginalPriceLine
+                    originalTotal={preOrderOriginalTotal}
+                    total={preOrderTotal}
+                    savings={preOrderSavings}
+                    fallbackLabel="Est. Subtotal"
+                    approx
+                  />
+                  <SavingsLine amount={preOrderSavings} approx />
                   <div className="flex justify-between text-sm">
                     <span className="text-ink-500">Delivery</span>
                     <span className="text-ink-500 text-xs">Added at confirmation</span>

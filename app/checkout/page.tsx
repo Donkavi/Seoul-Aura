@@ -7,6 +7,7 @@ import { useSession, signIn } from "next-auth/react";
 import { Check, ChevronRight, CreditCard, Truck, MapPin, User, ShieldCheck, Loader2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice, cn } from "@/lib/utils";
+import SavingsLine, { OriginalPriceLine } from "@/components/cart/SavingsLine";
 
 function GoogleIcon() {
   return (
@@ -27,7 +28,7 @@ function CheckoutContent() {
   const subscriptionPlan = searchParams.get("plan");
   const { data: session, status } = useSession();
 
-  const { cartItems: items, total, clearCart } = useCart();
+  const { cartItems: items, total, savings, originalTotal, clearCart } = useCart();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -112,6 +113,7 @@ function CheckoutContent() {
         subtotal: total,
         shippingFee,
         discount: 0,
+        savings,
         total: grandTotal,
         orderType: isSubscription ? "subscription" : "standard",
         subscriptionPlan,
@@ -546,7 +548,15 @@ function CheckoutContent() {
               </div>
 
               <dl className="space-y-2 text-sm border-t border-ink-100 pt-4">
-                <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatPrice(total)}</dd></div>
+                <OriginalPriceLine
+                  originalTotal={originalTotal}
+                  total={total}
+                  savings={savings}
+                />
+                <SavingsLine amount={savings} />
+                {savings > 0 && (
+                  <div className="flex justify-between"><dt>Subtotal</dt><dd>{formatPrice(total)}</dd></div>
+                )}
                 <div className="flex justify-between">
                   <dt>Shipping</dt>
                   <dd>{!selectedCity ? "Select location" : shippingFee === 0 ? "FREE" : formatPrice(shippingFee)}</dd>

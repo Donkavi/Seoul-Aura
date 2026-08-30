@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { paymentVisibility, isPaymentComplete } from "@/lib/preOrderStatus";
+import { lineSavings } from "@/lib/utils";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -134,10 +135,25 @@ function itemsTable(items: { name: string; quantity: number; price: number; imag
   return `<table width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>`;
 }
 
-function totalsBlock(subtotal: number, shippingFee: number, discount: number, total: number) {
+function totalsBlock(
+  subtotal: number,
+  shippingFee: number,
+  discount: number,
+  total: number,
+  /** Saved against compare-at prices — shown for reassurance, never subtracted. */
+  savings = 0
+) {
   return `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
       ${subtotal !== total ? `
+      ${savings > 0 ? `<tr>
+        <td style="font-size:13px;color:#78716c;padding:3px 0;">Original price</td>
+        <td style="font-size:13px;color:#a8a29e;text-decoration:line-through;text-align:right;padding:3px 0;">${rupees(subtotal + savings)}</td>
+      </tr>
+      <tr>
+        <td style="font-size:13px;color:#b45309;padding:3px 0;">You saved</td>
+        <td style="font-size:13px;font-weight:600;color:#b45309;text-align:right;padding:3px 0;">-${rupees(savings)}</td>
+      </tr>` : ""}
       <tr>
         <td style="font-size:13px;color:#78716c;padding:3px 0;">Subtotal</td>
         <td style="font-size:13px;color:#78716c;text-align:right;padding:3px 0;">${rupees(subtotal)}</td>
@@ -149,7 +165,8 @@ function totalsBlock(subtotal: number, shippingFee: number, discount: number, to
       ${discount > 0 ? `<tr>
         <td style="font-size:13px;color:#e11d48;padding:3px 0;">Discount</td>
         <td style="font-size:13px;color:#e11d48;text-align:right;padding:3px 0;">-${rupees(discount)}</td>
-      </tr>` : ""}` : ""}
+      </tr>` : ""}
+      ` : ""}
       <tr>
         <td style="font-size:16px;font-weight:700;color:#1c1917;padding:10px 0 0;">Total</td>
         <td style="font-size:16px;font-weight:700;color:#1c1917;text-align:right;padding:10px 0 0;">${rupees(total)}</td>
@@ -180,6 +197,8 @@ interface OrderEmailData {
   subtotal: number;
   shippingFee: number;
   discount: number;
+  /** Total saved against compare-at prices. Shown for reassurance, never subtracted. */
+  savings?: number;
   total: number;
   orderType: string;
   paymentMethod: string;
@@ -204,7 +223,7 @@ export async function sendOrderConfirmationToBuyer(data: OrderEmailData) {
 
     <h3 style="margin:0 0 12px;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Items</h3>
     ${itemsTable(data.items)}
-    ${totalsBlock(data.subtotal, data.shippingFee, data.discount, data.total)}
+    ${totalsBlock(data.subtotal, data.shippingFee, data.discount, data.total, data.savings ?? 0)}
 
     <hr style="border:none;border-top:1px solid #f5f0ee;margin:28px 0;" />
 
@@ -282,7 +301,7 @@ export async function sendOrderNotificationToAdmin(data: OrderEmailData) {
 
     <h3 style="margin:0 0 10px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Items Ordered</h3>
     ${itemsTable(data.items)}
-    ${totalsBlock(data.subtotal, data.shippingFee, data.discount, data.total)}
+    ${totalsBlock(data.subtotal, data.shippingFee, data.discount, data.total, data.savings ?? 0)}
 
     <hr style="border:none;border-top:1px solid #f5f0ee;margin:24px 0;" />
 
@@ -395,6 +414,8 @@ interface PreOrderItemData {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** Shop compare-at price, so the invoice can show what the shopper saved. */
+  comparePrice?: number;
   /** Set only when this item was repriced in the update being emailed. */
   previousUnitPrice?: number;
   priceChangeReason?: string;
@@ -425,6 +446,26 @@ interface PreOrderEmailData {
 
 function fmt(amount: number, sym: string) {
   return `${sym} ${amount.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Unit price cell — shows the compare-at price struck through above what the
+ * shopper actually pays, so the discount is visible per product and not only in
+ * the totals.
+ */
+function unitPriceCell(it: PreOrderItemData, sym: string) {
+  if (it.unitPrice == null) return '<span style="color:#a8a29e;">To be quoted</span>';
+  const discounted = it.comparePrice != null && it.comparePrice > it.unitPrice;
+  if (!discounted) return fmt(it.unitPrice, sym);
+  return `<span style="color:#a8a29e;text-decoration:line-through;">${fmt(it.comparePrice!, sym)}</span><br/><span style="color:#1c1917;">${fmt(it.unitPrice, sym)}</span>`;
+}
+
+/** Line total, with what this one line saved noted underneath. */
+function lineTotalCell(it: PreOrderItemData, lineTotal: number | null, sym: string) {
+  if (lineTotal == null) return '<span style="color:#a8a29e;">—</span>';
+  const saved = lineSavings(it.unitPrice!, it.comparePrice, it.quantity);
+  if (saved <= 0) return fmt(lineTotal, sym);
+  return `${fmt(lineTotal, sym)}<br/><span style="font-weight:500;font-size:11px;color:#b45309;">Saved ${fmt(saved, sym)}</span>`;
 }
 
 function preOrderInvoiceTable(items: PreOrderItemData[], sym: string) {
@@ -466,8 +507,8 @@ function preOrderInvoiceTable(items: PreOrderItemData[], sym: string) {
       return `<tr>
         ${productCell}
         <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:center;font-size:13px;color:#1c1917;">${it.quantity}</td>
-        <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:#78716c;white-space:nowrap;">${it.unitPrice != null ? fmt(it.unitPrice, sym) : '<span style="color:#a8a29e;">To be quoted</span>'}</td>
-        <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:#1c1917;font-weight:600;white-space:nowrap;">${lineTotal != null ? fmt(lineTotal, sym) : '<span style="color:#a8a29e;">—</span>'}</td>
+        <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:#78716c;white-space:nowrap;">${unitPriceCell(it, sym)}</td>
+        <td style="padding:12px;background:${bg};border-bottom:1px solid #f9f0ee;text-align:right;font-size:13px;color:#1c1917;font-weight:600;white-space:nowrap;">${lineTotalCell(it, lineTotal, sym)}</td>
       </tr>`;
     }
     return `<tr>
@@ -493,6 +534,25 @@ function invoiceSummaryBlock(items: PreOrderItemData[], deliveryCharge: number, 
   const deposit = Math.round(total * 0.25);
   const balance = total - deposit;
   const balanceLabel = balancePaymentMethod === "bank" ? "Bank Transfer" : balancePaymentMethod === "cod" ? "Cash on Delivery" : "";
+
+  // Only the lines that carry a compare-at price contribute a saving.
+  const savings = itemsWithPrice.reduce(
+    (sum, it) => sum + lineSavings(it.unitPrice!, it.comparePrice, it.quantity),
+    0
+  );
+
+  // Reads as arithmetic: original, less the saving, equals the subtotal.
+  const originalRow = savings > 0 ? `
+    <tr>
+      <td style="padding:8px 16px;font-size:13px;color:#78716c;">Original price</td>
+      <td style="padding:8px 16px;font-size:13px;color:#a8a29e;text-decoration:line-through;text-align:right;white-space:nowrap;">${fmt(subtotal + savings, sym)}</td>
+    </tr>` : "";
+
+  const savingsRow = savings > 0 ? `
+    <tr>
+      <td style="padding:8px 16px;font-size:13px;color:#b45309;">You saved</td>
+      <td style="padding:8px 16px;font-size:13px;font-weight:600;color:#b45309;text-align:right;white-space:nowrap;">-${fmt(savings, sym)}</td>
+    </tr>` : "";
 
   const subtotalRow = itemsWithPrice.length > 0 ? `
     <tr>
@@ -530,6 +590,8 @@ function invoiceSummaryBlock(items: PreOrderItemData[], deliveryCharge: number, 
   return `
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border:1px solid #f5e8e6;border-radius:4px;overflow:hidden;margin-top:4px;">
       <tbody>
+        ${originalRow}
+        ${savingsRow}
         ${subtotalRow}
         ${deliveryRow}
         ${totalRow}

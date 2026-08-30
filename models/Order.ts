@@ -17,6 +17,8 @@ export interface IOrder extends Document {
   subtotal: number;
   shippingFee: number;
   discount: number;
+  /** Total saved against compare-at prices. Reporting only — not deducted from total. */
+  savings: number;
   total: number;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   orderType: "standard" | "subscription";
@@ -55,6 +57,7 @@ const OrderSchema = new Schema<IOrder>(
     subtotal: { type: Number, required: true },
     shippingFee: { type: Number, default: 0 },
     discount: { type: Number, default: 0 },
+    savings: { type: Number, default: 0 },
     total: { type: Number, required: true },
     status: {
       type: String,

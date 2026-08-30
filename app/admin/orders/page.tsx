@@ -208,6 +208,14 @@ export default function AdminOrdersPage() {
                                   <span>−{formatPrice(o.discount)}</span>
                                 </div>
                               )}
+                              {/* Given away against compare-at prices — already
+                                  reflected in the line prices, so never subtracted here. */}
+                              {(o.savings ?? 0) > 0 && (
+                                <div className="flex justify-between text-gold-600">
+                                  <span>Customer saved</span>
+                                  <span>{formatPrice(o.savings!)}</span>
+                                </div>
+                              )}
                               <div className="flex justify-between font-semibold text-ink-900 border-t border-ink-100 pt-2">
                                 <span>Total</span>
                                 <span>{formatPrice(o.total)}</span>

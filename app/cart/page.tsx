@@ -5,9 +5,10 @@ import Image from "next/image";
 import { ShoppingBag, Trash2, Plus, Minus, ArrowRight, Plane } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";
+import SavingsLine, { OriginalPriceLine } from "@/components/cart/SavingsLine";
 
 export default function CartPage() {
-  const { cartItems: items, removeItem, updateQty, total, itemCount, preOrderCount } = useCart();
+  const { cartItems: items, removeItem, updateQty, total, itemCount, savings, originalTotal, preOrderCount } = useCart();
 
   return (
     <div className="bg-rose-25/30 min-h-[70vh]">
@@ -119,10 +120,20 @@ export default function CartPage() {
               <div className="bg-white border border-ink-100 rounded-sm p-6">
                 <h3 className="font-display text-2xl text-ink-900 mb-5">Order Summary</h3>
                 <dl className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <dt className="text-ink-500">Subtotal ({itemCount} items)</dt>
-                    <dd className="font-medium text-ink-900">{formatPrice(total)}</dd>
-                  </div>
+                  <OriginalPriceLine
+                    originalTotal={originalTotal}
+                    total={total}
+                    savings={savings}
+                    label={`Original price (${itemCount} items)`}
+                    fallbackLabel={`Subtotal (${itemCount} items)`}
+                  />
+                  <SavingsLine amount={savings} />
+                  {savings > 0 && (
+                    <div className="flex justify-between">
+                      <dt className="text-ink-500">Subtotal</dt>
+                      <dd className="font-medium text-ink-900">{formatPrice(total)}</dd>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <dt className="text-ink-500">Shipping</dt>
                     <dd className="text-ink-700">{total >= 10000 ? "FREE" : formatPrice(450)}</dd>

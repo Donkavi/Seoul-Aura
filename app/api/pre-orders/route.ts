@@ -67,6 +67,7 @@ interface IncomingItem {
   productImage?: string;
   quantity?: string | number;
   unitPrice?: number;
+  comparePrice?: number;
 }
 
 export async function POST(req: NextRequest) {
@@ -95,6 +96,7 @@ export async function POST(req: NextRequest) {
         productImage: it.productImage?.toString().trim(),
         quantity: Math.max(1, parseInt(String(it.quantity ?? "1")) || 1),
         unitPrice: it.unitPrice != null ? Number(it.unitPrice) : undefined,
+        comparePrice: it.comparePrice != null ? Number(it.comparePrice) : undefined,
       }));
 
     if (!customerName?.trim() || !customerEmail?.trim() || !phoneNumber?.trim() || items.length === 0) {
@@ -145,13 +147,14 @@ export async function POST(req: NextRequest) {
       customerName: preOrder.customerName,
       customerEmail: preOrder.customerEmail,
       phoneNumber: preOrder.phoneNumber,
-      items: preOrder.items.map((it: { productBrand: string; productName: string; productLink?: string; productImage?: string; quantity: number; unitPrice?: number }) => ({
+      items: preOrder.items.map((it: { productBrand: string; productName: string; productLink?: string; productImage?: string; quantity: number; unitPrice?: number; comparePrice?: number }) => ({
         productBrand: it.productBrand,
         productName: it.productName,
         productLink: it.productLink,
         productImage: it.productImage,
         quantity: it.quantity,
         unitPrice: it.unitPrice,
+        comparePrice: it.comparePrice,
       })),
       origin: preOrder.origin ?? "Other",
       notes: preOrder.notes,

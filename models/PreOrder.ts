@@ -23,6 +23,8 @@ export interface IPreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** Shop compare-at price when the item came from the bag, for the savings figure. */
+  comparePrice?: number;
   /** The very first quoted unit price — never overwritten once set. */
   originalUnitPrice?: number;
   /** Every unit-price revision, oldest first. */
@@ -76,6 +78,7 @@ const PreOrderItemSchema = new Schema<IPreOrderItem>(
     productImage: { type: String },
     quantity: { type: Number, default: 1, min: 1 },
     unitPrice: { type: Number },
+    comparePrice: { type: Number },
     originalUnitPrice: { type: Number },
     priceHistory: { type: [PreOrderPriceChangeSchema], default: [] },
     availability: { type: String, enum: ["available", "unavailable"], default: "available" },

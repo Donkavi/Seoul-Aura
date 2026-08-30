@@ -96,6 +96,8 @@ export interface Order {
   subtotal: number;
   shippingFee: number;
   discount: number;
+  /** Total saved against compare-at prices (reporting only, not deducted). */
+  savings?: number;
   total: number;
   status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
   orderType: "standard" | "subscription";
@@ -217,6 +219,8 @@ export interface PreOrderItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** Shop compare-at price when the item came from the bag. */
+  comparePrice?: number;
   /** First quoted unit price — kept even after revisions. */
   originalUnitPrice?: number;
   priceHistory?: PreOrderPriceChange[];

@@ -31,12 +31,13 @@ import {
   Tag,
   MapPin,
 } from "lucide-react";
-import { cn, formatPrice } from "@/lib/utils";
+import { cn, formatPrice, sumSavings } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 
 interface DbBrand { _id: string; name: string; }
 interface DbProduct {
   _id: string; name: string; slug: string; images: string[]; price?: number;
+  comparePrice?: number;
   brand?: string; origin?: string; subtype?: string; type?: string;
 }
 
@@ -153,6 +154,7 @@ interface ProductRow {
   fromCart: boolean;     // sourced from the pre-order bag
   productId?: string;    // cart product id, so we can sync removals
   unitPrice?: number;    // listed price for invoice
+  comparePrice?: number; // was-price, so we can show what the shopper saves
   productImage?: string; // first image url for invoice
 }
 
@@ -164,6 +166,7 @@ const blankRow = (): ProductRow => ({
   origin: "Other",
   fromCart: false,
   unitPrice: undefined,
+  comparePrice: undefined,
   productImage: undefined,
 });
 
@@ -356,6 +359,7 @@ export default function PreOrderPage() {
             fromCart: true,
             productId: i.product._id,
             unitPrice: i.product.price,
+            comparePrice: i.product.comparePrice,
             productImage: i.product.images?.[0],
           };
         });
@@ -384,7 +388,7 @@ export default function PreOrderPage() {
     const row = products[idx];
     if (row.productId) removeItem(row.productId); // remove old catalog product from bag
     setProducts((rows) => rows.map((r, i) =>
-      i === idx ? { ...r, productBrand: brand, productName: "", productLink: "", productId: undefined, unitPrice: undefined } : r
+      i === idx ? { ...r, productBrand: brand, productName: "", productLink: "", productId: undefined, unitPrice: undefined, comparePrice: undefined } : r
     ));
     fetchBrandProducts(brand);
   };
@@ -408,6 +412,7 @@ export default function PreOrderPage() {
           ? `${typeof window !== "undefined" ? window.location.origin : ""}/shop/${matched.slug ?? matched._id}`
           : r.productLink,
         unitPrice: matched?.price ?? r.unitPrice,
+        comparePrice: matched?.comparePrice ?? r.comparePrice,
         productImage: matched?.images?.[0] ?? r.productImage,
         productId: matched?._id,
       } : r
@@ -537,6 +542,7 @@ export default function PreOrderPage() {
             productLink: row.productLink,
             quantity: row.quantity,
             unitPrice: row.unitPrice,
+            comparePrice: row.comparePrice,
             productImage: row.productImage,
           })),
         }),
@@ -860,6 +866,7 @@ export default function PreOrderPage() {
                 const pricedRows = validRows.filter(r => r.unitPrice != null);
                 if (pricedRows.length === 0) return null;
                 const subtotal = pricedRows.reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
+                const savedTotal = sumSavings(pricedRows.map(r => ({ price: r.unitPrice!, comparePrice: r.comparePrice, quantity: parseInt(r.quantity || "1") })));
                 const total = subtotal + deliveryCharge;
                 const allPriced = pricedRows.length === validRows.length;
                 const earnedFreeRamen = total >= FREE_RAMEN_THRESHOLD;
@@ -876,9 +883,29 @@ export default function PreOrderPage() {
                       ))}
                       <div className="pt-2 border-t border-rose-100 space-y-1.5">
                         <div className="flex justify-between text-xs text-ink-500">
-                          <span>{allPriced ? "Subtotal" : "Subtotal (partial)"}</span>
-                          <span>~{formatPrice(subtotal)}</span>
+                          <span>
+                            {savedTotal > 0
+                              ? allPriced ? "Original price" : "Original price (partial)"
+                              : allPriced ? "Subtotal" : "Subtotal (partial)"}
+                          </span>
+                          <span className={savedTotal > 0 ? "text-ink-400 line-through" : undefined}>
+                            ~{formatPrice(savedTotal > 0 ? subtotal + savedTotal : subtotal)}
+                          </span>
                         </div>
+                        {savedTotal > 0 && (
+                          <>
+                            <div className="flex justify-between text-xs font-medium text-gold-600">
+                              <span className="inline-flex items-center gap-1">
+                                <Tag size={11} strokeWidth={2} /> You save
+                              </span>
+                              <span>−~{formatPrice(savedTotal)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs text-ink-500">
+                              <span>Subtotal</span>
+                              <span>~{formatPrice(subtotal)}</span>
+                            </div>
+                          </>
+                        )}
                         <div className="flex justify-between text-xs text-ink-500">
                           <span>Delivery Charge</span>
                           <span>{selectedCity ? formatPrice(deliveryCharge) : "Select location"}</span>
@@ -989,6 +1016,7 @@ export default function PreOrderPage() {
         const pricedRows = validRows.filter(r => r.unitPrice != null);
         const allPriced = pricedRows.length > 0 && pricedRows.length === validRows.length;
         const subtotal = pricedRows.reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
+                const savedTotal = sumSavings(pricedRows.map(r => ({ price: r.unitPrice!, comparePrice: r.comparePrice, quantity: parseInt(r.quantity || "1") })));
         const estTotal = subtotal + deliveryCharge;
         const deposit = Math.round(estTotal * 0.25);
         const earnedFreeRamen = estTotal >= FREE_RAMEN_THRESHOLD;

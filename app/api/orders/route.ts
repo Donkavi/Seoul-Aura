@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       subtotal: order.subtotal,
       shippingFee: order.shippingFee,
       discount: order.discount,
+      savings: order.savings ?? 0,
       total: order.total,
       orderType: order.orderType,
       paymentMethod: order.paymentMethod,
