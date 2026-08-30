@@ -27,6 +27,7 @@ interface IncomingNewItem {
   productImage?: string;
   quantity?: number;
   unitPrice?: number;
+  comparePrice?: number;
 }
 
 interface StoredPriceChange {
@@ -43,6 +44,8 @@ interface StoredItem {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  /** Shop compare-at price, carried so the saved discount survives edits. */
+  comparePrice?: number;
   originalUnitPrice?: number;
   priceHistory?: StoredPriceChange[];
   availability?: "available" | "unavailable";
@@ -186,6 +189,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             );
           }
         }
+        // Only a genuine discount is worth recording; a compare-at price at or
+        // below what we are charging would render as a nonsense saving.
+        const rawCompare = raw.comparePrice != null ? Number(raw.comparePrice) : undefined;
+        const comparePrice =
+          rawCompare != null && Number.isFinite(rawCompare) && unitPrice != null && rawCompare > unitPrice
+            ? rawCompare
+            : undefined;
+
         newlyAdded.push({
           productBrand,
           productName,
@@ -193,6 +204,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           productImage: raw.productImage,
           quantity,
           unitPrice,
+          comparePrice,
           originalUnitPrice: unitPrice,
           availability: "available",
         });
@@ -225,6 +237,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       productImage: it.productImage,
       quantity: it.quantity,
       unitPrice: it.unitPrice,
+      comparePrice: it.comparePrice,
       // Only items repriced in this save show an old → new comparison
       previousUnitPrice: repricedNow.has(i)
         ? it.priceHistory?.[it.priceHistory.length - 1]?.previousUnitPrice

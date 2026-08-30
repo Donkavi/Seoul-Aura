@@ -23,7 +23,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { cn, relativeDate, formatPrice } from "@/lib/utils";
+import { cn, relativeDate, formatPrice, lineSavings } from "@/lib/utils";
 import CountUp from "@/components/admin/CountUp";
 import type { PreOrder, PreOrderItem, PreOrderPriceChange, PreOrderStatus } from "@/types";
 
@@ -347,6 +347,7 @@ type NewItemDraft = {
   productImage?: string;
   quantity: number;
   unitPrice?: number;
+  comparePrice?: number;
 };
 
 type ProductSearchResult = {
@@ -356,6 +357,7 @@ type ProductSearchResult = {
   brand?: string;
   images: string[];
   price: number;
+  comparePrice?: number;
 };
 
 function PreOrderDrawer({
@@ -444,6 +446,7 @@ function PreOrderDrawer({
         productImage: product.images?.[0],
         quantity: 1,
         unitPrice: product.price,
+        comparePrice: product.comparePrice,
       },
     ]);
     setProductQuery("");
@@ -535,6 +538,7 @@ function PreOrderDrawer({
           items: items.map((it) => ({
             availability: it.availability,
             unitPrice: it.unitPrice,
+            comparePrice: it.comparePrice,
             priceChangeReason: it.priceChangeReason,
           })),
           ...(stagedItems.length > 0
@@ -643,6 +647,10 @@ function PreOrderDrawer({
                 const savedPrice = savedItems[i]?.unitPrice;
                 // Unsaved reprice of this row
                 const pending = it.unitPrice !== savedPrice;
+                const lineSaved =
+                  it.unitPrice != null && !unavail
+                    ? lineSavings(it.unitPrice, it.comparePrice, it.quantity)
+                    : 0;
                 const history = it.priceHistory ?? [];
                 return (
                   <div key={i} className={cn("px-4 py-3", i > 0 && "border-t border-ink-100", unavail && "bg-ink-50/50")}>
@@ -666,9 +674,13 @@ function PreOrderDrawer({
                         {it.unitPrice != null ? (
                           <>
                             <p className="text-[11px] whitespace-nowrap leading-tight mt-0.5">
-                              {pending && savedPrice != null && (
+                              {/* An unsaved reprice owns the struck slot; otherwise it
+                                  shows the shop's compare-at price. */}
+                              {pending && savedPrice != null ? (
                                 <span className="text-ink-400 line-through mr-1">{formatPrice(savedPrice)}</span>
-                              )}
+                              ) : lineSaved > 0 ? (
+                                <span className="text-ink-400 line-through mr-1">{formatPrice(it.comparePrice!)}</span>
+                              ) : null}
                               <span className={cn(pending ? "text-rose-600 font-semibold" : "text-ink-500")}>
                                 {formatPrice(it.unitPrice)}
                               </span>
@@ -677,6 +689,11 @@ function PreOrderDrawer({
                             <p className={cn("text-sm font-semibold whitespace-nowrap", unavail ? "text-ink-400 line-through" : "text-ink-900")}>
                               {formatPrice(lineTotal!)}
                             </p>
+                            {lineSaved > 0 && !unavail && (
+                              <p className="text-[10px] font-medium text-gold-600 whitespace-nowrap">
+                                Saved {formatPrice(lineSaved)}
+                              </p>
+                            )}
                           </>
                         ) : (
                           <p className="text-ink-300 italic text-xs mt-0.5">TBQ</p>
@@ -847,10 +864,30 @@ function PreOrderDrawer({
                   : null;
                 const balanceLabel = preOrder.balancePaymentMethod === "bank" ? "Bank Transfer"
                   : preOrder.balancePaymentMethod === "cod" ? "Cash on Delivery" : null;
+
+                // Discount given against shop compare-at prices — separate from any
+                // unsaved reprice above, which is about the admin's own edits.
+                const totalSaved = available.reduce(
+                  (s, it) =>
+                    it.unitPrice != null ? s + lineSavings(it.unitPrice, it.comparePrice, it.quantity) : s,
+                  0
+                );
                 return (
                   <div className="border-t border-ink-200 bg-ink-50/60 px-4 py-3 space-y-1.5 text-sm">
                     {unavailCount > 0 && (
                       <p className="text-[11px] text-rose-500 mb-1">{unavailCount} unavailable item{unavailCount !== 1 ? "s" : ""} excluded from totals.</p>
+                    )}
+                    {totalSaved > 0 && subtotal != null && (
+                      <>
+                        <div className="flex justify-between text-ink-500">
+                          <span>Original price</span>
+                          <span className="text-ink-400 line-through">{formatPrice(subtotal + totalSaved)}</span>
+                        </div>
+                        <div className="flex justify-between font-medium text-gold-600">
+                          <span>Total discount</span>
+                          <span>−{formatPrice(totalSaved)}</span>
+                        </div>
+                      </>
                     )}
                     <div className="flex justify-between text-ink-500">
                       <span>Subtotal (available)</span>
