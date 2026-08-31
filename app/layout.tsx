@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   // 512px image into a 16px tab icon, which is what blurred the favicon before.
   icons: {
     icon: [
+      // Declared first, and also present at the conventional /favicon.ico path,
+      // because that is where crawlers look before reading the markup.
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48", type: "image/x-icon" },
       { url: "/logo/favicon-16.png", sizes: "16x16", type: "image/png" },
       { url: "/logo/favicon-32.png", sizes: "32x32", type: "image/png" },
       { url: "/logo/favicon-48.png", sizes: "48x48", type: "image/png" },
