@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn, formatPrice, relativeDate, lineSavings } from "@/lib/utils";
 import { paymentVisibility, isPaymentComplete } from "@/lib/preOrderStatus";
+import { DELIVERY_PHASES } from "@/lib/deliveryStatus";
 import VerifyPhone from "@/components/auth/VerifyPhone";
 import type { Order, Subscription } from "@/types";
 
@@ -367,6 +368,8 @@ interface PreOrder {
   depositPaid?: boolean;
   shippingAddress?: { district: string; city: string };
   shippingFee?: number;
+  deliveryStatus?: string;
+  trackingToken?: string;
   createdAt: string;
 }
 
@@ -463,6 +466,19 @@ function PreOrdersTab({ email }: { email: string }) {
                 </div>
               </div>
 
+              {(() => {
+                const leg = DELIVERY_PHASES.find((d) => d.key === p.deliveryStatus);
+                if (!leg) return null;
+                return (
+                  <div className="flex items-center gap-1.5 mb-3 -mt-1 text-xs text-rose-700">
+                    <span>{leg.emoji}</span>
+                    <span className="font-medium">{leg.label}</span>
+                    <span className="text-ink-300">·</span>
+                    <span className="text-ink-400">Tap to track</span>
+                  </div>
+                );
+              })()}
+
               {priced && paymentVisibility(p.status) !== "none" && (
                 <div className="flex items-center justify-between pt-2 border-t border-ink-50">
                   <span className="text-xs text-ink-400">
@@ -509,6 +525,28 @@ function PreOrdersTab({ email }: { email: string }) {
               </div>
 
               <div className="p-5 space-y-4">
+                {/* Live delivery tracking */}
+                {selected.trackingToken && (() => {
+                  const leg = DELIVERY_PHASES.find((d) => d.key === selected.deliveryStatus);
+                  return (
+                    <a
+                      href={`/track/${selected.trackingToken}`}
+                      className="flex items-center gap-3 rounded-sm border border-rose-200 bg-rose-25/60 px-4 py-3 hover:border-rose-300 transition-colors group"
+                    >
+                      <span className="text-xl leading-none">{leg?.emoji ?? "📦"}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-ink-900">
+                          {leg?.label ?? "Preparing your order"}
+                        </span>
+                        <span className="block text-xs text-ink-500 mt-0.5">
+                          Follow your parcel from Korea to your door
+                        </span>
+                      </span>
+                      <ChevronRight size={16} className="text-rose-400 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+                    </a>
+                  );
+                })()}
+
                 {/* Delivery location */}
                 {selected.shippingAddress?.district && (
                   <p className="text-xs text-ink-500">

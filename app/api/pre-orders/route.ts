@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import PreOrder from "@/models/PreOrder";
 import Settings from "@/models/Settings";
 import { sendPreOrderConfirmationToBuyer, sendPreOrderNotificationToAdmin } from "@/lib/email";
+import { generateTrackingToken } from "@/lib/deliveryStatus";
 
 function generateRequestNumber(): string {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -116,6 +117,8 @@ export async function POST(req: NextRequest) {
     const first = items[0];
     const preOrder = await PreOrder.create({
       requestNumber: generateRequestNumber(),
+      // Minted up front so the tracking link is ready the moment we ship.
+      trackingToken: generateTrackingToken(),
       customerName: customerName.trim(),
       customerEmail: customerEmail.trim().toLowerCase(),
       phoneNumber: phoneNumber.trim(),

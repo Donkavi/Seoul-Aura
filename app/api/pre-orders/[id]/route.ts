@@ -6,7 +6,14 @@ import {
   sendPreOrderStatusUpdateToBuyer,
   sendPreOrderRevisionToBuyer,
   sendPreOrderItemsAddedToBuyer,
+  sendPreOrderDeliveryUpdateToBuyer,
+  sendPreOrderDeliveryEstimateToBuyer,
 } from "@/lib/email";
+import {
+  isDeliveryStatus,
+  generateTrackingToken,
+  type DeliveryStatus,
+} from "@/lib/deliveryStatus";
 
 interface IncomingPatchItem {
   productBrand?: string;
@@ -35,6 +42,12 @@ interface StoredPriceChange {
   newUnitPrice: number;
   reason: string;
   changedAt: Date;
+}
+
+interface StoredDeliveryEvent {
+  status: DeliveryStatus;
+  note?: string;
+  at: Date;
 }
 
 interface StoredItem {
@@ -68,15 +81,67 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json();
 
     const allowed: Record<string, unknown> = {};
-    const fields = ["status", "adminNotes", "estimatedPrice", "estimatedAvailability", "depositPaid", "balancePaymentMethod"];
+    const fields = [
+      "status",
+      "adminNotes",
+      "estimatedPrice",
+      "estimatedAvailability",
+      "depositPaid",
+      "balancePaymentMethod",
+      "estimatedDeliveryDate",
+      "estimatedDeliveryMessage",
+    ];
     for (const f of fields) {
       if (body[f] !== undefined) allowed[f] = body[f];
     }
 
     const previous = await PreOrder.findById(params.id).lean() as
-      | { status: string; depositPaid?: boolean; items?: StoredItem[] }
+      | {
+          status: string;
+          depositPaid?: boolean;
+          items?: StoredItem[];
+          deliveryStatus?: DeliveryStatus;
+          deliveryEvents?: StoredDeliveryEvent[];
+          trackingToken?: string;
+          estimatedDeliveryDate?: Date | string;
+          estimatedDeliveryMessage?: string;
+        }
       | null;
     if (!previous) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    // ── Delivery leg ────────────────────────────────────────────────────────
+    // `null` rewinds the parcel to "not shipped yet" (a mistaken update being
+    // undone) and sends nothing; a new leg is appended to the journey and
+    // emailed. Re-picking the leg already recorded is a no-op.
+    const unset: Record<string, ""> = {};
+    let deliveryChangedTo: DeliveryStatus | null = null;
+    let deliveryEvents: StoredDeliveryEvent[] = previous.deliveryEvents ?? [];
+    let trackingToken = previous.trackingToken;
+
+    if (body.deliveryStatus !== undefined) {
+      const next = body.deliveryStatus;
+      if (next === null || next === "") {
+        if (previous.deliveryStatus) {
+          unset.deliveryStatus = "";
+          allowed.deliveryEvents = [];
+          deliveryEvents = [];
+        }
+      } else if (!isDeliveryStatus(next)) {
+        return NextResponse.json({ error: "Unknown delivery status" }, { status: 400 });
+      } else if (next !== previous.deliveryStatus) {
+        const note = typeof body.deliveryNote === "string" ? body.deliveryNote.trim() : "";
+        deliveryEvents = [
+          ...deliveryEvents,
+          { status: next, note: note || undefined, at: new Date() },
+        ];
+        trackingToken = trackingToken || generateTrackingToken();
+
+        allowed.deliveryStatus = next;
+        allowed.deliveryEvents = deliveryEvents;
+        allowed.trackingToken = trackingToken;
+        deliveryChangedTo = next;
+      }
+    }
 
     // Merge per-item availability + unit-price updates onto existing items
     // (all other stored fields are preserved as-is).
@@ -215,7 +280,23 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const depositChanged =
       body.depositPaid !== undefined && !!body.depositPaid !== !!previous.depositPaid;
 
-    const updated = await PreOrder.findByIdAndUpdate(params.id, allowed, { new: true });
+    // Compared by calendar date only — the admin picks a date, not a time.
+    const toDateKey = (v: unknown): string | null => {
+      if (!v) return null;
+      const d = new Date(v as string | Date);
+      return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+    };
+    const estimatedDeliveryChanged =
+      (body.estimatedDeliveryDate !== undefined &&
+        toDateKey(body.estimatedDeliveryDate) !== toDateKey(previous.estimatedDeliveryDate)) ||
+      (body.estimatedDeliveryMessage !== undefined &&
+        (body.estimatedDeliveryMessage ?? "").trim() !== (previous.estimatedDeliveryMessage ?? ""));
+
+    const updated = await PreOrder.findByIdAndUpdate(
+      params.id,
+      { $set: allowed, ...(Object.keys(unset).length ? { $unset: unset } : {}) },
+      { new: true }
+    );
     if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     // Settings for totals in emails (delivery charge / currency)
@@ -305,6 +386,31 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         balancePaymentMethod: updated.balancePaymentMethod,
         depositPaid: updated.depositPaid,
         status: updated.status,
+      }).catch(console.error);
+    }
+
+    // Email the buyer each new delivery leg, with the tracking link
+    if (deliveryChangedTo && trackingToken) {
+      sendPreOrderDeliveryUpdateToBuyer({
+        requestNumber: updated.requestNumber,
+        customerName: updated.customerName,
+        customerEmail: updated.customerEmail,
+        deliveryStatus: deliveryChangedTo,
+        note: deliveryEvents[deliveryEvents.length - 1]?.note,
+        events: deliveryEvents,
+        trackingToken,
+      }).catch(console.error);
+    }
+
+    // Email the buyer whenever the expected arrival date or its note changes
+    if (estimatedDeliveryChanged && updated.estimatedDeliveryDate) {
+      sendPreOrderDeliveryEstimateToBuyer({
+        requestNumber: updated.requestNumber,
+        customerName: updated.customerName,
+        customerEmail: updated.customerEmail,
+        estimatedDeliveryDate: updated.estimatedDeliveryDate,
+        message: updated.estimatedDeliveryMessage,
+        trackingToken: updated.trackingToken,
       }).catch(console.error);
     }
 

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
+import { DELIVERY_STATUSES, type DeliveryStatus } from "@/lib/deliveryStatus";
 
 export type PreOrderStatus =
   | "pending"
@@ -8,6 +9,13 @@ export type PreOrderStatus =
   | "rejected"
   | "fulfilled"
   | "done";
+
+/** One recorded leg of the parcel's journey, kept for the tracking timeline. */
+export interface IPreOrderDeliveryEvent {
+  status: DeliveryStatus;
+  note?: string;
+  at: Date;
+}
 
 export interface IPreOrderPriceChange {
   previousUnitPrice?: number;
@@ -56,9 +64,27 @@ export interface IPreOrder extends Document {
     city: string;
   };
   shippingFee?: number;
+  /** Current leg of the delivery journey — unset until the parcel ships. */
+  deliveryStatus?: DeliveryStatus;
+  /** Every delivery leg reached so far, oldest first. */
+  deliveryEvents: IPreOrderDeliveryEvent[];
+  /** Unguessable handle for the public /track page linked from delivery emails. */
+  trackingToken?: string;
+  /** Admin's expected arrival date, shown to the buyer with a note. */
+  estimatedDeliveryDate?: Date;
+  estimatedDeliveryMessage?: string;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const PreOrderDeliveryEventSchema = new Schema<IPreOrderDeliveryEvent>(
+  {
+    status: { type: String, enum: DELIVERY_STATUSES, required: true },
+    note: { type: String, trim: true },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
 
 const PreOrderPriceChangeSchema = new Schema<IPreOrderPriceChange>(
   {
@@ -123,6 +149,11 @@ const PreOrderSchema = new Schema<IPreOrder>(
       city: { type: String, trim: true },
     },
     shippingFee: { type: Number },
+    deliveryStatus: { type: String, enum: DELIVERY_STATUSES },
+    deliveryEvents: { type: [PreOrderDeliveryEventSchema], default: [] },
+    trackingToken: { type: String, unique: true, sparse: true },
+    estimatedDeliveryDate: { type: Date },
+    estimatedDeliveryMessage: { type: String, trim: true },
   },
   { timestamps: true }
 );

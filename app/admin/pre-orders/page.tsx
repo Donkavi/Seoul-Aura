@@ -21,10 +21,12 @@ import {
   RotateCcw,
   History,
   Trash2,
+  Copy,
   type LucideIcon,
 } from "lucide-react";
 import { cn, relativeDate, formatPrice, lineSavings } from "@/lib/utils";
 import CountUp from "@/components/admin/CountUp";
+import { DELIVERY_PHASES, type DeliveryStatus } from "@/lib/deliveryStatus";
 import type { PreOrder, PreOrderItem, PreOrderPriceChange, PreOrderStatus } from "@/types";
 
 type FilterTab = "all" | PreOrderStatus;
@@ -305,6 +307,17 @@ export default function AdminPreOrdersPage() {
                         <Icon size={10} />
                         {meta.label}
                       </span>
+                      {/* Where the parcel is, once it has shipped */}
+                      {(() => {
+                        const leg = DELIVERY_PHASES.find((d) => d.key === p.deliveryStatus);
+                        if (!leg) return null;
+                        return (
+                          <span className="mt-1.5 flex items-center gap-1 text-[10px] text-ink-500 whitespace-nowrap">
+                            <span>{leg.emoji}</span>
+                            {leg.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="p-4 text-xs text-ink-500 whitespace-nowrap">
                       {new Date(p.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
@@ -381,6 +394,43 @@ function PreOrderDrawer({
   const [deleting, setDeleting] = useState(false);
   const [deliveryCharge, setDeliveryCharge] = useState(350);
   const [depositPaid, setDepositPaid] = useState(!!preOrder.depositPaid);
+
+  // Delivery journey — `null` means the parcel hasn't shipped yet
+  const savedDeliveryStatus: DeliveryStatus | null = preOrder.deliveryStatus ?? null;
+  const savedEvents = preOrder.deliveryEvents ?? [];
+  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus | null>(savedDeliveryStatus);
+  const [deliveryNote, setDeliveryNote] = useState("");
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const deliveryChanged = deliveryStatus !== savedDeliveryStatus;
+  /** Legs already emailed to the customer, so the buttons can show a tick. */
+  const recordedPhases = new Set(savedEvents.map((ev) => ev.status));
+  const trackingUrl = preOrder.trackingToken
+    ? `${typeof window === "undefined" ? "" : window.location.origin}/track/${preOrder.trackingToken}`
+    : "";
+
+  const copyTrackingUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(trackingUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      /* clipboard blocked — the link is on screen to copy by hand */
+    }
+  };
+
+  // Expected arrival date shown to the customer, with an optional note.
+  // Saving a change to either emails the buyer with the new estimate.
+  const savedEstimatedDeliveryDate = preOrder.estimatedDeliveryDate
+    ? preOrder.estimatedDeliveryDate.slice(0, 10)
+    : "";
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState(savedEstimatedDeliveryDate);
+  const [estimatedDeliveryMessage, setEstimatedDeliveryMessage] = useState(
+    preOrder.estimatedDeliveryMessage ?? ""
+  );
+  const estimatedDeliveryChanged =
+    estimatedDeliveryDate !== savedEstimatedDeliveryDate ||
+    estimatedDeliveryMessage.trim() !== (preOrder.estimatedDeliveryMessage ?? "");
 
   const [error, setError] = useState<string | null>(null);
 
@@ -535,12 +585,17 @@ function PreOrderDrawer({
           estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice) : undefined,
           estimatedAvailability: estimatedAvailability || undefined,
           depositPaid,
+          estimatedDeliveryDate: estimatedDeliveryDate || null,
+          estimatedDeliveryMessage: estimatedDeliveryMessage.trim() || undefined,
           items: items.map((it) => ({
             availability: it.availability,
             unitPrice: it.unitPrice,
             comparePrice: it.comparePrice,
             priceChangeReason: it.priceChangeReason,
           })),
+          ...(deliveryChanged
+            ? { deliveryStatus, deliveryNote: deliveryNote.trim() || undefined }
+            : {}),
           ...(stagedItems.length > 0
             ? { newItems: stagedItems, newItemsMessage: newItemMessage.trim() }
             : {}),
@@ -1094,6 +1149,181 @@ function PreOrderDrawer({
                 }
               )}
             </div>
+          </section>
+
+          {/* Delivery tracking */}
+          <section>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600">
+                Delivery Status
+              </h3>
+              {deliveryStatus && (
+                <button
+                  onClick={() => {
+                    if (!confirm("Clear the delivery journey? The recorded steps are removed and no email is sent.")) return;
+                    setDeliveryStatus(null);
+                    setDeliveryNote("");
+                  }}
+                  className="text-[11px] text-ink-400 hover:text-rose-600 inline-flex items-center gap-1"
+                >
+                  <RotateCcw size={11} /> Reset
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {DELIVERY_PHASES.map((phase) => {
+                const active = deliveryStatus === phase.key;
+                const recorded = recordedPhases.has(phase.key);
+                return (
+                  <button
+                    key={phase.key}
+                    onClick={() => setDeliveryStatus(active ? deliveryStatus : phase.key)}
+                    className={cn(
+                      "relative flex flex-col items-center gap-1.5 px-2 py-3 border rounded-sm transition-all text-[10px] uppercase tracking-wider font-semibold leading-tight text-center",
+                      active
+                        ? "bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-300 ring-offset-1"
+                        : recorded
+                        ? "border-green-200 bg-green-50/60 text-green-700"
+                        : "border-ink-200 text-ink-500 hover:border-ink-400"
+                    )}
+                  >
+                    <span className="text-base leading-none">{phase.emoji}</span>
+                    {phase.label}
+                    {recorded && !active && (
+                      <Check size={11} className="absolute top-1.5 right-1.5 text-green-600" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Note + email warning, shown only for an unsaved new leg */}
+            {deliveryChanged && deliveryStatus && (
+              <div className="mt-3 border border-rose-200 bg-rose-25/40 rounded-sm p-3">
+                <label className="text-[10px] uppercase tracking-widest text-ink-700 font-semibold block mb-1.5">
+                  Note to customer (optional)
+                </label>
+                <textarea
+                  value={deliveryNote}
+                  onChange={(e) => setDeliveryNote(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Expected at your address within 2 working days."
+                  className="input-field resize-none text-sm"
+                />
+                <p className="text-[11px] text-ink-500 mt-1.5">
+                  On save the customer is emailed <strong>{DELIVERY_PHASES.find((p) => p.key === deliveryStatus)?.label}</strong> along with their tracking link.
+                </p>
+              </div>
+            )}
+
+            {deliveryChanged && !deliveryStatus && savedDeliveryStatus && (
+              <p className="text-[11px] text-ink-500 mt-2">
+                The delivery journey is cleared on save. No email is sent.
+              </p>
+            )}
+
+            {/* What has been recorded so far */}
+            {savedEvents.length > 0 && (
+              <ol className="mt-3 border border-ink-100 rounded-sm divide-y divide-ink-100">
+                {[...savedEvents].reverse().map((ev, i) => {
+                  const meta = DELIVERY_PHASES.find((p) => p.key === ev.status);
+                  if (!meta) return null;
+                  return (
+                    <li key={`${ev.status}-${ev.at}-${i}`} className="flex gap-2.5 px-3 py-2.5">
+                      <span className="text-sm leading-none pt-0.5">{meta.emoji}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-ink-900">{meta.label}</p>
+                        <p className="text-[10px] text-ink-400">
+                          {new Date(ev.at).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                        {ev.note && (
+                          <p className="text-[11px] text-ink-600 mt-0.5 italic break-words">
+                            &quot;{ev.note}&quot;
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+
+            {/* The link the customer gets — handy for WhatsApp follow-ups */}
+            {preOrder.trackingToken && (
+              <div className="mt-3 flex items-center gap-2">
+                <code className="flex-1 min-w-0 truncate text-[11px] text-ink-500 bg-ink-50 border border-ink-100 rounded-sm px-2.5 py-2">
+                  {trackingUrl}
+                </code>
+                <button
+                  onClick={copyTrackingUrl}
+                  className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-2 border border-ink-200 rounded-sm text-ink-600 hover:border-rose-300 hover:text-rose-600 transition-colors"
+                >
+                  {copiedLink ? <Check size={12} /> : <Copy size={12} />}
+                  {copiedLink ? "Copied" : "Copy link"}
+                </button>
+                <a
+                  href={trackingUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-2 border border-ink-200 rounded-sm text-ink-600 hover:border-rose-300 hover:text-rose-600 transition-colors"
+                >
+                  <ExternalLink size={12} /> Open
+                </a>
+              </div>
+            )}
+
+            {status !== "confirmed" && status !== "fulfilled" && status !== "done" && (
+              <p className="text-[11px] text-ink-400 mt-2">
+                Delivery updates normally start once the request is <strong>Confirmed</strong>.
+              </p>
+            )}
+          </section>
+
+          {/* Estimated arrival date + a message for the customer */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
+              Estimated Delivery Date
+            </h3>
+            <div>
+              <label className="text-[10px] uppercase tracking-widest text-ink-700 font-semibold block mb-1.5">
+                Expected date
+              </label>
+              <input
+                type="date"
+                value={estimatedDeliveryDate}
+                onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+                className="input-field"
+              />
+            </div>
+            <div className="mt-3">
+              <label className="text-[10px] uppercase tracking-widest text-ink-700 font-semibold block mb-1.5">
+                Message to customer
+              </label>
+              <textarea
+                value={estimatedDeliveryMessage}
+                onChange={(e) => setEstimatedDeliveryMessage(e.target.value)}
+                rows={2}
+                placeholder="e.g. Your order will arrive by this date."
+                className="input-field resize-none"
+              />
+            </div>
+            {estimatedDeliveryChanged && estimatedDeliveryDate && (
+              <p className="text-[11px] text-ink-500 mt-2">
+                On save the customer is emailed this updated arrival estimate.
+              </p>
+            )}
+            {estimatedDeliveryChanged && !estimatedDeliveryDate && savedEstimatedDeliveryDate && (
+              <p className="text-[11px] text-ink-500 mt-2">
+                The estimate is cleared on save. No email is sent.
+              </p>
+            )}
           </section>
 
           <section>

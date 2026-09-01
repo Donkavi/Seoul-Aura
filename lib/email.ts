@@ -1,5 +1,11 @@
 import { Resend } from "resend";
 import { paymentVisibility, isPaymentComplete } from "@/lib/preOrderStatus";
+import {
+  DELIVERY_PHASES,
+  deliveryPhase,
+  deliveryPhaseIndex,
+  type DeliveryStatus,
+} from "@/lib/deliveryStatus";
 import { lineSavings } from "@/lib/utils";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -1237,7 +1243,243 @@ export async function sendPreOrderItemsAddedToBuyer(data: PreOrderItemsAddedEmai
   });
 }
 
-// ─── 9. Marketing campaign (Notify) → Users / Notifiers ──────────────────────
+// ─── 9. Pre-order delivery update → Buyer ────────────────────────────────────
+const DELIVERY_HEADLINES: Record<DeliveryStatus, string> = {
+  sent_from_korea: "Your parcel has left Korea",
+  arrived_in_sri_lanka: "Your parcel has landed in Sri Lanka",
+  handed_to_delivery: "Your parcel is out for delivery",
+  delivered: "Delivered — enjoy!",
+};
+
+function deliveryDate(at: Date | string) {
+  return new Date(at).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * Four-stop progress rail. Built from table cells rather than flexbox so it
+ * survives Outlook and Gmail — completed stops are filled rose, the ones still
+ * ahead stay hollow grey.
+ */
+function deliveryRail(currentIndex: number) {
+  const cells = DELIVERY_PHASES.map((phase, i) => {
+    const done = i <= currentIndex;
+    const isCurrent = i === currentIndex;
+    const dotStyle = done
+      ? "background:#e11d48;color:#ffffff;"
+      : "background:#ffffff;color:#d6d3d1;border:1px solid #e7e5e4;";
+
+    return `
+      <td width="25%" align="center" valign="top" style="padding:0 2px;">
+        <table cellpadding="0" cellspacing="0" border="0" align="center"><tr>
+          <td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;border-radius:17px;font-size:15px;line-height:34px;${dotStyle}">${done ? phase.emoji : "&bull;"}</td>
+        </tr></table>
+        <p style="margin:8px 0 0;font-size:10px;line-height:1.4;font-weight:${isCurrent ? "700" : "500"};color:${isCurrent ? "#be123c" : done ? "#78716c" : "#d6d3d1"};">${phase.label}</p>
+      </td>`;
+  }).join("");
+
+  // A single bar behind the row, filled to the phase reached. Percentages keep
+  // it honest at any email width.
+  const pct = Math.round(((currentIndex + 0.5) / DELIVERY_PHASES.length) * 100);
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 28px;">
+      <tr><td style="padding:0 6px 10px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ede9e7;border-radius:2px;">
+          <tr><td style="padding:0;font-size:0;line-height:0;">
+            <table width="${pct}%" cellpadding="0" cellspacing="0" border="0"><tr>
+              <td height="3" style="height:3px;background:#e11d48;border-radius:2px;font-size:0;line-height:0;">&nbsp;</td>
+            </tr></table>
+          </td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="padding:0 6px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>${cells}</tr></table>
+      </td></tr>
+    </table>`;
+}
+
+/** Dated history of the legs already completed, newest first. */
+function deliveryTimeline(events: { status: string; note?: string; at: Date | string }[]) {
+  if (!events.length) return "";
+  const rows = [...events]
+    .reverse()
+    .map((ev, idx) => {
+      const meta = deliveryPhase(ev.status);
+      if (!meta) return "";
+      const latest = idx === 0;
+      return `
+        <tr>
+          <td width="24" valign="top" style="padding:0 10px 0 0;font-size:15px;line-height:20px;">${meta.emoji}</td>
+          <td valign="top" style="padding:0 0 14px;">
+            <p style="margin:0;font-size:13px;font-weight:${latest ? "700" : "600"};color:${latest ? "#be123c" : "#1c1917"};">${meta.label}</p>
+            <p style="margin:2px 0 0;font-size:11px;color:#a8a29e;">${deliveryDate(ev.at)}</p>
+            ${ev.note ? `<p style="margin:5px 0 0;font-size:12px;color:#57534e;line-height:1.6;">${ev.note}</p>` : ""}
+          </td>
+        </tr>`;
+    })
+    .join("");
+
+  return `
+    <div style="background:#faf9f8;border-radius:4px;padding:18px 20px;margin-bottom:24px;">
+      <p style="margin:0 0 14px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Journey so far</p>
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
+    </div>`;
+}
+
+interface PreOrderDeliveryEmailData {
+  requestNumber: string;
+  customerName: string;
+  customerEmail: string;
+  deliveryStatus: DeliveryStatus;
+  /** The admin's optional line about this specific leg. */
+  note?: string;
+  events: { status: string; note?: string; at: Date | string }[];
+  trackingToken: string;
+}
+
+export async function sendPreOrderDeliveryUpdateToBuyer(data: PreOrderDeliveryEmailData) {
+  const meta = deliveryPhase(data.deliveryStatus);
+  if (!meta) return;
+
+  const index = deliveryPhaseIndex(data.deliveryStatus);
+  const trackingUrl = `${SITE}/track/${data.trackingToken}`;
+  const delivered = data.deliveryStatus === "delivered";
+
+  const html = layout(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:46px;line-height:1;margin-bottom:12px;">${meta.emoji}</div>
+      <p style="margin:0 0 6px;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:700;">Delivery Update</p>
+      <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">${DELIVERY_HEADLINES[data.deliveryStatus]}</h1>
+      <p style="margin:0 auto;font-size:14px;color:#78716c;max-width:400px;line-height:1.7;">
+        Hi ${data.customerName}, ${meta.detail}
+      </p>
+    </div>
+
+    ${deliveryRail(index)}
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
+          <p style="margin:4px 0 0;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
+        </td>
+        <td style="padding:16px 20px;text-align:right;">
+          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Updated</p>
+          <p style="margin:4px 0 0;font-size:13px;color:#1c1917;">${deliveryDate(new Date())}</p>
+        </td>
+      </tr>
+    </table>
+
+    ${data.note ? `
+    <div style="background:#faf9f8;border-left:3px solid #e11d48;border-radius:2px;padding:14px 16px;margin-bottom:24px;">
+      <p style="margin:0 0 4px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Note from our team</p>
+      <p style="margin:0;font-size:13px;color:#1c1917;line-height:1.7;">${data.note}</p>
+    </div>` : ""}
+
+    ${deliveryTimeline(data.events)}
+
+    <div style="text-align:center;">
+      <a href="${trackingUrl}" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:13px 30px;border-radius:3px;letter-spacing:0.5px;">
+        Track My Order
+      </a>
+      <p style="margin:12px 0 0;font-size:11px;color:#a8a29e;line-height:1.6;">
+        Follow every step live — no login needed.<br/>
+        <a href="${trackingUrl}" style="color:#e11d48;word-break:break-all;">${trackingUrl}</a>
+      </p>
+    </div>
+
+    ${delivered ? `
+    <hr style="border:none;border-top:1px solid #f5f0ee;margin:24px 0;" />
+    <p style="margin:0;font-size:13px;color:#78716c;text-align:center;line-height:1.7;">
+      We would love to hear how you find it — a quick review helps other shoppers.<br/>
+      <a href="${SITE}/reviews/new" style="color:#e11d48;font-weight:600;text-decoration:none;">Write a review</a>
+    </p>` : ""}
+
+    <p style="margin-top:20px;font-size:12px;color:#a8a29e;text-align:center;">
+      Questions? <a href="mailto:seoulaurateam@gmail.com" style="color:#e11d48;">seoulaurateam@gmail.com</a>
+    </p>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: data.customerEmail,
+    subject: `${meta.emoji} ${DELIVERY_HEADLINES[data.deliveryStatus]} · ${data.requestNumber} — Seoul Aura`,
+    html,
+  });
+}
+
+// ─── 10. Pre-order estimated delivery date → Buyer ───────────────────────────
+interface PreOrderDeliveryEstimateEmailData {
+  requestNumber: string;
+  customerName: string;
+  customerEmail: string;
+  estimatedDeliveryDate: Date | string;
+  message?: string;
+  trackingToken?: string;
+}
+
+export async function sendPreOrderDeliveryEstimateToBuyer(data: PreOrderDeliveryEstimateEmailData) {
+  const trackingUrl = data.trackingToken ? `${SITE}/track/${data.trackingToken}` : undefined;
+  const dateLabel = deliveryDate(data.estimatedDeliveryDate);
+
+  const html = layout(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:46px;line-height:1;margin-bottom:12px;">📅</div>
+      <p style="margin:0 0 6px;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:700;">Delivery Update</p>
+      <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">Your order is expected by ${dateLabel}</h1>
+      <p style="margin:0 auto;font-size:14px;color:#78716c;max-width:400px;line-height:1.7;">
+        Hi ${data.customerName}, we've got an updated arrival estimate for your pre-order.
+      </p>
+    </div>
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;margin-bottom:24px;">
+      <tr>
+        <td style="padding:16px 20px;">
+          <p style="margin:0;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
+          <p style="margin:4px 0 0;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
+        </td>
+        <td style="padding:16px 20px;text-align:right;">
+          <p style="margin:0;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Expected By</p>
+          <p style="margin:4px 0 0;font-size:15px;color:#1c1917;font-weight:700;">${dateLabel}</p>
+        </td>
+      </tr>
+    </table>
+
+    ${data.message ? `
+    <div style="background:#faf9f8;border-left:3px solid #e11d48;border-radius:2px;padding:14px 16px;margin-bottom:24px;">
+      <p style="margin:0 0 4px;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#78716c;font-weight:600;">Note from our team</p>
+      <p style="margin:0;font-size:13px;color:#1c1917;line-height:1.7;">${data.message}</p>
+    </div>` : ""}
+
+    ${trackingUrl ? `
+    <div style="text-align:center;">
+      <a href="${trackingUrl}" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:13px 30px;border-radius:3px;letter-spacing:0.5px;">
+        Track My Order
+      </a>
+      <p style="margin:12px 0 0;font-size:11px;color:#a8a29e;line-height:1.6;">
+        Follow every step live — no login needed.<br/>
+        <a href="${trackingUrl}" style="color:#e11d48;word-break:break-all;">${trackingUrl}</a>
+      </p>
+    </div>` : ""}
+
+    <p style="margin-top:20px;font-size:12px;color:#a8a29e;text-align:center;">
+      Questions? <a href="mailto:seoulaurateam@gmail.com" style="color:#e11d48;">seoulaurateam@gmail.com</a>
+    </p>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: data.customerEmail,
+    subject: `📅 Expected by ${dateLabel} · ${data.requestNumber} — Seoul Aura`,
+    html,
+  });
+}
+
+// ─── 11. Marketing campaign (Notify) → Users / Notifiers ─────────────────────
 interface CampaignEmailData {
   recipients: string[];
   subject: string;

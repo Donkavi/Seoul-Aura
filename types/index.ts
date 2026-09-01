@@ -1,3 +1,7 @@
+/** Delivery legs live in `lib/deliveryStatus` so admin, email and tracking agree. */
+import type { DeliveryStatus } from "@/lib/deliveryStatus";
+export type { DeliveryStatus };
+
 export interface Brand {
   _id: string;
   name: string;
@@ -126,6 +130,12 @@ export interface AdminStats {
   pendingPreOrders: number;
 }
 
+export interface DeliveryEvent {
+  status: DeliveryStatus;
+  note?: string;
+  at: string;
+}
+
 export type PreOrderStatus =
   | "pending"
   | "reviewing"
@@ -252,6 +262,11 @@ export interface PreOrder {
     city: string;
   };
   shippingFee?: number;
+  deliveryStatus?: DeliveryStatus;
+  deliveryEvents?: DeliveryEvent[];
+  trackingToken?: string;
+  estimatedDeliveryDate?: string;
+  estimatedDeliveryMessage?: string;
   createdAt: string;
   updatedAt: string;
 }
