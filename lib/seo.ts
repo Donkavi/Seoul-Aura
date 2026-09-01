@@ -6,7 +6,17 @@
  * Metadata, canonicals, the sitemap and JSON-LD all resolve absolute URLs from
  * this one value so they can never disagree about the host.
  */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.seoulaura.lk")
+/**
+ * Only server code reads this, so the plain `SITE_URL` name is preferred —
+ * a `NEXT_PUBLIC_` variable is inlined into the browser bundle, which is
+ * pointless here and makes the value look like a secret when it is not.
+ * The prefixed name is still honoured so existing deployments keep working.
+ */
+export const SITE_URL = (
+  process.env.SITE_URL ??
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  "https://www.seoulaura.lk"
+)
   .trim()
   .replace(/\/+$/, "");
 
