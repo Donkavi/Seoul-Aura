@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/seo";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 import { WishlistProvider } from "@/context/WishlistContext";
@@ -8,10 +9,23 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
-  title: "Seoul Aura | Premium Korean Imports",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    // Pages set only their own name; the brand suffix is appended for them.
+    default: "Seoul Aura | Authentic Korean Skincare in Sri Lanka",
+    template: "%s | Seoul Aura",
+  },
   description:
-    "Discover authentic Korean beauty products. Curated imports, subscription boxes, and more.",
-  keywords: ["korean cosmetics", "dubai food", "k-beauty", "import shop", "subscription box"],
+    "Shop authentic Korean skincare and K-Beauty in Sri Lanka. Genuine COSRX, Beauty of Joseon, SKIN1004, Anua and more — imported from Seoul, delivered islandwide.",
+  keywords: [
+    "korean skincare sri lanka",
+    "k-beauty sri lanka",
+    "korean cosmetics colombo",
+    "authentic korean skincare",
+    "buy cosrx sri lanka",
+    "beauty of joseon sri lanka",
+  ],
+  alternates: { canonical: "/" },
   // Sized variants let the browser pick the right file instead of downscaling a
   // 512px image into a 16px tab icon, which is what blurred the favicon before.
   icons: {
@@ -29,9 +43,25 @@ export const metadata: Metadata = {
     apple: { url: "/logo/apple-touch-icon-180.png", sizes: "180x180", type: "image/png" },
   },
   openGraph: {
-    title: "Seoul Aura | Premium Korean Imports",
-    description: "Curated Korean beauty specialty imports delivered to your door.",
+    title: "Seoul Aura | Authentic Korean Skincare in Sri Lanka",
+    description: "Genuine K-Beauty imported from Seoul, delivered islandwide across Sri Lanka.",
     type: "website",
+    url: SITE_URL,
+    siteName: "Seoul Aura",
+    locale: "en_LK",
+    // Without an image, links shared on WhatsApp and Facebook preview as bare text.
+    images: [{ url: "/logo/icon-512.png", width: 512, height: 512, alt: "Seoul Aura" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Seoul Aura | Authentic Korean Skincare in Sri Lanka",
+    description: "Genuine K-Beauty imported from Seoul, delivered islandwide across Sri Lanka.",
+    images: ["/logo/icon-512.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large" },
   },
 };
 
