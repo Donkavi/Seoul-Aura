@@ -164,6 +164,7 @@ export async function POST(req: NextRequest) {
       deliveryCharge,
       currencySymbol,
       balancePaymentMethod: preOrder.balancePaymentMethod,
+      trackingToken: preOrder.trackingToken,
     };
     Promise.all([
       sendPreOrderConfirmationToBuyer(emailData),

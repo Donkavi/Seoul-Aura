@@ -18,6 +18,21 @@ function rupees(amount: number) {
   return `Rs. ${amount.toLocaleString("en-LK")}`;
 }
 
+/**
+ * A secondary "Track My Order" link, shown under a pre-order email's main CTA
+ * whenever the order already has a tracking token — which every pre-order
+ * gets from the moment it's created. Renders nothing otherwise.
+ */
+function trackOrderLink(trackingToken?: string) {
+  if (!trackingToken) return "";
+  return `
+    <p style="margin:12px 0 0;text-align:center;">
+      <a href="${SITE}/track/${trackingToken}" style="font-size:12px;color:#e11d48;font-weight:600;text-decoration:none;">
+        Track My Order →
+      </a>
+    </p>`;
+}
+
 // ─── Shared layout wrapper ────────────────────────────────────────────────────
 function layout(content: string) {
   return `<!DOCTYPE html>
@@ -448,6 +463,7 @@ interface PreOrderEmailData {
   deliveryCharge?: number;
   currencySymbol?: string;
   balancePaymentMethod?: "cod" | "bank";
+  trackingToken?: string;
 }
 
 function fmt(amount: number, sym: string) {
@@ -663,6 +679,7 @@ export async function sendPreOrderConfirmationToBuyer(data: PreOrderEmailData) {
       <li>We email you a confirmed price &amp; estimated arrival date</li>
       <li>You approve — then we import &amp; deliver</li>
     </ol>
+    ${trackOrderLink(data.trackingToken)}
 
     <p style="margin-top:20px;font-size:12px;color:#a8a29e;">
       Questions? <a href="mailto:seoulaurateam@gmail.com" style="color:#e11d48;">seoulaurateam@gmail.com</a>
@@ -814,6 +831,7 @@ interface PreOrderStatusEmailData {
   currencySymbol?: string;
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
+  trackingToken?: string;
 }
 
 export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailData) {
@@ -885,6 +903,7 @@ export async function sendPreOrderStatusUpdateToBuyer(data: PreOrderStatusEmailD
       <a href="${SITE}/account" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
         View My Account
       </a>
+      ${trackOrderLink(data.trackingToken)}
     </div>
 
     <p style="margin-top:20px;font-size:12px;color:#a8a29e;text-align:center;">
@@ -1084,6 +1103,7 @@ interface PreOrderRevisionEmailData {
   reasons: ("availability" | "deposit" | "price")[];
   /** Drives whether the 25% deposit split is shown. */
   status?: string;
+  trackingToken?: string;
 }
 
 export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailData) {
@@ -1146,6 +1166,7 @@ export async function sendPreOrderRevisionToBuyer(data: PreOrderRevisionEmailDat
       <a href="${SITE}/account?tab=pre-orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
         View My Pre-Orders
       </a>
+      ${trackOrderLink(data.trackingToken)}
     </div>
 
     <p style="margin-top:20px;font-size:12px;color:#a8a29e;text-align:center;">
@@ -1178,6 +1199,7 @@ interface PreOrderItemsAddedEmailData {
   depositPaid?: boolean;
   /** Drives whether the 25% deposit split is shown. */
   status?: string;
+  trackingToken?: string;
 }
 
 export async function sendPreOrderItemsAddedToBuyer(data: PreOrderItemsAddedEmailData) {
@@ -1228,6 +1250,7 @@ export async function sendPreOrderItemsAddedToBuyer(data: PreOrderItemsAddedEmai
       <a href="${SITE}/account?tab=pre-orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
         View My Pre-Orders
       </a>
+      ${trackOrderLink(data.trackingToken)}
     </div>
 
     <p style="margin-top:20px;font-size:12px;color:#a8a29e;text-align:center;">

@@ -6,7 +6,6 @@ import {
   sendPreOrderStatusUpdateToBuyer,
   sendPreOrderRevisionToBuyer,
   sendPreOrderItemsAddedToBuyer,
-  sendPreOrderDeliveryUpdateToBuyer,
   sendPreOrderDeliveryEstimateToBuyer,
 } from "@/lib/email";
 import {
@@ -110,11 +109,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!previous) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     // ── Delivery leg ────────────────────────────────────────────────────────
-    // `null` rewinds the parcel to "not shipped yet" (a mistaken update being
-    // undone) and sends nothing; a new leg is appended to the journey and
-    // emailed. Re-picking the leg already recorded is a no-op.
+    // Recorded on the journey (and visible on the public /track page)
+    // immediately — but silently, with no email. `null` rewinds the parcel to
+    // "not shipped yet" (a mistaken update being undone). Re-picking the leg
+    // already recorded is a no-op.
     const unset: Record<string, ""> = {};
-    let deliveryChangedTo: DeliveryStatus | null = null;
     let deliveryEvents: StoredDeliveryEvent[] = previous.deliveryEvents ?? [];
     let trackingToken = previous.trackingToken;
 
@@ -139,7 +138,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         allowed.deliveryStatus = next;
         allowed.deliveryEvents = deliveryEvents;
         allowed.trackingToken = trackingToken;
-        deliveryChangedTo = next;
       }
     }
 
@@ -345,6 +343,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         currencySymbol,
         balancePaymentMethod: updated.balancePaymentMethod,
         depositPaid: updated.depositPaid,
+        trackingToken: updated.trackingToken,
       }).catch(console.error);
     }
 
@@ -368,6 +367,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         depositPaid: updated.depositPaid,
         status: updated.status,
         reasons,
+        trackingToken: updated.trackingToken,
       }).catch(console.error);
     }
 
@@ -386,21 +386,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         balancePaymentMethod: updated.balancePaymentMethod,
         depositPaid: updated.depositPaid,
         status: updated.status,
+        trackingToken: updated.trackingToken,
       }).catch(console.error);
     }
 
-    // Email the buyer each new delivery leg, with the tracking link
-    if (deliveryChangedTo && trackingToken) {
-      sendPreOrderDeliveryUpdateToBuyer({
-        requestNumber: updated.requestNumber,
-        customerName: updated.customerName,
-        customerEmail: updated.customerEmail,
-        deliveryStatus: deliveryChangedTo,
-        note: deliveryEvents[deliveryEvents.length - 1]?.note,
-        events: deliveryEvents,
-        trackingToken,
-      }).catch(console.error);
-    }
+    // A delivery leg change is recorded silently — no email. The customer sees
+    // it live on the /track page, and gets the tracking link again in whatever
+    // other pre-order email they next receive.
 
     // Email the buyer whenever the expected arrival date or its note changes
     if (estimatedDeliveryChanged && updated.estimatedDeliveryDate) {
