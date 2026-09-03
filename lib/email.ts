@@ -1270,6 +1270,7 @@ export async function sendPreOrderItemsAddedToBuyer(data: PreOrderItemsAddedEmai
 const DELIVERY_HEADLINES: Record<DeliveryStatus, string> = {
   sent_from_korea: "Your parcel has left Korea",
   arrived_in_sri_lanka: "Your parcel has landed in Sri Lanka",
+  cleared_customs: "Your parcel has cleared customs",
   handed_to_delivery: "Your parcel is out for delivery",
   delivered: "Delivered — enjoy!",
 };
@@ -1283,11 +1284,12 @@ function deliveryDate(at: Date | string) {
 }
 
 /**
- * Four-stop progress rail. Built from table cells rather than flexbox so it
- * survives Outlook and Gmail — completed stops are filled rose, the ones still
- * ahead stay hollow grey.
+ * Progress rail — one stop per delivery phase, however many there are. Built
+ * from table cells rather than flexbox so it survives Outlook and Gmail —
+ * completed stops are filled rose, the ones still ahead stay hollow grey.
  */
 function deliveryRail(currentIndex: number) {
+  const cellWidth = `${Math.floor(100 / DELIVERY_PHASES.length)}%`;
   const cells = DELIVERY_PHASES.map((phase, i) => {
     const done = i <= currentIndex;
     const isCurrent = i === currentIndex;
@@ -1296,7 +1298,7 @@ function deliveryRail(currentIndex: number) {
       : "background:#ffffff;color:#d6d3d1;border:1px solid #e7e5e4;";
 
     return `
-      <td width="25%" align="center" valign="top" style="padding:0 2px;">
+      <td width="${cellWidth}" align="center" valign="top" style="padding:0 2px;">
         <table cellpadding="0" cellspacing="0" border="0" align="center"><tr>
           <td width="34" height="34" align="center" valign="middle" style="width:34px;height:34px;border-radius:17px;font-size:15px;line-height:34px;${dotStyle}">${done ? phase.emoji : "&bull;"}</td>
         </tr></table>

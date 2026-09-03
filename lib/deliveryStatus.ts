@@ -7,6 +7,7 @@
 export type DeliveryStatus =
   | "sent_from_korea"
   | "arrived_in_sri_lanka"
+  | "cleared_customs"
   | "handed_to_delivery"
   | "delivered";
 
@@ -33,6 +34,13 @@ export const DELIVERY_PHASES: DeliveryPhaseMeta[] = [
     detail:
       "Your parcel has landed in Sri Lanka and is being processed at our local hub.",
     emoji: "🛬",
+  },
+  {
+    key: "cleared_customs",
+    label: "Cleared Customs",
+    detail:
+      "Your parcel has cleared customs in Sri Lanka and is being prepared for final delivery.",
+    emoji: "🛃",
   },
   {
     key: "handed_to_delivery",

@@ -230,6 +230,24 @@ h1, h2, h3, h4, h5, h6 {
 }
 .animate-hero-land { animation: heroLandRock 2.2s ease-in-out infinite; }
 
+/* Cleared customs: the stamp thumps down to approve the parcel, transform-only
+   so it's always visibly moving. An impact flash (its own element — a static
+   centering transform and an animated one can't share a node, see the Stop
+   component note in TrackView.tsx) is timed to land at the same instant. */
+@keyframes heroStampDrop {
+  0%, 35%, 100% { transform: translateY(-3px) rotate(-8deg); }
+  55%           { transform: translateY(9px) rotate(-2deg); }
+  70%           { transform: translateY(-2px) rotate(-6deg); }
+}
+.animate-hero-stamp { animation: heroStampDrop 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+
+@keyframes heroStampFlash {
+  0%, 50%   { transform: scale(0.3); opacity: 0; }
+  58%       { transform: scale(1.3); opacity: 0.85; }
+  78%, 100% { transform: scale(1.8); opacity: 0; }
+}
+.animate-hero-stamp-flash { animation: heroStampFlash 1.4s ease-out infinite; }
+
 /* Handed to delivery: truck bounces gently on its suspension. */
 @keyframes heroTruckBounce {
   0%, 100% { transform: translateY(0) rotate(0deg); }
@@ -264,6 +282,8 @@ h1, h2, h3, h4, h5, h6 {
   .animate-hero-fly,
   .animate-hero-cloud,
   .animate-hero-land,
+  .animate-hero-stamp,
+  .animate-hero-stamp-flash,
   .animate-hero-truck,
   .animate-hero-road,
   .animate-hero-dust,

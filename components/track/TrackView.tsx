@@ -334,6 +334,26 @@ function HeroScene({ phaseKey }: { phaseKey?: DeliveryStatus }) {
     );
   }
 
+  if (phaseKey === "cleared_customs") {
+    return (
+      <div className="relative h-28 sm:h-32 overflow-hidden rounded-sm bg-gradient-to-b from-gold-50 to-white flex flex-col items-center justify-center gap-1.5">
+        {/* The stamp thumps down to approve the parcel. Centering (a static
+            transform) and the drop (an animated transform) live on separate
+            elements — see the same note on the Stop component's floating icon. */}
+        <span className="relative inline-block">
+          <span className="animate-hero-stamp inline-block text-5xl sm:text-6xl leading-none origin-bottom">
+            🛃
+          </span>
+          <span className="absolute left-1/2 -translate-x-1/2 -bottom-1 pointer-events-none">
+            <span className="animate-hero-stamp-flash block w-9 h-9 rounded-full bg-gold-400/70" />
+          </span>
+        </span>
+        {/* The paperwork being stamped */}
+        <span className="text-2xl opacity-80 leading-none">📄</span>
+      </div>
+    );
+  }
+
   if (phaseKey === "handed_to_delivery") {
     return (
       <div className="relative h-28 sm:h-32 overflow-hidden rounded-sm bg-gradient-to-b from-rose-25 to-white">

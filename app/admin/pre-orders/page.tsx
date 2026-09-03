@@ -1171,7 +1171,7 @@ function PreOrderDrawer({
               )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {DELIVERY_PHASES.map((phase) => {
                 const active = deliveryStatus === phase.key;
                 const recorded = recordedPhases.has(phase.key);
