@@ -10,10 +10,12 @@ interface FormState {
   logo: string;
   origin: "Korea" | "Dubai" | "Global" | "Other";
   description: string;
+  metaTitle: string;
+  metaDescription: string;
   active: boolean;
 }
 
-const emptyForm: FormState = { name: "", logo: "", origin: "Korea", description: "", active: true };
+const emptyForm: FormState = { name: "", logo: "", origin: "Korea", description: "", metaTitle: "", metaDescription: "", active: true };
 
 export default function AdminBrandsPage() {
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -51,7 +53,15 @@ export default function AdminBrandsPage() {
   };
 
   const handleEdit = (b: Brand) => {
-    setForm({ name: b.name, logo: b.logo ?? "", origin: b.origin, description: b.description ?? "", active: b.active });
+    setForm({
+      name: b.name,
+      logo: b.logo ?? "",
+      origin: b.origin,
+      description: b.description ?? "",
+      metaTitle: b.metaTitle ?? "",
+      metaDescription: b.metaDescription ?? "",
+      active: b.active,
+    });
     setEditingId(b._id);
     setShowForm(true);
   };
@@ -173,6 +183,36 @@ export default function AdminBrandsPage() {
               <div>
                 <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">Description</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="input-field resize-none" />
+                <p className="text-[11px] text-ink-400 mt-1">Shown on the brand page and used as the meta description when the SEO field below is empty.</p>
+              </div>
+
+              {/* Both optional: /brands/[slug] generates a sensible title and
+                  description from the brand name when these are left blank. */}
+              <div className="border-t border-ink-100 pt-4 space-y-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-ink-700">SEO (optional)</p>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">Meta Title</label>
+                  <input
+                    value={form.metaTitle}
+                    onChange={(e) => setForm({ ...form, metaTitle: e.target.value })}
+                    maxLength={70}
+                    placeholder={form.name ? `${form.name} Sri Lanka — Buy Authentic ${form.name} Korean Skincare` : "Auto-generated from the brand name"}
+                    className="input-field"
+                  />
+                  <p className="text-[11px] text-ink-400 mt-1">{form.metaTitle.length}/70 · appears as the browser tab and Google headline.</p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">Meta Description</label>
+                  <textarea
+                    value={form.metaDescription}
+                    onChange={(e) => setForm({ ...form, metaDescription: e.target.value })}
+                    maxLength={160}
+                    rows={3}
+                    placeholder="Auto-generated from the description above when left blank"
+                    className="input-field resize-none"
+                  />
+                  <p className="text-[11px] text-ink-400 mt-1">{form.metaDescription.length}/160 · the grey text under the Google result.</p>
+                </div>
               </div>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="accent-rose-600" />

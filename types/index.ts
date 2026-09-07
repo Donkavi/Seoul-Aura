@@ -9,6 +9,8 @@ export interface Brand {
   logo?: string;
   origin: "Korea" | "Dubai" | "Other";
   description?: string;
+  metaTitle?: string;
+  metaDescription?: string;
   active: boolean;
 }
 
@@ -23,6 +25,8 @@ export interface Product {
   slug: string;
   description: string;
   shortDescription: string;
+  metaTitle?: string;
+  metaDescription?: string;
   price: number;
   comparePrice?: number;
   origin: "Korea" | "Dubai" | "Other";

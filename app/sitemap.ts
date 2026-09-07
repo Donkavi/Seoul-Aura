@@ -5,6 +5,7 @@ import CategoryModel from "@/models/Category";
 import ConcernModel from "@/models/Concern";
 import BrandModel from "@/models/Brand";
 import { SITE_URL } from "@/lib/seo";
+import { slugify } from "@/lib/utils";
 
 /** Rebuilt hourly — new products should not wait for a deploy to be crawlable. */
 export const revalidate = 3600;
@@ -12,6 +13,7 @@ export const revalidate = 3600;
 const STATIC_PATHS: Array<{ path: string; priority: number; changeFrequency: MetadataRoute.Sitemap[number]["changeFrequency"] }> = [
   { path: "/", priority: 1.0, changeFrequency: "daily" },
   { path: "/shop", priority: 0.9, changeFrequency: "daily" },
+  { path: "/brands", priority: 0.8, changeFrequency: "weekly" },
   { path: "/pre-order", priority: 0.8, changeFrequency: "weekly" },
   { path: "/subscriptions", priority: 0.7, changeFrequency: "weekly" },
   { path: "/about", priority: 0.5, changeFrequency: "monthly" },
@@ -46,7 +48,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ProductModel.find({ active: true }).select("slug _id updatedAt").lean(),
       CategoryModel.find().select("type subtypes").lean(),
       ConcernModel.find().select("slug").lean(),
-      BrandModel.find({ active: true }).select("name").lean(),
+      BrandModel.find({ active: true }).select("name slug updatedAt").lean(),
     ]);
 
     for (const p of products as unknown as Array<{ slug?: string; _id: unknown; updatedAt?: Date }>) {
@@ -81,11 +83,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
 
-    for (const b of brands as unknown as Array<{ name: string }>) {
+    // Brand collections live at their own path now — ?brand= only redirects there,
+    // and listing a redirect in a sitemap wastes crawl budget.
+    for (const b of brands as unknown as Array<{ name: string; slug?: string; updatedAt?: Date }>) {
       entries.push({
-        url: `${SITE_URL}/shop?brand=${encodeURIComponent(b.name)}`,
+        url: `${SITE_URL}/brands/${b.slug ?? slugify(b.name)}`,
+        lastModified: b.updatedAt ?? new Date(),
         changeFrequency: "weekly",
-        priority: 0.6,
+        priority: 0.7,
       });
     }
   } catch (err) {

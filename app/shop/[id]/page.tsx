@@ -9,7 +9,8 @@ import ReviewSection from "@/components/product/ReviewSection";
 import ProductView from "./ProductView";
 import RecentlyViewed from "./RecentlyViewed";
 import type { Product } from "@/types";
-import { SITE_URL } from "@/lib/seo";
+import { slugify } from "@/lib/utils";
+import { SITE_URL, clamp, withBrand } from "@/lib/seo";
 
 async function getProduct(id: string): Promise<Product | null> {
   try {
@@ -122,34 +123,21 @@ const sampleProduct: Product = {
  * description — nothing to distinguish them, and nothing matching what someone
  * actually searches for ("beauty of joseon glow serum sri lanka").
  */
-/**
- * "Dr.Althea" + "Dr.Althea 345 Relief Cream" would read as the brand twice. Most
- * product names in this catalogue already lead with the brand, so only prefix it
- * when it is genuinely missing.
- */
-function withBrand(name: string, brand?: string): string {
-  if (!brand?.trim()) return name;
-  const normalise = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return normalise(name).startsWith(normalise(brand)) ? name : `${brand.trim()} ${name}`;
-}
-
-/** Trims to a word boundary so a description never ends mid-word. */
-function clamp(text: string, limit: number): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= limit) return flat;
-  const cut = flat.slice(0, limit);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[,;:.\s]+$/, "")}…`;
-}
-
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   const product = await getProduct(params.id);
   if (!product) return { title: "Product not found" };
 
-  const title = withBrand(product.name, product.brand);
-  // Prefer the hand-written short description; fall back to the long one, whose
-  // newlines and bullet glyphs need flattening before it can serve as meta text.
-  const source = product.shortDescription?.trim() || product.description?.trim() || "";
+  // An admin-written SEO title wins; otherwise the product name, brand-prefixed
+  // only when the name does not already lead with it.
+  const title = product.metaTitle?.trim() || withBrand(product.name, product.brand);
+  // Then the hand-written SEO description, then the short description, then the
+  // long one — whose newlines and bullet glyphs need flattening before it can
+  // serve as meta text.
+  const source =
+    product.metaDescription?.trim() ||
+    product.shortDescription?.trim() ||
+    product.description?.trim() ||
+    "";
   const description =
     clamp(source, 155) ||
     `Buy ${title} in Sri Lanka. 100% authentic, imported from Korea, delivered islandwide.`;
@@ -246,6 +234,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
         <Link href="/shop" className="hover:text-rose-600">Shop</Link>
         <ChevronRight size={12} />
         <Link href={`/shop?type=${product.type}`} className="hover:text-rose-600">{product.type}</Link>
+        {product.brand && (
+          <>
+            <ChevronRight size={12} />
+            <Link href={`/brands/${slugify(product.brand)}`} className="hover:text-rose-600">
+              {product.brand}
+            </Link>
+          </>
+        )}
         <ChevronRight size={12} />
         <span className="text-ink-900 truncate">{product.name}</span>
       </nav>

@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import StarRating from "@/components/product/StarRating";
+import ExpandableText from "@/components/ui/ExpandableText";
 import { cn, relativeDate } from "@/lib/utils";
 
 interface PopulatedReview {
@@ -40,6 +41,7 @@ export default function ReviewCarousel() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(0);
   const [activeImage, setActiveImage] = useState<Record<string, number>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number; reviewer: string } | null>(
     null
   );
@@ -54,15 +56,22 @@ export default function ReviewCarousel() {
       .finally(() => setLoading(false));
   }, []);
 
+  const anyExpanded = Object.values(expanded).some(Boolean);
+
   useEffect(() => {
     if (!emblaApi) return;
     const onSelect = () => setSelected(emblaApi.selectedScrollSnap());
     emblaApi.on("select", onSelect);
     onSelect();
 
-    const id = setInterval(() => emblaApi.scrollNext(), 6500);
-    return () => clearInterval(id);
-  }, [emblaApi]);
+    // Sliding a review out from under someone who just opened it to read the
+    // rest is the whole reason the expand exists, so autoplay waits.
+    const id = anyExpanded ? null : setInterval(() => emblaApi.scrollNext(), 6500);
+    return () => {
+      emblaApi.off("select", onSelect);
+      if (id) clearInterval(id);
+    };
+  }, [emblaApi, anyExpanded]);
 
   useEffect(() => {
     if (!lightbox) return;
@@ -202,9 +211,17 @@ export default function ReviewCarousel() {
                           </h3>
                         )}
 
-                        <p className="text-sm text-ink-700 leading-relaxed mb-5 line-clamp-4 flex-1">
-                          {r.comment}
-                        </p>
+                        <div className="mb-5 flex-1">
+                          <ExpandableText
+                            text={r.comment}
+                            lines={4}
+                            className="text-sm text-ink-700 leading-relaxed"
+                            buttonClassName="mt-1.5"
+                            onExpandedChange={(open) =>
+                              setExpanded((prev) => ({ ...prev, [r._id]: open }))
+                            }
+                          />
+                        </div>
 
                         <div className="border-t border-ink-100 pt-4 flex items-center justify-between mt-auto">
                           <div className="min-w-0">

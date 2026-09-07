@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useWishlist } from "@/context/WishlistContext";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, slugify } from "@/lib/utils";
 import StarRating from "@/components/product/StarRating";
 import ProductCard from "@/components/shop/ProductCard";
 import NotifyMeForm from "@/components/product/NotifyMeForm";
@@ -188,7 +188,10 @@ export default function ProductView({
     setTimeout(() => (window.location.href = "/checkout"), 200);
   };
 
-  const brandName = product.tags?.[0] ?? `${product.origin} Brand`;
+  // The brand field is the only thing that maps to a real /brands page; the tag
+  // fallback is display-only, so it is not linked anywhere.
+  const brandField = product.brand?.trim();
+  const brandName = brandField || product.tags?.[0] || `${product.origin} Brand`;
   const installment = (activePrice / 3).toFixed(2);
 
   return (
@@ -310,12 +313,16 @@ export default function ProductView({
 
         <div className="space-y-5">
           <div>
-            <Link
-              href={`/shop?brand=${brandName}`}
-              className="text-sm text-rose-600 underline-offset-4 hover:underline uppercase tracking-wider"
-            >
-              {brandName}
-            </Link>
+            {brandField ? (
+              <Link
+                href={`/brands/${slugify(brandField)}`}
+                className="text-sm text-rose-600 underline-offset-4 hover:underline uppercase tracking-wider"
+              >
+                {brandName}
+              </Link>
+            ) : (
+              <span className="text-sm text-rose-600 uppercase tracking-wider">{brandName}</span>
+            )}
             <div className="flex items-start justify-between gap-3 mt-2">
               <h1 className="font-display text-3xl lg:text-4xl font-medium text-ink-900 leading-tight">
                 {product.name}

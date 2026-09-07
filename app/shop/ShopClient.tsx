@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import type { ReadonlyURLSearchParams } from "next/navigation";
 import {
   Search,
   SlidersHorizontal,
@@ -18,20 +19,57 @@ import type { Product } from "@/types";
 type ViewMode = "grid-large" | "grid" | "list";
 type OrderType = "pre-order" | "regular";
 
-export default function ShopClient() {
+/**
+ * `brand` and `initialProducts` exist for the brand pages at /brands/[slug],
+ * which pin the collection with a route segment instead of a ?brand= query and
+ * render their own H1 and intro copy — so the grid is reused, but its heading
+ * block is suppressed and the first paint comes from the server rather than a
+ * client fetch, which is what makes the product names indexable there.
+ */
+interface ShopClientProps {
+  brand?: string;
+  initialProducts?: Product[];
+  showHeader?: boolean;
+}
+
+/** Isolates useSearchParams so only the /shop route pays its rendering cost. */
+function ShopWithUrlFilters(props: ShopClientProps) {
+  return <ShopContent {...props} urlParams={useSearchParams()} />;
+}
+
+export default function ShopClient({ brand, initialProducts, showHeader = true }: ShopClientProps = {}) {
+  // useSearchParams opts a route out of static rendering: under `next build` the
+  // nearest Suspense boundary ships as a fallback and the grid only appears once
+  // the browser hydrates — which would leave the brand pages with no product
+  // names in their HTML, the one thing they exist to provide. A brand page gets
+  // its collection from the route segment, so it skips the hook entirely.
+  if (brand) {
+    return (
+      <ShopContent
+        brand={brand}
+        initialProducts={initialProducts}
+        showHeader={showHeader}
+        urlParams={null}
+      />
+    );
+  }
+
   return (
     <Suspense fallback={<div className="min-h-screen bg-white" />}>
-      <ShopContent />
+      <ShopWithUrlFilters brand={brand} initialProducts={initialProducts} showHeader={showHeader} />
     </Suspense>
   );
 }
 
-function ShopContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState(searchParams.get("search") ?? "");
+function ShopContent({
+  brand: brandProp,
+  initialProducts,
+  showHeader = true,
+  urlParams,
+}: ShopClientProps & { urlParams: ReadonlyURLSearchParams | null }) {
+  const [products, setProducts] = useState<Product[]>(initialProducts ?? []);
+  const [loading, setLoading] = useState(!initialProducts);
+  const [search, setSearch] = useState(urlParams?.get("search") ?? "");
   const [sort, setSort] = useState("featured");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
@@ -41,24 +79,33 @@ function ShopContent() {
   );
   const [selectedBrands, setSelectedBrands] = useState<Set<string>>(new Set());
   const [selectedOrderTypes, setSelectedOrderTypes] = useState<Set<OrderType>>(new Set());
-  const [priceMin, setPriceMin] = useState(0);
-  const [priceMax, setPriceMax] = useState(50000);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 50000]);
+  const initialBounds = useMemo((): [number, number] => {
+    const prices = (initialProducts ?? []).map((p) => p.price);
+    if (!prices.length) return [0, 50000];
+    return [Math.floor(Math.min(...prices)), Math.ceil(Math.max(...prices))];
+    // Only the server-supplied first page seeds the slider; later fetches update it below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [priceMin, setPriceMin] = useState(initialBounds[0]);
+  const [priceMax, setPriceMax] = useState(initialBounds[1]);
+  const [priceRange, setPriceRange] = useState<[number, number]>(initialBounds);
 
   const filters = useMemo(
     () => ({
-      type: searchParams.get("type") ?? undefined,
-      subtype: searchParams.get("subtype") ?? undefined,
-      origin: searchParams.get("origin") ?? undefined,
-      brand: searchParams.get("brand") ?? undefined,
-      tag: searchParams.get("tag") ?? undefined,
-      filter: searchParams.get("filter") ?? undefined,
-      concern: searchParams.get("concern") ?? undefined,
+      type: urlParams?.get("type") ?? undefined,
+      subtype: urlParams?.get("subtype") ?? undefined,
+      origin: urlParams?.get("origin") ?? undefined,
+      // A route-level brand wins over ?brand=, so /brands/anua cannot be
+      // widened by a stray query string.
+      brand: brandProp ?? urlParams?.get("brand") ?? undefined,
+      tag: urlParams?.get("tag") ?? undefined,
+      filter: urlParams?.get("filter") ?? undefined,
+      concern: urlParams?.get("concern") ?? undefined,
     }),
-    [searchParams]
+    [urlParams, brandProp]
   );
 
-  const searchQuery = searchParams.get("search") ?? "";
+  const searchQuery = urlParams?.get("search") ?? "";
 
   const pageTitle = useMemo(() => {
     if (searchQuery) return `Search: "${searchQuery}"`;
@@ -78,10 +125,18 @@ function ShopContent() {
 
   // Keep search in sync when the URL ?search= changes (e.g. header search)
   useEffect(() => {
-    setSearch(searchParams.get("search") ?? "");
-  }, [searchParams]);
+    setSearch(urlParams?.get("search") ?? "");
+  }, [urlParams]);
+
+  // The server already rendered the first result set on brand pages; refetching
+  // it on mount would only replace identical markup and flash a skeleton.
+  const skipFirstFetch = useRef(Boolean(initialProducts));
 
   useEffect(() => {
+    if (skipFirstFetch.current) {
+      skipFirstFetch.current = false;
+      return;
+    }
     setLoading(true);
     const params = new URLSearchParams();
     if (filters.type) params.set("type", filters.type);
@@ -215,6 +270,7 @@ function ShopContent() {
 
   return (
     <div className="bg-white min-h-screen">
+      {showHeader && (
       <div className="border-b border-ink-100 py-10 lg:py-14">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <nav className="text-xs text-ink-500 flex items-center gap-2 mb-4">
@@ -234,6 +290,7 @@ function ShopContent() {
           </p>
         </div>
       </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 py-8 lg:py-10">
         <div className="flex flex-col lg:flex-row gap-8">
@@ -364,7 +421,9 @@ function ShopContent() {
                 </ul>
               </FilterGroup>
 
-              {brandCounts.length > 0 && (
+              {/* On a brand page every result is that brand, so the filter would be a
+                  single checkbox that does nothing. */}
+              {!brandProp && brandCounts.length > 0 && (
                 <FilterGroup title="By Brand">
                   <ul className="space-y-2.5 max-h-72 overflow-y-auto">
                     {brandCounts.map(({ brand, count }) => (

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { slugify } from "@/lib/utils";
 import type { Brand } from "@/types";
 
 function BrandLogo({ brand }: { brand: Brand }) {
@@ -9,7 +10,7 @@ function BrandLogo({ brand }: { brand: Brand }) {
 
   return (
     <Link
-      href={`/shop?brand=${encodeURIComponent(brand.name)}`}
+      href={`/brands/${brand.slug ?? slugify(brand.name)}`}
       className="flex flex-col items-center justify-center px-10 lg:px-16 flex-shrink-0 group cursor-pointer min-w-[180px] lg:min-w-[220px]"
     >
       <div className="h-16 lg:h-20 flex items-center justify-center w-full">

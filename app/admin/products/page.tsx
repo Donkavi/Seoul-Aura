@@ -59,6 +59,8 @@ interface FormState {
   name: string;
   description: string;
   shortDescription: string;
+  metaTitle: string;
+  metaDescription: string;
   brand: string;
   price: string;
   comparePrice: string;
@@ -81,6 +83,8 @@ const emptyForm: FormState = {
   name: "",
   description: "",
   shortDescription: "",
+  metaTitle: "",
+  metaDescription: "",
   brand: "",
   price: "",
   comparePrice: "",
@@ -298,6 +302,8 @@ function AdminProductsPageInner() {
       name: p.name,
       description: p.description,
       shortDescription: p.shortDescription,
+      metaTitle: p.metaTitle ?? "",
+      metaDescription: p.metaDescription ?? "",
       brand: p.brand ?? "",
       price: p.price.toString(),
       comparePrice: p.comparePrice?.toString() ?? "",
@@ -796,6 +802,48 @@ function AdminProductsPageInner() {
                   maxLength={160}
                   className="input-field"
                 />
+                <p className="text-[11px] text-ink-400 mt-1">
+                  Doubles as the Google description unless the SEO field below is filled in.
+                </p>
+              </div>
+
+              {/* Left blank, the product page falls back to the product name and
+                  short description — these only exist to override that. */}
+              <div className="border-t border-ink-100 pt-4 space-y-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-ink-700">
+                  SEO (optional)
+                </p>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
+                    Meta Title
+                  </label>
+                  <input
+                    value={form.metaTitle}
+                    onChange={(e) => setForm({ ...form, metaTitle: e.target.value })}
+                    maxLength={70}
+                    placeholder={form.name || "Defaults to the product name"}
+                    className="input-field"
+                  />
+                  <p className="text-[11px] text-ink-400 mt-1">
+                    {form.metaTitle.length}/70 · &ldquo; | Seoul Aura&rdquo; is appended automatically.
+                  </p>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
+                    Meta Description
+                  </label>
+                  <textarea
+                    value={form.metaDescription}
+                    onChange={(e) => setForm({ ...form, metaDescription: e.target.value })}
+                    maxLength={160}
+                    rows={3}
+                    placeholder="Defaults to the short description"
+                    className="input-field resize-none"
+                  />
+                  <p className="text-[11px] text-ink-400 mt-1">
+                    {form.metaDescription.length}/160 · the grey text under the Google result.
+                  </p>
+                </div>
               </div>
 
               <div>

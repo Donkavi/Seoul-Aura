@@ -11,6 +11,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import StarRating from "@/components/product/StarRating";
+import ExpandableText from "@/components/ui/ExpandableText";
 import { cn, relativeDate } from "@/lib/utils";
 import type { Review } from "@/types";
 
@@ -169,7 +170,7 @@ export default function AdminReviewsPage() {
                     {r.title && (
                       <p className="text-sm font-medium text-ink-900 mb-1">{r.title}</p>
                     )}
-                    <p className="text-xs text-ink-600 line-clamp-2">{r.comment}</p>
+                    <ExpandableText text={r.comment} lines={2} className="text-xs text-ink-600" />
                     {r.images && r.images.length > 0 && (
                       <div className="flex gap-1.5 mt-2">
                         {r.images.slice(0, 4).map((img, i) => (

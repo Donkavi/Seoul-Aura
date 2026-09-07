@@ -10,6 +10,10 @@ export interface IProduct extends Document {
   slug: string;
   description: string;
   shortDescription: string;
+  /** Overrides the generated <title> on the product page; blank falls back to the name. */
+  metaTitle?: string;
+  /** Overrides the generated meta description; blank falls back to shortDescription. */
+  metaDescription?: string;
   price: number;
   comparePrice?: number;
   priceKRW?: number;
@@ -40,6 +44,8 @@ const ProductSchema = new Schema<IProduct>(
     slug: { type: String, required: true, unique: true, lowercase: true },
     description: { type: String, required: true },
     shortDescription: { type: String, default: "" },
+    metaTitle: { type: String, trim: true },
+    metaDescription: { type: String, trim: true },
     price: { type: Number, required: true, min: 0 },
     comparePrice: { type: Number },
     priceKRW: { type: Number, min: 0 },

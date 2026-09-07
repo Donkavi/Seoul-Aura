@@ -16,7 +16,7 @@ import {
   Edit2,
   Store,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, slugify } from "@/lib/utils";
 import type { NavMenuItem, NavColumn, NavLink, Brand } from "@/types";
 
 const emptyFeature = { title: "", description: "", image: "", href: "", cta: "" };
@@ -154,7 +154,7 @@ export default function NavMenuAdminPage() {
       heading: "Shop by Brand",
       links: selectedBrands.map((b) => ({
         label: b.name,
-        href: `/shop?brand=${encodeURIComponent(b.name)}`,
+        href: `/brands/${b.slug ?? slugify(b.name)}`,
       })),
     };
     setDraft((d) => d ? { ...d, columns: [...(d.columns ?? []), newCol as any] } : d);
