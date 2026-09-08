@@ -30,6 +30,7 @@ import {
   CreditCard,
   Tag,
   MapPin,
+  Home,
 } from "lucide-react";
 import { cn, formatPrice, sumSavings } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -170,20 +171,20 @@ const blankRow = (): ProductRow => ({
   productImage: undefined,
 });
 
-const FREE_RAMEN_THRESHOLD = 10000;
+const FREE_GIFT_THRESHOLD = 10000;
 
-function FreeRamenBanner() {
+function FreeGiftBanner() {
   return (
     <div className="relative overflow-hidden rounded-sm border border-gold-400/40 bg-gradient-to-r from-gold-50 via-rose-50 to-gold-50 px-4 py-3 animate-fade-up">
-      <span className="pointer-events-none absolute -top-3 -right-3 text-4xl opacity-20 rotate-12">🍜</span>
+      <span className="pointer-events-none absolute -top-3 -right-3 text-4xl opacity-20 rotate-12">🎁</span>
       <div className="relative flex items-center gap-3">
-        <span className="text-2xl leading-none animate-bounce" style={{ animationDuration: "1.6s" }}>🍜</span>
+        <span className="text-2xl leading-none animate-bounce" style={{ animationDuration: "1.6s" }}>🎁</span>
         <div className="min-w-0">
           <p className="text-[11px] font-bold uppercase tracking-widest text-gold-600">
             Free Gift Unlocked
           </p>
           <p className="text-xs text-ink-700 leading-snug">
-            You&apos;ve scored a <strong>FREE Korean Ramen</strong> on us — added automatically, no code needed! 🎉
+            You&apos;ve scored a <strong>FREE Gift</strong> on us — added automatically, no code needed! 🎉
           </p>
         </div>
       </div>
@@ -247,7 +248,7 @@ export default function PreOrderPage() {
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [error, setError] = useState("");
   const [refs, setRefs] = useState<string[]>([]);
-  const [wonFreeRamen, setWonFreeRamen] = useState(false);
+  const [wonFreeGift, setWonFreeGift] = useState(false);
 
   // Confirmation modal
   const [showConfirm, setShowConfirm] = useState(false);
@@ -262,6 +263,7 @@ export default function PreOrderPage() {
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
   // Delivery location (district/city drive the delivery charge)
+  const [address, setAddress] = useState("");
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
   const [districts, setDistricts] = useState<string[]>([]);
@@ -500,6 +502,11 @@ export default function PreOrderPage() {
       return;
     }
 
+    if (!address.trim()) {
+      setError("Please enter your delivery address.");
+      return;
+    }
+
     const validRows = products.filter((p) => p.productBrand.trim() && p.productName.trim());
     if (validRows.length === 0) {
       setError("Add at least one product with a brand and product name.");
@@ -534,7 +541,7 @@ export default function PreOrderPage() {
           phoneNumber: contact.phoneNumber,
           notes: contact.notes,
           balancePaymentMethod: balanceMethod,
-          shippingAddress: { district, city },
+          shippingAddress: { line1: address.trim(), district, city },
           shippingFee: deliveryCharge,
           items: validRows.map((row) => ({
             productBrand: row.productBrand,
@@ -553,7 +560,7 @@ export default function PreOrderPage() {
       const submittedSubtotal = validRows
         .filter((r) => r.unitPrice != null)
         .reduce((s, r) => s + (r.unitPrice! * parseInt(r.quantity || "1")), 0);
-      setWonFreeRamen(submittedSubtotal + deliveryCharge >= FREE_RAMEN_THRESHOLD);
+      setWonFreeGift(submittedSubtotal + deliveryCharge >= FREE_GIFT_THRESHOLD);
 
       setRefs(data.requestNumber ? [data.requestNumber] : []);
       clearPreOrders();
@@ -586,9 +593,9 @@ export default function PreOrderPage() {
             Our team will email you a price quote and ETA within <strong>48 hours</strong>. Track everything under
             Pre-Orders in your account.
           </p>
-          {wonFreeRamen && (
+          {wonFreeGift && (
             <div className="max-w-sm mx-auto mb-8">
-              <FreeRamenBanner />
+              <FreeGiftBanner />
             </div>
           )}
           <div className="flex flex-wrap gap-3 justify-center">
@@ -711,36 +718,49 @@ export default function PreOrderPage() {
               {/* Delivery Location */}
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-3">Delivery Location</p>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <FormField icon={MapPin} label="District *">
-                    <select
-                      value={district}
-                      onChange={(e) => onDistrictChange(e.target.value)}
+                <div className="space-y-3">
+                  {/* District and city set the delivery charge; this is where the
+                      courier actually knocks, so it is asked for separately. */}
+                  <FormField icon={Home} label="Address *">
+                    <input
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
                       required
+                      placeholder="No. 12, Galle Road, Wellawatte"
                       className="flex-1 bg-transparent outline-none text-sm"
-                    >
-                      <option value="">Select district</option>
-                      {districts.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
+                    />
                   </FormField>
-                  <FormField icon={MapPin} label="City *">
-                    <select
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      required
-                      disabled={!district || loadingCities}
-                      className="flex-1 bg-transparent outline-none text-sm disabled:text-ink-400"
-                    >
-                      <option value="">
-                        {loadingCities ? "Loading…" : district ? "Select city" : "Select district first"}
-                      </option>
-                      {cities.map((c) => (
-                        <option key={c.city} value={c.city}>{c.city}</option>
-                      ))}
-                    </select>
-                  </FormField>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <FormField icon={MapPin} label="District *">
+                      <select
+                        value={district}
+                        onChange={(e) => onDistrictChange(e.target.value)}
+                        required
+                        className="flex-1 bg-transparent outline-none text-sm"
+                      >
+                        <option value="">Select district</option>
+                        {districts.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField icon={MapPin} label="City *">
+                      <select
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        required
+                        disabled={!district || loadingCities}
+                        className="flex-1 bg-transparent outline-none text-sm disabled:text-ink-400"
+                      >
+                        <option value="">
+                          {loadingCities ? "Loading…" : district ? "Select city" : "Select district first"}
+                        </option>
+                        {cities.map((c) => (
+                          <option key={c.city} value={c.city}>{c.city}</option>
+                        ))}
+                      </select>
+                    </FormField>
+                  </div>
                 </div>
               </div>
 
@@ -869,10 +889,10 @@ export default function PreOrderPage() {
                 const savedTotal = sumSavings(pricedRows.map(r => ({ price: r.unitPrice!, comparePrice: r.comparePrice, quantity: parseInt(r.quantity || "1") })));
                 const total = subtotal + deliveryCharge;
                 const allPriced = pricedRows.length === validRows.length;
-                const earnedFreeRamen = total >= FREE_RAMEN_THRESHOLD;
+                const earnedFreeGift = total >= FREE_GIFT_THRESHOLD;
                 return (
                   <div className="space-y-3">
-                    {earnedFreeRamen && <FreeRamenBanner />}
+                    {earnedFreeGift && <FreeGiftBanner />}
                     <div className="bg-rose-50/60 border border-rose-100 rounded-sm p-4 space-y-2">
                       <p className="text-[10px] uppercase tracking-widest text-rose-600 font-semibold mb-3">Order Summary</p>
                       {pricedRows.map((r, i) => (
@@ -1019,7 +1039,7 @@ export default function PreOrderPage() {
                 const savedTotal = sumSavings(pricedRows.map(r => ({ price: r.unitPrice!, comparePrice: r.comparePrice, quantity: parseInt(r.quantity || "1") })));
         const estTotal = subtotal + deliveryCharge;
         const deposit = Math.round(estTotal * 0.25);
-        const earnedFreeRamen = estTotal >= FREE_RAMEN_THRESHOLD;
+        const earnedFreeGift = estTotal >= FREE_GIFT_THRESHOLD;
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1040,7 +1060,7 @@ export default function PreOrderPage() {
               </div>
 
               <div className="px-6 py-5 space-y-4">
-                {earnedFreeRamen && <FreeRamenBanner />}
+                {earnedFreeGift && <FreeGiftBanner />}
 
                 <p className="text-sm text-ink-600 leading-relaxed">
                   Please review and acknowledge how pre-orders work before we submit your request:

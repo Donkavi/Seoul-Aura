@@ -366,7 +366,7 @@ interface PreOrder {
   adminNotes?: string;
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
-  shippingAddress?: { district: string; city: string };
+  shippingAddress?: { line1?: string; district: string; city: string };
   shippingFee?: number;
   deliveryStatus?: string;
   trackingToken?: string;
@@ -550,7 +550,16 @@ function PreOrdersTab({ email }: { email: string }) {
                 {/* Delivery location */}
                 {selected.shippingAddress?.district && (
                   <p className="text-xs text-ink-500">
-                    Delivering to <span className="font-medium text-ink-700">{selected.shippingAddress.city}, {selected.shippingAddress.district}</span>
+                    Delivering to{" "}
+                    <span className="font-medium text-ink-700">
+                      {[
+                        selected.shippingAddress.line1,
+                        selected.shippingAddress.city,
+                        selected.shippingAddress.district,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </span>
                   </p>
                 )}
 

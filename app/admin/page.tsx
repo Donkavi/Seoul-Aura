@@ -44,8 +44,8 @@ export default function AdminDashboard() {
       accent: "rose",
     },
     {
-      label: "Total Orders",
-      value: stats?.totalOrders ?? 0,
+      label: "Total Pre-Orders",
+      value: stats?.totalPreOrders ?? 0,
       icon: ShoppingBag,
       change: "+8.2%",
       positive: true,

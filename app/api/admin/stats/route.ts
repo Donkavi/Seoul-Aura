@@ -16,8 +16,8 @@ export async function GET() {
 
     const [
       totalOrders,
-      revenueResult,
-      preOrderRevenueResult,
+      totalPreOrders,
+      doneRevenueResult,
       totalUsers,
       totalProducts,
       pendingOrders,
@@ -25,30 +25,54 @@ export async function GET() {
       pendingPreOrders,
     ] = await Promise.all([
       Order.countDocuments(),
-      Order.aggregate([
-        { $match: { paymentStatus: "paid" } },
-        { $group: { _id: null, total: { $sum: "$total" } } },
-      ]),
-      // Fulfilled pre-order revenue: use estimatedPrice if set, else sum item unit prices
+      PreOrder.countDocuments(),
+      /**
+       * Revenue is the money actually collected, which for this store means
+       * pre-orders that reached "done" — nothing earlier is settled.
+       *
+       * Per request it is the same figure the buyer approved and the admin sees
+       * as Est. Total: available items at their quoted unit price, times
+       * quantity, plus the delivery charge. Items marked unavailable were never
+       * charged for, so they are excluded. `estimatedPrice` is the fallback for
+       * older requests quoted as a single manual figure with no priced items.
+       */
       PreOrder.aggregate([
-        { $match: { status: "fulfilled" } },
+        { $match: { status: "done" } },
         {
           $project: {
             revenue: {
-              $cond: {
-                if: { $gt: [{ $ifNull: ["$estimatedPrice", 0] }, 0] },
-                then: "$estimatedPrice",
-                else: {
-                  $reduce: {
-                    input: { $ifNull: ["$items", []] },
-                    initialValue: 0,
-                    in: {
-                      $add: [
-                        "$$value",
-                        { $multiply: [{ $ifNull: ["$$this.unitPrice", 0] }, "$$this.quantity"] },
-                      ],
+              $let: {
+                vars: {
+                  itemsTotal: {
+                    $reduce: {
+                      input: {
+                        $filter: {
+                          input: { $ifNull: ["$items", []] },
+                          as: "it",
+                          cond: { $ne: ["$$it.availability", "unavailable"] },
+                        },
+                      },
+                      initialValue: 0,
+                      in: {
+                        $add: [
+                          "$$value",
+                          {
+                            $multiply: [
+                              { $ifNull: ["$$this.unitPrice", 0] },
+                              { $ifNull: ["$$this.quantity", 1] },
+                            ],
+                          },
+                        ],
+                      },
                     },
                   },
+                },
+                in: {
+                  $cond: [
+                    { $gt: ["$$itemsTotal", 0] },
+                    { $add: ["$$itemsTotal", { $ifNull: ["$shippingFee", 0] }] },
+                    { $ifNull: ["$estimatedPrice", 0] },
+                  ],
                 },
               },
             },
@@ -63,10 +87,11 @@ export async function GET() {
       PreOrder.countDocuments({ status: { $in: ["pending", "reviewing"] } }),
     ]);
 
-    const totalRevenue = (revenueResult[0]?.total ?? 0) + (preOrderRevenueResult[0]?.total ?? 0);
+    const totalRevenue = doneRevenueResult[0]?.total ?? 0;
 
     return NextResponse.json({
       totalOrders,
+      totalPreOrders,
       totalRevenue,
       totalUsers,
       totalProducts,

@@ -682,6 +682,9 @@ function PreOrderDrawer({
               <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-3">
                 Delivery Location
               </h3>
+              {preOrder.shippingAddress.line1 && (
+                <p className="text-sm text-ink-900">{preOrder.shippingAddress.line1}</p>
+              )}
               <p className="text-sm text-ink-700">
                 {preOrder.shippingAddress.city}, {preOrder.shippingAddress.district}
                 {preOrder.shippingFee != null && (

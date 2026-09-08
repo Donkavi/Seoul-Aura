@@ -114,6 +114,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!shippingAddress?.line1?.trim()) {
+      return NextResponse.json(
+        { error: "Please enter your delivery address" },
+        { status: 400 }
+      );
+    }
+
     const first = items[0];
     const preOrder = await PreOrder.create({
       requestNumber: generateRequestNumber(),
@@ -133,6 +140,7 @@ export async function POST(req: NextRequest) {
       balancePaymentMethod: balancePaymentMethod === "bank" || balancePaymentMethod === "cod" ? balancePaymentMethod : undefined,
       status: "pending",
       shippingAddress: {
+        line1: shippingAddress.line1.trim(),
         district: shippingAddress.district.trim(),
         city: shippingAddress.city.trim(),
       },

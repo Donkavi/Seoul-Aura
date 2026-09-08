@@ -126,6 +126,9 @@ export interface Order {
 
 export interface AdminStats {
   totalOrders: number;
+  /** Every pre-order request ever submitted, in any status. */
+  totalPreOrders: number;
+  /** Settled money only: pre-orders that reached "done". */
   totalRevenue: number;
   totalUsers: number;
   totalProducts: number;
@@ -262,6 +265,7 @@ export interface PreOrder {
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
   shippingAddress?: {
+    line1?: string;
     district: string;
     city: string;
   };

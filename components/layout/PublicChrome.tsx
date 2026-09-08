@@ -5,6 +5,7 @@ import Header from "./Header";
 import Footer from "./Footer";
 import CartDrawer from "./CartDrawer";
 import ChatWidget from "@/components/chat/ChatWidget";
+import WhatsAppFab from "./WhatsAppFab";
 
 export default function PublicChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -21,6 +22,7 @@ export default function PublicChrome({ children }: { children: React.ReactNode }
       <main className="flex-1">{children}</main>
       <Footer />
       <ChatWidget />
+      <WhatsAppFab />
     </>
   );
 }

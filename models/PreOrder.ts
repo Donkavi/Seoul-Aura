@@ -60,6 +60,8 @@ export interface IPreOrder extends Document {
   balancePaymentMethod?: "cod" | "bank";
   depositPaid?: boolean;
   shippingAddress?: {
+    /** Street address — the courier needs a door, not just a city. */
+    line1?: string;
     district: string;
     city: string;
   };
@@ -145,6 +147,7 @@ const PreOrderSchema = new Schema<IPreOrder>(
     balancePaymentMethod: { type: String, enum: ["cod", "bank"] },
     depositPaid: { type: Boolean, default: false },
     shippingAddress: {
+      line1: { type: String, trim: true },
       district: { type: String, trim: true },
       city: { type: String, trim: true },
     },
