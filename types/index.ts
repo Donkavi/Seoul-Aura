@@ -29,6 +29,8 @@ export interface Product {
   metaDescription?: string;
   price: number;
   comparePrice?: number;
+  /** Supplier cost in Korean won. The LKR `price` is derived from this. */
+  priceKRW?: number;
   origin: "Korea" | "Dubai" | "Other";
   type: string;
   subtype: string;

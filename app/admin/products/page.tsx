@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { Plus, Pencil, Trash2, Search, X, Package, Check, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { formatPrice, cn } from "@/lib/utils";
 import type { Product, Category, Concern, ProductVariant, Brand } from "@/types";
@@ -62,6 +63,7 @@ interface FormState {
   metaTitle: string;
   metaDescription: string;
   brand: string;
+  priceKRW: string;
   price: string;
   comparePrice: string;
   origin: "Korea" | "Dubai" | "Global" | "Other";
@@ -86,6 +88,7 @@ const emptyForm: FormState = {
   metaTitle: "",
   metaDescription: "",
   brand: "",
+  priceKRW: "",
   price: "",
   comparePrice: "",
   origin: "Korea",
@@ -123,21 +126,73 @@ function AdminProductsPageInner() {
   const [savingBrand, setSavingBrand] = useState(false);
   // Set when we arrive from Admin → Product Requests, so saving can close that request out.
   const [sourcedRequestId, setSourcedRequestId] = useState<string | null>(null);
+
+  // Today's live KRW→LKR rate. The rate saved in Price Manager is only a
+  // fallback for when the upstream provider can't be reached, so a new product
+  // is always costed at the day's rate rather than whenever the rate was set.
+  const [liveRate, setLiveRate] = useState<number | null>(null);
+  const [savedRate, setSavedRate] = useState(0.23);
+  const [krwMargin, setKrwMargin] = useState(0);
+  const [rateLoading, setRateLoading] = useState(true);
+
+  const krwRate = liveRate ?? savedRate;
+
+  useEffect(() => {
+    fetch("/api/exchange-rate?from=KRW&to=LKR")
+      .then((r) => r.json())
+      .then((d) => { if (typeof d.rate === "number") setLiveRate(d.rate); })
+      .catch(() => {})
+      .finally(() => setRateLoading(false));
+  }, []);
+
+  const lkrFromKrw = (krw: number) => Math.round(krw * krwRate * (1 + krwMargin / 100));
+
+  /** True while a KRW cost is present, i.e. the LKR price is being derived. */
+  const krwFromCost = parseFloat(form.priceKRW) > 0;
+
+  // Only costs typed in this form session follow the rate. Without this, merely
+  // opening an existing product would reprice it the moment the live rate landed.
+  const krwTouched = useRef(false);
+
+  useEffect(() => {
+    if (!krwTouched.current) return;
+    const krw = parseFloat(form.priceKRW);
+    if (krw > 0) setForm((f) => ({ ...f, price: String(lkrFromKrw(krw)) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [krwRate, krwMargin]);
+
+  /**
+   * KRW cost drives the LKR price. Typing a cost prices it at today's live rate;
+   * clearing it hands the field back for manual entry so products bought outside
+   * Korea can still be priced directly.
+   */
+  const setPriceKRW = (value: string) => {
+    krwTouched.current = true;
+    const krw = parseFloat(value);
+    setForm((f) => ({
+      ...f,
+      priceKRW: value,
+      price: krw > 0 ? String(lkrFromKrw(krw)) : f.price,
+    }));
+  };
   const router = useRouter();
   const searchParams = useSearchParams();
   const prefillApplied = useRef(false);
 
   const loadData = async () => {
-    const [pRes, cRes, concRes, bRes] = await Promise.all([
+    const [pRes, cRes, concRes, bRes, sRes] = await Promise.all([
       fetch("/api/products?limit=100&admin=true").then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
       fetch("/api/concerns").then((r) => r.json()),
       fetch("/api/brands").then((r) => r.json()),
+      fetch("/api/settings").then((r) => r.json()).catch(() => null),
     ]);
     setProducts(pRes.products ?? []);
     setCategories(Array.isArray(cRes) ? cRes : []);
     setConcerns(Array.isArray(concRes) ? concRes : []);
     setBrands(Array.isArray(bRes) ? bRes : []);
+    if (sRes?.krwToLkrRate != null) setSavedRate(sRes.krwToLkrRate);
+    if (sRes?.priceMarginPercent != null) setKrwMargin(sRes.priceMarginPercent);
   };
 
   const saveNewBrand = async () => {
@@ -257,6 +312,7 @@ function AdminProductsPageInner() {
       ...form,
       price: parseFloat(form.price),
       comparePrice: form.comparePrice ? parseFloat(form.comparePrice) : undefined,
+      priceKRW: form.priceKRW ? parseFloat(form.priceKRW) : undefined,
       stock: parseInt(form.stock || "0"),
       images: form.images.split(",").map((s) => s.trim()).filter(Boolean),
       tags: form.tags.split(",").map((s) => s.trim()).filter(Boolean),
@@ -287,6 +343,7 @@ function AdminProductsPageInner() {
 
       await loadData();
       setShowForm(false);
+      krwTouched.current = false;
       setForm(emptyForm);
       setDescSections([]);
       setEditingId(null);
@@ -298,6 +355,7 @@ function AdminProductsPageInner() {
   };
 
   const handleEdit = (p: Product) => {
+    krwTouched.current = false;
     setForm({
       name: p.name,
       description: p.description,
@@ -305,6 +363,7 @@ function AdminProductsPageInner() {
       metaTitle: p.metaTitle ?? "",
       metaDescription: p.metaDescription ?? "",
       brand: p.brand ?? "",
+      priceKRW: p.priceKRW?.toString() ?? "",
       price: p.price.toString(),
       comparePrice: p.comparePrice?.toString() ?? "",
       origin: p.origin,
@@ -356,6 +415,7 @@ function AdminProductsPageInner() {
         <button
           onClick={() => {
             setEditingId(null);
+            krwTouched.current = false;
             setForm(emptyForm);
             setShowForm(true);
           }}
@@ -507,6 +567,7 @@ function AdminProductsPageInner() {
               <button
                 onClick={() => {
                   setShowForm(false);
+                  krwTouched.current = false;
                   setForm(emptyForm);
                   setEditingId(null);
                   setSourcedRequestId(null);
@@ -627,10 +688,27 @@ function AdminProductsPageInner() {
                 )}
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
+                    KRW Cost
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={form.priceKRW}
+                    onChange={(e) => setPriceKRW(e.target.value)}
+                    placeholder="e.g. 30864"
+                    className="input-field"
+                  />
+                </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
                     Price (LKR) *
+                    {krwFromCost && (
+                      <span className="ml-1.5 normal-case tracking-normal text-ink-400 font-normal">auto</span>
+                    )}
                   </label>
                   <input
                     type="number"
@@ -638,7 +716,9 @@ function AdminProductsPageInner() {
                     value={form.price}
                     onChange={(e) => setForm({ ...form, price: e.target.value })}
                     required
-                    className="input-field"
+                    readOnly={krwFromCost}
+                    title={krwFromCost ? "Calculated from the KRW cost — clear it to set a price by hand" : undefined}
+                    className={cn("input-field", krwFromCost && "bg-ink-50 text-ink-700 cursor-default")}
                   />
                 </div>
                 <div>
@@ -654,6 +734,31 @@ function AdminProductsPageInner() {
                   />
                 </div>
               </div>
+              <p className="text-[11px] text-ink-400 -mt-2">
+                {krwFromCost ? (
+                  <>
+                    LKR = {form.priceKRW} × {krwRate.toFixed(4)} {krwMargin ? <>× (1 + {krwMargin}%) </> : null}
+                    = <strong className="text-ink-600">Rs. {Number(form.price || 0).toLocaleString()}</strong>.
+                  </>
+                ) : (
+                  <>Enter a KRW cost to price this product automatically at today&apos;s rate.</>
+                )}{" "}
+                {rateLoading ? (
+                  <>Fetching today&apos;s rate…</>
+                ) : liveRate ? (
+                  <>
+                    Live rate <strong className="text-ink-600">{krwRate.toFixed(4)}</strong>
+                    {krwMargin ? <> · margin <strong className="text-ink-600">{krwMargin}%</strong></> : null}.
+                  </>
+                ) : (
+                  <>
+                    Live rate unavailable — using the saved rate{" "}
+                    <strong className="text-ink-600">{krwRate}</strong>
+                    {krwMargin ? <> · margin <strong className="text-ink-600">{krwMargin}%</strong></> : null} from{" "}
+                    <Link href="/admin/pricing" className="text-rose-600 hover:underline">Price Manager</Link>.
+                  </>
+                )}
+              </p>
 
               {/* Variants */}
               <div>
@@ -1025,6 +1130,7 @@ function AdminProductsPageInner() {
                   type="button"
                   onClick={() => {
                     setShowForm(false);
+                    krwTouched.current = false;
                     setForm(emptyForm);
                     setEditingId(null);
                     setSourcedRequestId(null);

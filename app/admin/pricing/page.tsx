@@ -71,10 +71,11 @@ export default function AdminPricingPage() {
     setResult(null);
   };
 
-  // Reset every KRW cost to 0
+  // Reset every KRW cost to 0. With nothing left to derive from, each product
+  // keeps the LKR price it already has rather than collapsing to zero.
   const clearKrw = () => {
     if (!confirm("Set the KRW cost of ALL products to 0? You can re-enter or back-fill them afterward.")) return;
-    setRows((prev) => prev.map((r) => ({ ...r, priceKRW: "0" })));
+    setRows((prev) => prev.map((r) => ({ ...r, priceKRW: "0", newPrice: String(r.currentPrice) })));
     setRecalculated(true);
     setResult(null);
   };
@@ -98,23 +99,31 @@ export default function AdminPricingPage() {
     setRows((prev) => prev.map((r) => {
       if (parseFloat(r.priceKRW) > 0) return r; // only fill empty ones
       const krw = Math.round(r.currentPrice / divisor);
-      return { ...r, priceKRW: String(krw) };
+      // Re-derive the price from the rounded cost so the column keeps matching
+      // the formula rather than the figure we worked backwards from.
+      return { ...r, priceKRW: String(krw), newPrice: String(computeLkr(krw)) };
     }));
     setRecalculated(true);
     setResult(null);
   };
 
-  const setRowField = (id: string, field: "priceKRW" | "newPrice", value: string) => {
+  /**
+   * KRW cost is the only figure an admin types here — the LKR price is always
+   * derived from it, so the two can never drift apart by hand.
+   */
+  const setKrw = (id: string, value: string) => {
     setRows((prev) => prev.map((r) => {
       if (r._id !== id) return r;
-      const updated = { ...r, [field]: value };
-      // Editing the KRW cost live-updates that row's new LKR price using current rate/margin
-      if (field === "priceKRW") {
-        const krw = parseFloat(value);
-        if (krw > 0) updated.newPrice = String(computeLkr(krw));
-      }
-      return updated;
+      const krw = parseFloat(value);
+      return {
+        ...r,
+        priceKRW: value,
+        // No KRW cost means nothing to derive from, so the current price stands.
+        newPrice: krw > 0 ? String(computeLkr(krw)) : String(r.currentPrice),
+      };
     }));
+    setRecalculated(true);
+    setResult(null);
   };
 
   const saveAll = async () => {
@@ -206,7 +215,8 @@ export default function AdminPricingPage() {
         </div>
 
         <p className="text-xs text-ink-400 mt-4">
-          Formula: <strong>LKR = KRW × rate × (1 + margin%)</strong>, rounded. Products without a KRW cost are left unchanged.
+          Formula: <strong>LKR = KRW × rate × (1 + margin%)</strong>, rounded. KRW cost is the only editable
+          figure — the LKR price is always derived from it. Products without a KRW cost are left unchanged.
           {missingKrw > 0 && <span className="text-rose-500"> · {missingKrw} product{missingKrw !== 1 ? "s" : ""} missing a KRW cost.</span>}
         </p>
 
@@ -274,7 +284,9 @@ export default function AdminPricingPage() {
                   <th className="text-left p-3 px-4 text-xs uppercase tracking-widest text-ink-500 font-semibold">Product</th>
                   <th className="text-right p-3 text-xs uppercase tracking-widest text-ink-500 font-semibold w-36">KRW Cost</th>
                   <th className="text-right p-3 text-xs uppercase tracking-widest text-ink-500 font-semibold w-32">Current LKR</th>
-                  <th className="text-right p-3 px-4 text-xs uppercase tracking-widest text-ink-500 font-semibold w-40">New LKR</th>
+                  <th className="text-right p-3 px-4 text-xs uppercase tracking-widest text-ink-500 font-semibold w-40">
+                    New LKR <span className="normal-case tracking-normal text-ink-400 font-normal">(auto)</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -294,7 +306,7 @@ export default function AdminPricingPage() {
                         <input
                           type="number"
                           value={r.priceKRW}
-                          onChange={(e) => setRowField(r._id, "priceKRW", e.target.value)}
+                          onChange={(e) => setKrw(r._id, e.target.value)}
                           placeholder="—"
                           className={cn(
                             "w-full text-right text-sm border rounded-sm px-2 py-1.5 focus:outline-none focus:border-rose-300 font-mono",
@@ -303,16 +315,19 @@ export default function AdminPricingPage() {
                         />
                       </td>
                       <td className="p-3 text-right text-sm text-ink-400 whitespace-nowrap">{formatPrice(r.currentPrice)}</td>
+                      {/* Derived from the KRW cost — read-only by design. */}
                       <td className="p-3 px-4">
-                        <input
-                          type="number"
-                          value={r.newPrice}
-                          onChange={(e) => setRowField(r._id, "newPrice", e.target.value)}
+                        <div
+                          title="Calculated from the KRW cost, rate and margin"
                           className={cn(
-                            "w-full text-right text-sm border rounded-sm px-2 py-1.5 focus:outline-none focus:border-rose-300 font-mono font-semibold",
-                            changed ? "border-rose-300 bg-rose-50 text-rose-700" : "border-ink-200 text-ink-900"
+                            "w-full text-right text-sm rounded-sm px-2 py-1.5 font-mono font-semibold tabular-nums cursor-default",
+                            changed ? "bg-rose-50 text-rose-700" : "text-ink-900"
                           )}
-                        />
+                        >
+                          {r.newPrice === "" || Number.isNaN(parseFloat(r.newPrice))
+                            ? "—"
+                            : Number(r.newPrice).toLocaleString()}
+                        </div>
                       </td>
                     </tr>
                   );
