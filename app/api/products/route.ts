@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
 import { slugify } from "@/lib/utils";
+import { revalidateCatalogue } from "@/lib/revalidate";
 
 export async function GET(req: NextRequest) {
   try {
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const slug = slugify(body.name);
     const product = await Product.create({ ...body, slug });
+    revalidateCatalogue();
     return NextResponse.json(product, { status: 201 });
   } catch (err) {
     console.error(err);

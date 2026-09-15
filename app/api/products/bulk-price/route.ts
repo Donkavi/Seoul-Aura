@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/mongodb";
 import Product from "@/models/Product";
+import { revalidateCatalogue } from "@/lib/revalidate";
 
 interface PriceUpdate {
   id: string;
@@ -35,6 +36,7 @@ export async function PATCH(req: NextRequest) {
 
     await Promise.all(ops.map((u) => Product.findByIdAndUpdate(u.id, { $set: u.set })));
 
+    revalidateCatalogue();
     return NextResponse.json({ success: true, updated: ops.length });
   } catch (err) {
     console.error(err);

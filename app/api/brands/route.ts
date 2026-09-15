@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Brand from "@/models/Brand";
 import { slugify } from "@/lib/utils";
+import { revalidateCatalogue } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const slug = slugify(body.name);
     const brand = await Brand.create({ ...body, slug });
+    revalidateCatalogue();
     return NextResponse.json(brand, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
