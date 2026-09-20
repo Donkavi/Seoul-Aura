@@ -15,19 +15,29 @@ import {
   GripVertical,
   Edit2,
   Store,
+  CornerDownRight,
+  Tags,
 } from "lucide-react";
 import { cn, slugify } from "@/lib/utils";
-import type { NavMenuItem, NavColumn, NavLink, Brand } from "@/types";
+import type { NavMenuItem, NavColumn, NavLink, NavSubLink, Brand, Category } from "@/types";
 
 const emptyFeature = { title: "", description: "", image: "", href: "", cta: "" };
+
+/**
+ * Where a brand selection lands: a brand-new dropdown group, or the sub-links
+ * of an existing link (Categories › Skincare › Korean › <brands>).
+ */
+type BrandTarget = { kind: "column" } | { kind: "children"; ci: number; li: number };
 
 export default function NavMenuAdminPage() {
   const [items, setItems] = useState<NavMenuItem[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showBrandPicker, setShowBrandPicker] = useState(false);
+  const [brandTarget, setBrandTarget] = useState<BrandTarget | null>(null);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   // Editor state — mirrors the currently selected item
   const [draft, setDraft] = useState<Partial<NavMenuItem> | null>(null);
@@ -38,14 +48,17 @@ export default function NavMenuAdminPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [navRes, brandRes] = await Promise.all([
+      const [navRes, brandRes, catRes] = await Promise.all([
         fetch("/api/nav-menu"),
         fetch("/api/brands"),
+        fetch("/api/categories"),
       ]);
       const navData = await navRes.json();
       const brandData = await brandRes.json();
+      const catData = await catRes.json();
       setItems(Array.isArray(navData) ? navData : []);
       setBrands(Array.isArray(brandData) ? brandData.filter((b: Brand) => b.active) : []);
+      setCategories(Array.isArray(catData) ? catData : []);
     } catch (err) {
       console.error("[nav-menu load]", err);
       setItems([]);
@@ -148,17 +161,47 @@ export default function NavMenuAdminPage() {
       d ? { ...d, columns: [...(d.columns ?? []), { heading: "New Group", links: [] } as any] } : d
     );
 
-  const addBrandColumn = (selectedBrands: Brand[]) => {
-    if (!selectedBrands.length) return;
+  /**
+   * Brands become either their own group or the sub-links of an existing link,
+   * depending on which "From Brands" button opened the picker.
+   */
+  const addBrands = (selectedBrands: Brand[]) => {
+    if (!selectedBrands.length || !brandTarget) return;
+    const links = selectedBrands.map((b) => ({
+      label: b.name,
+      href: `/brands/${b.slug ?? slugify(b.name)}`,
+    }));
+
+    setDraft((d) => {
+      if (!d) return d;
+      if (brandTarget.kind === "column") {
+        return { ...d, columns: [...(d.columns ?? []), { heading: "Shop by Brand", links } as any] };
+      }
+      const { ci, li } = brandTarget;
+      const cols = [...(d.columns ?? [])];
+      const colLinks = [...cols[ci].links];
+      colLinks[li] = { ...colLinks[li], children: [...(colLinks[li].children ?? []), ...links] };
+      cols[ci] = { ...cols[ci], links: colLinks };
+      return { ...d, columns: cols };
+    });
+
+    if (brandTarget.kind === "children") {
+      setExpandedLinks((prev) => ({ ...prev, [`${brandTarget.ci}-${brandTarget.li}`]: true }));
+    }
+    setBrandTarget(null);
+  };
+
+  /** Turns a category (type + subtypes) into a ready-made dropdown group. */
+  const addCategoryColumn = (category: Category) => {
     const newCol = {
-      heading: "Shop by Brand",
-      links: selectedBrands.map((b) => ({
-        label: b.name,
-        href: `/brands/${b.slug ?? slugify(b.name)}`,
+      heading: category.type,
+      links: category.subtypes.map((s) => ({
+        label: s.name,
+        href: `/shop?type=${encodeURIComponent(category.type)}&subtype=${encodeURIComponent(s.name)}`,
       })),
     };
-    setDraft((d) => d ? { ...d, columns: [...(d.columns ?? []), newCol as any] } : d);
-    setShowBrandPicker(false);
+    setDraft((d) => (d ? { ...d, columns: [...(d.columns ?? []), newCol as any] } : d));
+    setShowCategoryPicker(false);
   };
 
   const removeColumn = (ci: number) =>
@@ -206,9 +249,43 @@ export default function NavMenuAdminPage() {
       return { ...d, columns: cols };
     });
 
+  // ── Sub-links (third level) ───────────────────────────────────
+  /** Applies `fn` to one link's children and writes the result back into the draft. */
+  const updateChildren = (
+    ci: number,
+    li: number,
+    fn: (children: NavSubLink[]) => NavSubLink[]
+  ) =>
+    setDraft((d) => {
+      if (!d) return d;
+      const cols = [...(d.columns ?? [])];
+      const links = [...cols[ci].links];
+      links[li] = { ...links[li], children: fn(links[li].children ?? []) };
+      cols[ci] = { ...cols[ci], links };
+      return { ...d, columns: cols };
+    });
+
+  const addChild = (ci: number, li: number) => {
+    updateChildren(ci, li, (children) => [...children, { label: "", href: "" }]);
+    setExpandedLinks((prev) => ({ ...prev, [`${ci}-${li}`]: true }));
+  };
+
+  const removeChild = (ci: number, li: number, kidx: number) =>
+    updateChildren(ci, li, (children) => children.filter((_, i) => i !== kidx));
+
+  const setChild = (ci: number, li: number, kidx: number, key: "label" | "href", val: string) =>
+    updateChildren(ci, li, (children) =>
+      children.map((c, i) => (i === kidx ? { ...c, [key]: val } : c))
+    );
+
   const [expandedCols, setExpandedCols] = useState<Record<number, boolean>>({});
   const toggleCol = (ci: number) =>
     setExpandedCols((prev) => ({ ...prev, [ci]: !prev[ci] }));
+
+  /** Keyed `${columnIndex}-${linkIndex}` — which links have their sub-links open. */
+  const [expandedLinks, setExpandedLinks] = useState<Record<string, boolean>>({});
+  const toggleLink = (ci: number, li: number) =>
+    setExpandedLinks((prev) => ({ ...prev, [`${ci}-${li}`]: !prev[`${ci}-${li}`] }));
 
   return (
     <div className="p-6 lg:p-10 min-h-screen">
@@ -373,9 +450,17 @@ export default function NavMenuAdminPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {categories.length > 0 && (
+                    <button
+                      onClick={() => setShowCategoryPicker(true)}
+                      className="inline-flex items-center gap-1.5 text-xs border border-ink-200 text-ink-700 px-3 py-1.5 hover:border-rose-300 hover:text-rose-600 transition-colors"
+                    >
+                      <Tags size={11} /> From Categories
+                    </button>
+                  )}
                   {brands.length > 0 && (
                     <button
-                      onClick={() => setShowBrandPicker(true)}
+                      onClick={() => setBrandTarget({ kind: "column" })}
                       className="inline-flex items-center gap-1.5 text-xs border border-ink-200 text-ink-700 px-3 py-1.5 hover:border-rose-300 hover:text-rose-600 transition-colors"
                     >
                       <Store size={11} /> From Brands
@@ -392,7 +477,9 @@ export default function NavMenuAdminPage() {
 
               {!draft.columns?.length ? (
                 <p className="p-5 text-sm text-ink-400">
-                  No groups yet. Add groups to create a mega-menu dropdown for this nav item.
+                  No groups yet. Add groups to create a mega-menu dropdown for this nav item —
+                  a group (Skincare) holds links (Korean, Global), and each link can hold
+                  sub-links of its own (COSRX, Anua…).
                 </p>
               ) : (
                 <div className="divide-y divide-ink-50">
@@ -425,29 +512,97 @@ export default function NavMenuAdminPage() {
                       </div>
 
                       {expandedCols[ci] && (
-                        <div className="ml-8 space-y-2">
-                          {col.links.map((link, li) => (
-                            <div key={li} className="flex items-center gap-2">
-                              <input
-                                value={link.label}
-                                onChange={(e) => setLink(ci, li, "label", e.target.value)}
-                                placeholder="Label"
-                                className="flex-1 border border-ink-200 rounded-sm px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-rose-300"
-                              />
-                              <input
-                                value={link.href}
-                                onChange={(e) => setLink(ci, li, "href", e.target.value)}
-                                placeholder="/shop?tag=..."
-                                className="flex-1 border border-ink-200 rounded-sm px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-rose-300"
-                              />
-                              <button
-                                onClick={() => removeLink(ci, li)}
-                                className="p-1 text-ink-400 hover:text-rose-600 transition-colors flex-shrink-0"
-                              >
-                                <X size={13} />
-                              </button>
-                            </div>
-                          ))}
+                        <div className="ml-8 space-y-3">
+                          {col.links.map((link, li) => {
+                            const childCount = link.children?.length ?? 0;
+                            const open = expandedLinks[`${ci}-${li}`];
+                            return (
+                              <div key={li}>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => toggleLink(ci, li)}
+                                    className={cn(
+                                      "p-1 transition-colors flex-shrink-0",
+                                      childCount ? "text-rose-600" : "text-ink-300 hover:text-ink-700"
+                                    )}
+                                    title={childCount ? `${childCount} sub-links` : "Add sub-links"}
+                                  >
+                                    <ChevronRight
+                                      size={13}
+                                      className={cn("transition-transform", open && "rotate-90")}
+                                    />
+                                  </button>
+                                  <input
+                                    value={link.label}
+                                    onChange={(e) => setLink(ci, li, "label", e.target.value)}
+                                    placeholder="Label (e.g. Korean)"
+                                    className="flex-1 border border-ink-200 rounded-sm px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-rose-300"
+                                  />
+                                  <input
+                                    value={link.href}
+                                    onChange={(e) => setLink(ci, li, "href", e.target.value)}
+                                    placeholder="/shop?tag=..."
+                                    className="flex-1 border border-ink-200 rounded-sm px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-rose-300"
+                                  />
+                                  {childCount > 0 && (
+                                    <span className="text-[10px] text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full flex-shrink-0">
+                                      {childCount} sub
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => removeLink(ci, li)}
+                                    className="p-1 text-ink-400 hover:text-rose-600 transition-colors flex-shrink-0"
+                                  >
+                                    <X size={13} />
+                                  </button>
+                                </div>
+
+                                {open && (
+                                  <div className="ml-6 mt-2 pl-3 border-l border-ink-100 space-y-2">
+                                    {link.children?.map((child, kidx) => (
+                                      <div key={kidx} className="flex items-center gap-2">
+                                        <CornerDownRight size={12} className="text-ink-300 flex-shrink-0" />
+                                        <input
+                                          value={child.label}
+                                          onChange={(e) => setChild(ci, li, kidx, "label", e.target.value)}
+                                          placeholder="Sub-link label (e.g. COSRX)"
+                                          className="flex-1 border border-ink-200 rounded-sm px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-rose-300"
+                                        />
+                                        <input
+                                          value={child.href}
+                                          onChange={(e) => setChild(ci, li, kidx, "href", e.target.value)}
+                                          placeholder="/brands/cosrx"
+                                          className="flex-1 border border-ink-200 rounded-sm px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-rose-300"
+                                        />
+                                        <button
+                                          onClick={() => removeChild(ci, li, kidx)}
+                                          className="p-1 text-ink-400 hover:text-rose-600 transition-colors flex-shrink-0"
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                    <div className="flex items-center gap-4">
+                                      <button
+                                        onClick={() => addChild(ci, li)}
+                                        className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-medium"
+                                      >
+                                        <Plus size={11} /> Add sub-link
+                                      </button>
+                                      {brands.length > 0 && (
+                                        <button
+                                          onClick={() => setBrandTarget({ kind: "children", ci, li })}
+                                          className="inline-flex items-center gap-1.5 text-xs text-ink-500 hover:text-rose-600"
+                                        >
+                                          <Store size={11} /> From Brands
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                           <button
                             onClick={() => addLink(ci)}
                             className="mt-1 inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-medium"
@@ -552,12 +707,22 @@ export default function NavMenuAdminPage() {
         )}
       </div>
 
-      {/* Brand Picker Modal */}
-      {showBrandPicker && (
+      {/* Brand Picker Modal — fills a new group, or one link's sub-links */}
+      {brandTarget && (
         <BrandPickerModal
           brands={brands}
-          onConfirm={addBrandColumn}
-          onClose={() => setShowBrandPicker(false)}
+          asChildren={brandTarget.kind === "children"}
+          onConfirm={addBrands}
+          onClose={() => setBrandTarget(null)}
+        />
+      )}
+
+      {/* Category Picker Modal */}
+      {showCategoryPicker && (
+        <CategoryPickerModal
+          categories={categories}
+          onConfirm={addCategoryColumn}
+          onClose={() => setShowCategoryPicker(false)}
         />
       )}
     </div>
@@ -565,12 +730,70 @@ export default function NavMenuAdminPage() {
 }
 
 
+/**
+ * Turns a category straight into a dropdown group — the fast path for the food
+ * side of the catalogue, where the group and its links already exist as a
+ * category type and its subtypes.
+ */
+function CategoryPickerModal({
+  categories,
+  onConfirm,
+  onClose,
+}: {
+  categories: Category[];
+  onConfirm: (category: Category) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 bg-ink-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-sm max-w-sm w-full">
+        <header className="border-b border-ink-100 px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold mb-0.5">Nav Menu</p>
+            <h3 className="font-display text-xl text-ink-900">Add Category Group</h3>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-ink-50 rounded"><X size={16} /></button>
+        </header>
+        <div className="p-5">
+          <p className="text-xs text-ink-500 mb-3">
+            Pick a category. A group is created with its subtypes as links — add sub-links to
+            any of them afterwards.
+          </p>
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {categories.map((c) => (
+              <button
+                key={c._id}
+                onClick={() => onConfirm(c)}
+                className="w-full text-left p-3 border border-ink-100 hover:border-rose-300 hover:bg-rose-25/30 rounded-sm transition-colors"
+              >
+                <p className="text-sm text-ink-900 font-medium">{c.type}</p>
+                <p className="text-[11px] text-ink-400 truncate">
+                  {c.subtypes.length
+                    ? c.subtypes.map((s) => s.name).join(" · ")
+                    : "No subtypes yet"}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+        <footer className="border-t border-ink-100 px-5 py-3 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm border border-ink-200 text-ink-700 hover:bg-ink-50 rounded-sm transition-colors">Cancel</button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+
 function BrandPickerModal({
   brands,
+  asChildren,
   onConfirm,
   onClose,
 }: {
   brands: Brand[];
+  /** True when the selection becomes sub-links of a link rather than a new group. */
+  asChildren?: boolean;
   onConfirm: (selected: Brand[]) => void;
   onClose: () => void;
 }) {
@@ -585,12 +808,19 @@ function BrandPickerModal({
         <header className="border-b border-ink-100 px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-widest text-rose-600 font-semibold mb-0.5">Nav Menu</p>
-            <h3 className="font-display text-xl text-ink-900">Add Brand Group</h3>
+            <h3 className="font-display text-xl text-ink-900">
+            {asChildren ? "Add Brand Sub-links" : "Add Brand Group"}
+          </h3>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-ink-50 rounded"><X size={16} /></button>
         </header>
         <div className="p-5">
-          <p className="text-xs text-ink-500 mb-3">Select the brands to include in this group. A new dropdown column will be created with links to each brand's shop page.</p>
+          <p className="text-xs text-ink-500 mb-3">
+            Select the brands to include.{" "}
+            {asChildren
+              ? "They are added as sub-links under the link you chose."
+              : "A new dropdown group will be created with links to each brand's shop page."}
+          </p>
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {brands.map((b) => (
               <label key={b._id} className="flex items-center gap-3 p-2 hover:bg-rose-25/30 rounded cursor-pointer">

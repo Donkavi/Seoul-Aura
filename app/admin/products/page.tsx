@@ -837,7 +837,7 @@ function AdminProductsPageInner() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
-                    Type *
+                    Category *
                   </label>
                   <select
                     value={form.type}
@@ -853,7 +853,7 @@ function AdminProductsPageInner() {
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
-                    Subtype *
+                    Subcategory *
                   </label>
                   <select
                     value={form.subtype}
@@ -862,7 +862,7 @@ function AdminProductsPageInner() {
                     className="input-field"
                     disabled={!selectedCategory}
                   >
-                    <option value="">Select…</option>
+                    <option value="">{selectedCategory ? "Select…" : "Pick a category first"}</option>
                     {selectedCategory?.subtypes.map((s) => (
                       <option key={s.slug} value={s.name}>{s.name}</option>
                     ))}

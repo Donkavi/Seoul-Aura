@@ -100,7 +100,7 @@ export default function AdminCategoriesPage() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
-                Type Name *
+                Category Name *
               </label>
               <input
                 value={newType}
@@ -112,7 +112,7 @@ export default function AdminCategoriesPage() {
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-widest text-ink-700 mb-1.5 block">
-                Subtypes (comma separated)
+                Subcategories (comma separated)
               </label>
               <input
                 value={newSubtypes}
@@ -191,7 +191,7 @@ export default function AdminCategoriesPage() {
                     value={subtypeInput}
                     onChange={(e) => setSubtypeInput(e.target.value)}
                     autoFocus
-                    placeholder="New subtype name"
+                    placeholder="New subcategory name"
                     className="input-field flex-1 text-xs"
                   />
                   <button
@@ -215,7 +215,7 @@ export default function AdminCategoriesPage() {
                   onClick={() => setAddingSubtype(cat._id)}
                   className="text-xs text-rose-600 hover:text-rose-700 flex items-center gap-1"
                 >
-                  <Plus size={12} /> Add Subtype
+                  <Plus size={12} /> Add Subcategory
                 </button>
               )}
             </article>

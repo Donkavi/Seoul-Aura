@@ -212,18 +212,45 @@ export default function Header() {
                             {col.heading}
                           </h4>
                           <ul className="space-y-2.5">
-                            {col.links.map((link) => (
-                              <li key={link.label}>
-                                <Link
-                                  href={link.href}
-                                  onClick={() => setActiveMenu(null)}
-                                  className="text-sm text-ink-600 hover:text-rose-600 transition-colors inline-flex items-center group"
-                                >
-                                  <span className="w-0 h-px bg-rose-600 group-hover:w-3 group-hover:mr-2 transition-all" />
-                                  {link.label}
-                                </Link>
-                              </li>
-                            ))}
+                            {col.links.map((link) =>
+                              link.children?.length ? (
+                                /* Sub-group — e.g. Categories › Skincare › Korean › <brands> */
+                                <li key={link.label}>
+                                  <Link
+                                    href={link.href}
+                                    onClick={() => setActiveMenu(null)}
+                                    className="text-[11px] uppercase tracking-widest font-semibold text-ink-800 hover:text-rose-600 transition-colors"
+                                  >
+                                    {link.label}
+                                  </Link>
+                                  <ul className="mt-2 mb-1 pl-3 border-l border-ink-100 space-y-2">
+                                    {link.children.map((child) => (
+                                      <li key={child.label}>
+                                        <Link
+                                          href={child.href}
+                                          onClick={() => setActiveMenu(null)}
+                                          className="text-sm text-ink-600 hover:text-rose-600 transition-colors inline-flex items-center group"
+                                        >
+                                          <span className="w-0 h-px bg-rose-600 group-hover:w-3 group-hover:mr-2 transition-all" />
+                                          {child.label}
+                                        </Link>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </li>
+                              ) : (
+                                <li key={link.label}>
+                                  <Link
+                                    href={link.href}
+                                    onClick={() => setActiveMenu(null)}
+                                    className="text-sm text-ink-600 hover:text-rose-600 transition-colors inline-flex items-center group"
+                                  >
+                                    <span className="w-0 h-px bg-rose-600 group-hover:w-3 group-hover:mr-2 transition-all" />
+                                    {link.label}
+                                  </Link>
+                                </li>
+                              )
+                            )}
                           </ul>
                         </div>
                       ))}
@@ -306,17 +333,42 @@ export default function Header() {
                                 {col.heading}
                               </p>
                               <ul className="space-y-1.5">
-                                {col.links.map((link) => (
-                                  <li key={link.label}>
-                                    <Link
-                                      href={link.href}
-                                      onClick={() => setMobileOpen(false)}
-                                      className="text-sm text-ink-600 hover:text-rose-600 block py-1"
-                                    >
-                                      {link.label}
-                                    </Link>
-                                  </li>
-                                ))}
+                                {col.links.map((link) =>
+                                  link.children?.length ? (
+                                    <li key={link.label}>
+                                      <Link
+                                        href={link.href}
+                                        onClick={() => setMobileOpen(false)}
+                                        className="text-sm font-medium text-ink-800 hover:text-rose-600 block py-1"
+                                      >
+                                        {link.label}
+                                      </Link>
+                                      <ul className="pl-3 border-l border-ink-100 space-y-1">
+                                        {link.children.map((child) => (
+                                          <li key={child.label}>
+                                            <Link
+                                              href={child.href}
+                                              onClick={() => setMobileOpen(false)}
+                                              className="text-sm text-ink-600 hover:text-rose-600 block py-1"
+                                            >
+                                              {child.label}
+                                            </Link>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </li>
+                                  ) : (
+                                    <li key={link.label}>
+                                      <Link
+                                        href={link.href}
+                                        onClick={() => setMobileOpen(false)}
+                                        className="text-sm text-ink-600 hover:text-rose-600 block py-1"
+                                      >
+                                        {link.label}
+                                      </Link>
+                                    </li>
+                                  )
+                                )}
                               </ul>
                             </div>
                           ))}

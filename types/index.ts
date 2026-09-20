@@ -174,9 +174,16 @@ export interface Concern {
   order: number;
 }
 
+export interface NavSubLink {
+  label: string;
+  href: string;
+}
+
 export interface NavLink {
   label: string;
   href: string;
+  /** Sub-group links — Categories › Skincare › Korean › <brands>. */
+  children?: NavSubLink[];
 }
 
 export interface NavColumn {
