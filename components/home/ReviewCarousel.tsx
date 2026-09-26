@@ -130,7 +130,9 @@ export default function ReviewCarousel() {
         ) : (
         <div className="relative">
           <div className="overflow-hidden" ref={emblaRef}>
-            <div className="flex">
+            {/* Gutter lives on every slide; the negative margin cancels it at the
+                left edge, so no slide ends up wider than its neighbours. */}
+            <div className="flex -ml-4 items-stretch">
               {reviews.map((r) => {
                 const product = getProduct(r);
                 const productImage = product?.images?.[0];
@@ -141,11 +143,17 @@ export default function ReviewCarousel() {
                 return (
                   <div
                     key={r._id}
-                    className="flex-[0_0_100%] sm:flex-[0_0_50%] lg:flex-[0_0_33.333%] pl-4 first:pl-0"
+                    className="flex-[0_0_100%] sm:flex-[0_0_50%] lg:flex-[0_0_33.333%] min-w-0 pl-4"
                   >
                     <article className="bg-white border border-ink-100 rounded-sm overflow-hidden h-full shadow-card hover:shadow-card-hover transition-all duration-300 group flex flex-col">
-                      {heroImage && (
-                        <div className="relative aspect-[4/3] overflow-hidden bg-ink-50">
+                      {/*
+                        Fixed 4:3 window on every card, photo or not. flex-shrink-0
+                        matters: the slides stretch to the tallest card, and without
+                        it a card with a long comment steals height from its own
+                        image, leaving the row with mismatched photos.
+                      */}
+                      <div className="relative aspect-[4/3] overflow-hidden bg-ink-50 flex-shrink-0">
+                        {heroImage ? (
                           <button
                             type="button"
                             onClick={() =>
@@ -161,40 +169,44 @@ export default function ReviewCarousel() {
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                             />
                           </button>
-                          {reviewImages.length > 0 && (
-                            <span className="absolute top-3 left-3 bg-rose-600 text-white px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider pointer-events-none">
-                              Customer Photo
-                            </span>
-                          )}
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-50 to-ink-50">
+                            <Quote size={36} className="text-rose-200 fill-rose-100" />
+                          </div>
+                        )}
+                        {reviewImages.length > 0 && (
+                          <span className="absolute top-3 left-3 bg-rose-600 text-white px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider pointer-events-none">
+                            Customer Photo
+                          </span>
+                        )}
 
-                          {reviewImages.length > 1 && (
-                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-ink-900/70 to-transparent pt-6 pb-2.5 px-2.5 flex items-center gap-1.5">
-                              {reviewImages.map((img, i) => (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveImage((prev) => ({ ...prev, [r._id]: i }));
-                                  }}
-                                  aria-label={`View photo ${i + 1} of ${reviewImages.length}`}
-                                  className={cn(
-                                    "relative w-8 h-8 rounded-sm overflow-hidden border-2 flex-shrink-0 transition-all",
-                                    i === activeIdx
-                                      ? "border-white scale-105"
-                                      : "border-white/40 opacity-70 hover:opacity-100"
-                                  )}
-                                >
-                                  <img src={img} alt="" className="w-full h-full object-cover" />
-                                </button>
-                              ))}
-                              <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-white/90">
-                                <ImageIcon size={10} /> {reviewImages.length}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        {reviewImages.length > 1 && (
+                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-ink-900/70 to-transparent pt-6 pb-2.5 px-2.5 flex items-center gap-1.5">
+                            {reviewImages.map((img, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveImage((prev) => ({ ...prev, [r._id]: i }));
+                                }}
+                                aria-label={`View photo ${i + 1} of ${reviewImages.length}`}
+                                className={cn(
+                                  "relative w-8 h-8 rounded-sm overflow-hidden border-2 flex-shrink-0 transition-all",
+                                  i === activeIdx
+                                    ? "border-white scale-105"
+                                    : "border-white/40 opacity-70 hover:opacity-100"
+                                )}
+                              >
+                                <img src={img} alt="" className="w-full h-full object-cover" />
+                              </button>
+                            ))}
+                            <span className="ml-auto flex items-center gap-1 text-[10px] font-semibold text-white/90">
+                              <ImageIcon size={10} /> {reviewImages.length}
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
                       <div className="p-6 lg:p-7 flex-1 flex flex-col relative">
                         <Quote
@@ -206,7 +218,7 @@ export default function ReviewCarousel() {
                         </div>
 
                         {r.title && (
-                          <h3 className="font-display text-lg text-ink-900 mb-2 leading-snug">
+                          <h3 className="font-display text-lg text-ink-900 mb-2 leading-snug line-clamp-2">
                             {r.title}
                           </h3>
                         )}
