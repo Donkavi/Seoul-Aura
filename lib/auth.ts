@@ -1,4 +1,4 @@
-import type { NextAuthOptions } from "next-auth";
+import { getServerSession, type NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
@@ -115,3 +115,12 @@ export const authOptions: NextAuthOptions = {
 
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+/**
+ * The session when the caller is an admin, otherwise null. The middleware only
+ * guards /admin pages, so admin-only API routes must check this themselves.
+ */
+export async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  return (session?.user as { isAdmin?: boolean } | undefined)?.isAdmin ? session : null;
+}

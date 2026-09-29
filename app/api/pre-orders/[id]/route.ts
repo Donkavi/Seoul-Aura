@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import PreOrder from "@/models/PreOrder";
 import Settings from "@/models/Settings";
+import FinanceEntry from "@/models/FinanceEntry";
 import {
   sendPreOrderStatusUpdateToBuyer,
   sendPreOrderRevisionToBuyer,
@@ -303,6 +304,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const itemsAdded = newlyAdded.length > 0;
     let deliveryCharge = updated.shippingFee ?? 350;
     let currencySymbol = "Rs.";
+
+    // "done" means the balance is in, so sales already recorded for this
+    // request in Admin › Finance stop showing as awaiting payment.
+    if (statusChanged && updated.status === "done") {
+      await FinanceEntry.updateMany(
+        { kind: "sale", reference: updated.requestNumber, paymentStatus: "pending" },
+        { $set: { paymentStatus: "paid" } }
+      ).catch(console.error);
+    }
+
     if (statusChanged || availabilityChanged || depositChanged || priceChanged || itemsAdded) {
       const settingsDoc = await Settings.findOne().lean().catch(() => null);
       deliveryCharge = updated.shippingFee ?? (settingsDoc as { shippingFee?: number } | null)?.shippingFee ?? 350;

@@ -1,5 +1,6 @@
 /** Delivery legs live in `lib/deliveryStatus` so admin, email and tracking agree. */
 import type { DeliveryStatus } from "@/lib/deliveryStatus";
+import type { FinanceKind, FinancePaymentStatus } from "@/lib/finance";
 export type { DeliveryStatus };
 
 export interface Brand {
@@ -355,4 +356,86 @@ export interface ProductRequest {
   adminNotes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── Finance (Admin › Finance) ──────────────────────────────────────────────
+
+export interface FinanceEntry {
+  _id: string;
+  kind: FinanceKind;
+  date: string;
+  description: string;
+  amount: number;
+  quantity?: number;
+  unitPrice?: number;
+  unitPriceKRW?: number;
+  brand?: string;
+  category?: string;
+  paidBy?: string;
+  reference?: string;
+  customer?: string;
+  paymentStatus?: FinancePaymentStatus;
+  paymentMethod?: string;
+  source?: string;
+  deliveryFeeCharged?: boolean;
+  notes?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Partner {
+  _id: string;
+  name: string;
+  sharePercent: number;
+  active: boolean;
+  notes?: string;
+}
+
+/** One partner's line in the Owner Summary / Profit Sharing table. */
+export interface FinancePartnerRow {
+  name: string;
+  sharePercent: number;
+  active: boolean;
+  /** False when entries name someone who isn't on the partner list (a typo, usually). */
+  known: boolean;
+  capital: number;
+  expenses: number;
+  assets: number;
+  total: number;
+  profitShare: number;
+}
+
+export interface FinanceSummary {
+  totals: {
+    sales: number;
+    salesReceived: number;
+    salesPending: number;
+    grossPurchases: number;
+    purchaseDiscounts: number;
+    netPurchases: number;
+    expenses: number;
+    assets: number;
+    investments: number;
+    netProfit: number;
+  };
+  partners: FinancePartnerRow[];
+  /** Spending paid from the pooled Business Fund rather than by one partner. */
+  businessFund: { purchases: number; expenses: number; assets: number; total: number };
+  monthly: Array<{ month: string; sales: number; netPurchases: number; expenses: number; netProfit: number }>;
+  expenseCategories: Array<{ category: string; amount: number }>;
+  unrecordedPreOrders: number;
+}
+
+/** A confirmed/fulfilled/done pre-order with no sales recorded for it yet. */
+export interface UnrecordedPreOrder {
+  _id: string;
+  requestNumber: string;
+  customerName: string;
+  status: PreOrderStatus;
+  createdAt: string;
+  lines: Array<{ brand: string; description: string; quantity: number; unitPrice: number }>;
+  total: number;
+  /** Available items still waiting for a quote — they can't be recorded yet. */
+  unpricedCount: number;
 }
