@@ -3,6 +3,8 @@ import Link from "next/link";
 import { PackageX } from "lucide-react";
 import { connectDB } from "@/lib/mongodb";
 import PreOrder from "@/models/PreOrder";
+import Order from "@/models/Order";
+import Product from "@/models/Product";
 import Settings from "@/models/Settings";
 import TrackView, { type TrackData } from "@/components/track/TrackView";
 
@@ -11,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Track Your Order",
-  description: "Follow your Seoul Aura pre-order from Korea to your doorstep.",
+  description: "Follow your Seoul Aura order to your doorstep.",
   // A tracking link is personal — keep it out of search results.
   robots: { index: false, follow: false },
 };
@@ -63,7 +65,7 @@ async function getTracking(token: string): Promise<TrackData | null> {
         createdAt: string | Date;
       }>();
 
-    if (!doc) return null;
+    if (!doc) return getOrderTracking(token);
 
     // Older records predate the items array and carry a single product instead.
     const items: StoredItem[] = doc.items?.length
@@ -106,6 +108,56 @@ async function getTracking(token: string): Promise<TrackData | null> {
   } catch {
     return null;
   }
+}
+
+/** Same tracking view for a regular (in-stock) order. */
+async function getOrderTracking(token: string): Promise<TrackData | null> {
+  const doc = await Order.findOne({ trackingToken: token })
+    .select("orderNumber customerName items deliveryStatus deliveryEvents shippingAddress shippingFee createdAt")
+    .lean<{
+      orderNumber: string;
+      customerName: string;
+      items: { productId?: unknown; name: string; price: number; quantity: number; image?: string }[];
+      deliveryStatus?: string;
+      deliveryEvents?: StoredEvent[];
+      shippingAddress?: { district?: string; city?: string };
+      shippingFee?: number;
+      createdAt: string | Date;
+    }>();
+  if (!doc) return null;
+
+  // Order lines don't carry the brand, so read it (and the compare-at price) off the product
+  const products = await Product.find({ _id: { $in: doc.items.map((it) => it.productId) } })
+    .select("brand comparePrice")
+    .lean<{ _id: { toString(): string }; brand?: string; comparePrice?: number }[]>();
+  const byId = new Map(products.map((p) => [p._id.toString(), p]));
+
+  return JSON.parse(
+    JSON.stringify({
+      kind: "order",
+      requestNumber: doc.orderNumber,
+      customerName: doc.customerName,
+      deliveryStatus: doc.deliveryStatus ?? null,
+      events: doc.deliveryEvents ?? [],
+      items: doc.items.map((it) => {
+        const product = byId.get(String(it.productId));
+        return {
+          productBrand: product?.brand ?? "",
+          productName: it.name,
+          productImage: it.image,
+          quantity: it.quantity,
+          unitPrice: it.price,
+          comparePrice: product?.comparePrice,
+        };
+      }),
+      deliveryCharge: doc.shippingFee ?? 0,
+      destination:
+        doc.shippingAddress?.city && doc.shippingAddress?.district
+          ? { city: doc.shippingAddress.city, district: doc.shippingAddress.district }
+          : undefined,
+      createdAt: doc.createdAt,
+    })
+  ) as TrackData;
 }
 
 export default async function TrackPage({ params }: { params: { token: string } }) {

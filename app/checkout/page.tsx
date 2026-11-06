@@ -2,12 +2,15 @@
 
 import { useState, Suspense, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import { Check, ChevronRight, CreditCard, Truck, MapPin, User, ShieldCheck, Loader2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { formatPrice, cn } from "@/lib/utils";
 import SavingsLine, { OriginalPriceLine } from "@/components/cart/SavingsLine";
+import DeliveryFeePayment from "@/components/order/DeliveryFeePayment";
+import { ORDER_PAYMENT_METHODS, paymentMethodLabel } from "@/lib/orderStatus";
 
 function GoogleIcon() {
   return (
@@ -50,15 +53,25 @@ function CheckoutContent() {
   const [districts, setDistricts] = useState<string[]>([]);
   const [cities, setCities] = useState<{ city: string; charge: number }[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
-  const [freeShippingThreshold, setFreeShippingThreshold] = useState(0);
+  const [error, setError] = useState("");
 
+  // The delivery charge is paid up front by bank transfer — that is what confirms the order
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [receiptUrl, setReceiptUrl] = useState("");
+  const [placed, setPlaced] = useState<{ _id: string; shippingFee: number; receiptUploaded: boolean } | null>(null);
+
+  // District and city set the delivery charge, same as the pre-order flow
   const selectedCity = cities.find((c) => c.city === form.city);
-  const deliveryCharge = selectedCity?.charge ?? 0;
-  const shippingFee = freeShippingThreshold > 0 && total >= freeShippingThreshold ? 0 : deliveryCharge;
-  const tax = Math.round(total * 0.02);
-  const grandTotal = total + shippingFee + tax;
+  const shippingFee = selectedCity?.charge ?? 0;
+  const grandTotal = total + shippingFee;
 
   const isSubscription = !!subscriptionPlan;
+
+  const contactComplete = !!(form.customerName.trim() && form.customerEmail.trim() && form.phone.trim());
+  const addressComplete = !!(form.line1.trim() && form.district && selectedCity);
+  // Steps can't be skipped ahead of the details they depend on
+  const canReach = (target: number) =>
+    target <= 0 || (contactComplete && (target <= 1 || addressComplete));
 
   // Pre-fill from session when it loads
   useEffect(() => {
@@ -67,19 +80,16 @@ function CheckoutContent() {
         ...prev,
         customerName: prev.customerName || session.user?.name || "",
         customerEmail: prev.customerEmail || session.user?.email || "",
+        phone: prev.phone || (session.user as { phone?: string } | undefined)?.phone || "",
       }));
     }
   }, [session]);
 
-  // Load district list + free-shipping threshold once
+  // Load district list once
   useEffect(() => {
     fetch("/api/delivery-rates")
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d?.districts)) setDistricts(d.districts); })
-      .catch(() => {});
-    fetch("/api/settings")
-      .then((r) => r.json())
-      .then((d) => { if (d?.freeShippingThreshold != null) setFreeShippingThreshold(d.freeShippingThreshold); })
       .catch(() => {});
   }, []);
 
@@ -98,17 +108,27 @@ function CheckoutContent() {
   };
 
   const handleSubmit = async () => {
+    if (!canReach(3)) {
+      setError("Please complete your contact details and delivery address.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setError("Please agree to pay the delivery charge to confirm your order.");
+      return;
+    }
+    setError("");
     setSubmitting(true);
     try {
       const orderData = {
         customerName: form.customerName,
         customerEmail: form.customerEmail,
+        phoneNumber: form.phone,
         items: items.map((i) => ({
           productId: i.product._id,
           name: i.product.name,
           price: i.product.price,
           quantity: i.quantity,
-          image: i.product.images[0],
+          image: i.product.images?.[0],
         })),
         subtotal: total,
         shippingFee,
@@ -127,6 +147,8 @@ function CheckoutContent() {
         },
         paymentMethod: form.paymentMethod,
         notes: form.notes,
+        acceptedTerms,
+        deliveryFeeReceiptUrl: receiptUrl || undefined,
       };
 
       const res = await fetch("/api/orders", {
@@ -135,13 +157,14 @@ function CheckoutContent() {
         body: JSON.stringify(orderData),
       });
       const order = await res.json();
+      if (!res.ok) throw new Error(order.error ?? "Failed");
 
-      if (res.ok) {
-        setSuccess(order.orderNumber);
-        clearCart();
-      }
+      setSuccess(order.orderNumber);
+      setPlaced({ _id: order._id, shippingFee: order.shippingFee, receiptUploaded: !!order.deliveryFeeReceipt?.url });
+      clearCart();
     } catch (err) {
       console.error(err);
+      setError((err as Error).message || "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -154,7 +177,7 @@ function CheckoutContent() {
           <div className="w-20 h-20 mx-auto bg-rose-600 rounded-full flex items-center justify-center mb-6">
             <Check size={36} className="text-white" />
           </div>
-          <p className="section-subtitle text-rose-600 mb-2">Order Confirmed</p>
+          <p className="section-subtitle text-rose-600 mb-2">Order Placed</p>
           <h1 className="font-display text-4xl lg:text-5xl text-ink-900 mb-4">
             Thank you for your order!
           </h1>
@@ -164,12 +187,46 @@ function CheckoutContent() {
           <p className="text-sm text-ink-500 mb-8">
             We've sent a confirmation email to <strong>{form.customerEmail}</strong>.
           </p>
+
+          {/* Nothing ships until the delivery charge is in, so make the next step obvious */}
+          {placed && (
+            <div className="text-left max-w-md mx-auto mb-8">
+              {placed.receiptUploaded ? (
+                <p className="text-sm text-green-800 bg-green-50 border border-green-200 rounded-sm px-4 py-3">
+                  We've got your delivery charge slip. We'll verify it and confirm your order shortly.
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm text-ink-700 mb-3">
+                    <strong>One more step:</strong> pay the delivery charge of{" "}
+                    <strong>{formatPrice(placed.shippingFee)}</strong> and upload the slip to confirm your order.
+                    You can also do this later from <Link href="/account?tab=orders" className="text-rose-600 hover:underline">My Orders</Link>.
+                  </p>
+                  <DeliveryFeePayment
+                    amount={placed.shippingFee}
+                    receiptUrl={receiptUrl || undefined}
+                    onUploaded={async (url) => {
+                      const res = await fetch(`/api/orders/${placed._id}/receipt`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url }),
+                      });
+                      const data = await res.json().catch(() => null);
+                      if (!res.ok) throw new Error(data?.error ?? "Could not save your slip. Please try again.");
+                      setReceiptUrl(url);
+                    }}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-3 justify-center">
-            <Link href="/shop" className="btn-primary">
-              Continue Shopping
+            <Link href="/account?tab=orders" className="btn-primary">
+              View My Order
             </Link>
-            <Link href="/" className="btn-outline">
-              Back to Home
+            <Link href="/shop" className="btn-outline">
+              Continue Shopping
             </Link>
           </div>
         </div>
@@ -235,7 +292,7 @@ function CheckoutContent() {
           {steps.map((s, i) => (
             <div key={s} className="flex items-center gap-2 flex-shrink-0">
               <button
-                onClick={() => setStep(i)}
+                onClick={() => canReach(i) && setStep(i)}
                 className={cn(
                   "flex items-center gap-2 px-3 py-1.5 rounded-sm transition-colors",
                   i === step
@@ -404,9 +461,7 @@ function CheckoutContent() {
                           )}
                         </div>
                         {selectedCity && (
-                          <p className="text-sm font-semibold">
-                            {shippingFee === 0 ? "FREE" : formatPrice(shippingFee)}
-                          </p>
+                          <p className="text-sm font-semibold">{formatPrice(shippingFee)}</p>
                         )}
                       </div>
                     </div>
@@ -420,13 +475,12 @@ function CheckoutContent() {
                     <CreditCard size={18} className="text-rose-600" />
                     <h2 className="font-display text-2xl text-ink-900">Payment Method</h2>
                   </div>
+                  <p className="text-xs text-ink-500 mb-4">
+                    How you'll pay for your items. The delivery charge of{" "}
+                    <strong>{formatPrice(shippingFee)}</strong> is paid up front by bank transfer to confirm the order.
+                  </p>
                   <div className="space-y-2">
-                    {[
-                      { id: "cod", label: "Cash on Delivery", note: "Pay when your order arrives" },
-                      { id: "card", label: "Credit / Debit Card", note: "Visa, Mastercard, Amex" },
-                      { id: "koko", label: "KOKO · Buy Now Pay Later", note: "Pay in 3 interest-free installments" },
-                      { id: "bank", label: "Bank Transfer", note: "Direct bank deposit" },
-                    ].map((opt) => (
+                    {ORDER_PAYMENT_METHODS.map((opt) => (
                       <label
                         key={opt.id}
                         className={cn(
@@ -479,10 +533,11 @@ function CheckoutContent() {
                     <section>
                       <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-2">Shipping</h3>
                       <p>{form.line1}{form.line2 && `, ${form.line2}`}, {form.city}, {form.district}, {form.country}</p>
+                      <p className="text-xs text-ink-500 mt-1">Delivery charge: {formatPrice(shippingFee)}</p>
                     </section>
                     <section>
                       <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-2">Payment</h3>
-                      <p>{form.paymentMethod.toUpperCase()}</p>
+                      <p>{paymentMethodLabel(form.paymentMethod)}</p>
                     </section>
                     <section>
                       <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-2">Items ({items.length})</h3>
@@ -495,8 +550,53 @@ function CheckoutContent() {
                         ))}
                       </ul>
                     </section>
+
+                    {/* The delivery charge is what confirms the order */}
+                    <section>
+                      <h3 className="text-xs font-semibold uppercase tracking-widest text-rose-600 mb-2">Confirm Your Order</h3>
+                      <p className="text-ink-600 mb-3">
+                        Pay the delivery charge of <strong>{formatPrice(shippingFee)}</strong> by bank transfer and upload the slip.
+                        You can upload it now or later from <strong>My Orders</strong>.
+                      </p>
+                      <DeliveryFeePayment
+                        amount={shippingFee}
+                        receiptUrl={receiptUrl || undefined}
+                        onUploaded={(url) => setReceiptUrl(url)}
+                      />
+
+                      <label
+                        className={cn(
+                          "mt-4 flex items-start gap-3 border rounded-sm p-4 cursor-pointer transition-colors",
+                          acceptedTerms ? "border-rose-600 bg-rose-50/30" : "border-ink-200 hover:border-ink-300"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={acceptedTerms}
+                          onChange={(e) => setAcceptedTerms(e.target.checked)}
+                          className="accent-rose-600 mt-0.5"
+                        />
+                        <span className="text-ink-700 leading-relaxed">
+                          I understand my order is only confirmed once the delivery charge of{" "}
+                          <strong>{formatPrice(shippingFee)}</strong> is paid by bank transfer, and that orders without a
+                          verified payment may be cancelled. The remaining{" "}
+                          <strong>{formatPrice(total)}</strong> is paid by{" "}
+                          {form.paymentMethod === "bank" ? "bank transfer" : "cash on delivery"}. I agree to the{" "}
+                          <Link href="/terms" target="_blank" className="text-rose-600 hover:underline">
+                            Terms &amp; Conditions
+                          </Link>
+                          .
+                        </span>
+                      </label>
+                    </section>
                   </div>
                 </>
+              )}
+
+              {error && (
+                <p className="mt-6 text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-sm px-4 py-3">
+                  {error}
+                </p>
               )}
 
               <div className="flex justify-between items-center mt-8 pt-6 border-t border-ink-100">
@@ -512,7 +612,7 @@ function CheckoutContent() {
                 {step < steps.length - 1 ? (
                   <button
                     onClick={() => setStep(step + 1)}
-                    disabled={step === 1 && (!form.district || !form.city)}
+                    disabled={!canReach(step + 1)}
                     className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     Continue
@@ -520,7 +620,7 @@ function CheckoutContent() {
                 ) : (
                   <button
                     onClick={handleSubmit}
-                    disabled={submitting || !form.district || !form.city}
+                    disabled={submitting || !canReach(3) || !acceptedTerms}
                     className="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {submitting ? "Placing Order…" : `Place Order · ${formatPrice(grandTotal)}`}
@@ -537,7 +637,11 @@ function CheckoutContent() {
               <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
                 {items.map((i) => (
                   <div key={i.product._id} className="flex gap-3 text-sm">
-                    <div className="w-14 h-16 bg-ink-50 rounded-sm flex-shrink-0" />
+                    <div className="w-14 h-16 bg-ink-50 rounded-sm flex-shrink-0 relative overflow-hidden">
+                      {i.product.images?.[0] && (
+                        <Image src={i.product.images[0]} alt={i.product.name} fill className="object-cover" sizes="56px" />
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-ink-900 line-clamp-2">{i.product.name}</p>
                       <p className="text-xs text-ink-500">Qty {i.quantity}</p>
@@ -559,9 +663,8 @@ function CheckoutContent() {
                 )}
                 <div className="flex justify-between">
                   <dt>Shipping</dt>
-                  <dd>{!selectedCity ? "Select location" : shippingFee === 0 ? "FREE" : formatPrice(shippingFee)}</dd>
+                  <dd>{selectedCity ? formatPrice(shippingFee) : "Select location"}</dd>
                 </div>
-                <div className="flex justify-between"><dt>Tax</dt><dd>{formatPrice(tax)}</dd></div>
                 <div className="flex justify-between text-base pt-3 border-t border-ink-100">
                   <dt className="font-semibold text-ink-900">Total</dt>
                   <dd className="font-display text-xl text-rose-600">{formatPrice(grandTotal)}</dd>

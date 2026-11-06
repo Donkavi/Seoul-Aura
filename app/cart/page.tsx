@@ -134,35 +134,16 @@ export default function CartPage() {
                       <dd className="font-medium text-ink-900">{formatPrice(total)}</dd>
                     </div>
                   )}
+                  {/* Delivery is priced per city, so it can only be known at checkout */}
                   <div className="flex justify-between">
-                    <dt className="text-ink-500">Shipping</dt>
-                    <dd className="text-ink-700">{total >= 10000 ? "FREE" : formatPrice(450)}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-ink-500">Tax (estimated)</dt>
-                    <dd className="text-ink-700">{formatPrice(Math.round(total * 0.02))}</dd>
+                    <dt className="text-ink-500">Delivery</dt>
+                    <dd className="text-ink-700">Calculated at checkout</dd>
                   </div>
                   <div className="border-t border-ink-100 pt-3 flex justify-between text-base">
-                    <dt className="font-semibold text-ink-900">Total</dt>
-                    <dd className="font-display text-2xl text-rose-600">
-                      {formatPrice(
-                        total + (total >= 10000 ? 0 : 450) + Math.round(total * 0.02)
-                      )}
-                    </dd>
+                    <dt className="font-semibold text-ink-900">Total <span className="text-xs font-normal text-ink-500">(excl. delivery)</span></dt>
+                    <dd className="font-display text-2xl text-rose-600">{formatPrice(total)}</dd>
                   </div>
                 </dl>
-
-                {total < 10000 && (
-                  <div className="mt-4 p-3 bg-rose-50 rounded-sm text-xs text-rose-700">
-                    Add <strong>{formatPrice(10000 - total)}</strong> more for FREE shipping.
-                    <div className="mt-2 h-1 bg-rose-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-rose-600 transition-all"
-                        style={{ width: `${Math.min(100, (total / 10000) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 <Link
                   href="/checkout"
@@ -178,7 +159,7 @@ export default function CartPage() {
               </div>
 
               <div className="bg-rose-50 border border-rose-100 rounded-sm p-5 text-xs text-ink-700 space-y-2">
-                <p>✦ Free islandwide shipping on orders Rs. 10,000+</p>
+                <p>✦ Islandwide delivery — charge based on your city</p>
                 <p>✦ Cash on Delivery available</p>
                 <p>✦ 100% authentic products guaranteed</p>
               </div>

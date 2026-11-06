@@ -7,6 +7,8 @@ import {
   type DeliveryStatus,
 } from "@/lib/deliveryStatus";
 import { lineSavings } from "@/lib/utils";
+import { BANK_DETAILS } from "@/lib/bankDetails";
+import { ORDER_STATUS_LABELS, isOrderStatus, paymentMethodLabel, orderPayment } from "@/lib/orderStatus";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -118,14 +120,17 @@ export async function sendOtpEmail(to: string, code: string, name?: string): Pro
 
 function badge(status: string) {
   const colors: Record<string, string> = {
-    pending:   "background:#fef3c7;color:#92400e",
-    confirmed: "background:#fff1f2;color:#9f1239",
-    shipped:   "background:#eff6ff;color:#1e40af",
-    delivered: "background:#f0fdf4;color:#166534",
-    cancelled: "background:#f5f5f4;color:#57534e",
+    pending:      "background:#fef3c7;color:#92400e",
+    reviewing:    "background:#eff6ff;color:#1e40af",
+    availability: "background:#eef2ff;color:#3730a3",
+    confirmed:    "background:#f0fdf4;color:#166534",
+    rejected:     "background:#fff1f2;color:#9f1239",
+    fulfilled:    "background:#1c1917;color:#ffffff",
+    done:         "background:#059669;color:#ffffff",
   };
   const style = colors[status] ?? colors.pending;
-  return `<span style="${style};padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">${status}</span>`;
+  const label = isOrderStatus(status) ? ORDER_STATUS_LABELS[status] : status;
+  return `<span style="${style};padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600;text-transform:capitalize;">${label}</span>`;
 }
 
 function itemsTable(items: { name: string; quantity: number; price: number; image?: string }[]) {
@@ -214,6 +219,7 @@ interface OrderEmailData {
   orderNumber: string;
   customerName: string;
   customerEmail: string;
+  phoneNumber?: string;
   items: { name: string; quantity: number; price: number; image?: string }[];
   subtotal: number;
   shippingFee: number;
@@ -225,6 +231,33 @@ interface OrderEmailData {
   paymentMethod: string;
   shippingAddress: { line1: string; line2?: string; city: string; province?: string; postalCode?: string; country: string };
   notes?: string;
+  /** Slip for the delivery charge, if the buyer attached one at checkout. */
+  deliveryFeeReceiptUrl?: string;
+  trackingToken?: string;
+}
+
+/**
+ * The delivery charge is paid up front by bank transfer — that payment is what
+ * confirms a regular order. Says either "slip received" or how to pay.
+ */
+function deliveryFeeBlock(shippingFee: number, receiptUploaded: boolean) {
+  if (receiptUploaded) {
+    return `
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:4px;padding:14px 18px;margin-top:24px;">
+      <p style="margin:0;font-size:13px;color:#166534;line-height:1.7;">
+        <strong>Delivery charge slip received.</strong> We'll verify your ${rupees(shippingFee)} transfer and confirm your order shortly.
+      </p>
+    </div>`;
+  }
+  const myOrders = `<a href="${SITE}/account?tab=orders" style="color:#e11d48;font-weight:600;text-decoration:none;">My Orders</a>`;
+  return `
+    <div style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;padding:14px 18px;margin-top:24px;">
+      <p style="margin:0;font-size:13px;color:#1c1917;line-height:1.7;">
+        <strong>Action needed:</strong> to confirm your order, please pay the delivery charge of
+        <strong>${rupees(shippingFee)}</strong> by bank transfer and upload the slip from ${myOrders}.
+      </p>
+      ${bankTransferDetailsHtml(`Upload the slip from ${myOrders}, or send it via WhatsApp to <a href="${BANK_DETAILS.whatsappLink}" style="color:#e11d48;font-weight:600;text-decoration:none;">${BANK_DETAILS.whatsappDisplay}</a>.`)}
+    </div>`;
 }
 
 export async function sendOrderConfirmationToBuyer(data: OrderEmailData) {
@@ -256,10 +289,12 @@ export async function sendOrderConfirmationToBuyer(data: OrderEmailData) {
         </td>
         <td width="50%" valign="top">
           <h4 style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Payment</h4>
-          <p style="margin:0;font-size:13px;color:#1c1917;text-transform:capitalize;">${data.paymentMethod.replace(/_/g, " ")}</p>
+          <p style="margin:0;font-size:13px;color:#1c1917;">${paymentMethodLabel(data.paymentMethod)}</p>
         </td>
       </tr>
     </table>
+
+    ${deliveryFeeBlock(data.shippingFee, !!data.deliveryFeeReceiptUrl)}
 
     ${data.notes ? `
     <div style="margin-top:20px;">
@@ -275,16 +310,17 @@ export async function sendOrderConfirmationToBuyer(data: OrderEmailData) {
     </p>
 
     <div style="margin-top:28px;text-align:center;">
-      <a href="${SITE}/account" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
+      <a href="${SITE}/account?tab=orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
         View My Orders
       </a>
+      ${trackOrderLink(data.trackingToken)}
     </div>
   `);
 
   return resend.emails.send({
     from: FROM,
     to: data.customerEmail,
-    subject: `Order Confirmed · ${data.orderNumber} — Seoul Aura`,
+    subject: `Order Placed · ${data.orderNumber} — Seoul Aura`,
     html,
   });
 }
@@ -310,13 +346,24 @@ export async function sendOrderNotificationToAdmin(data: OrderEmailData) {
         <td style="font-size:12px;color:#78716c;padding:4px 0;">Email</td>
         <td style="font-size:13px;color:#e11d48;">${data.customerEmail}</td>
       </tr>
+      ${data.phoneNumber ? `
+      <tr>
+        <td style="font-size:12px;color:#78716c;padding:4px 0;">Phone</td>
+        <td style="font-size:13px;color:#1c1917;">${data.phoneNumber}</td>
+      </tr>` : ""}
       <tr>
         <td style="font-size:12px;color:#78716c;padding:4px 0;">Type</td>
         <td style="font-size:13px;color:#1c1917;text-transform:capitalize;">${data.orderType}</td>
       </tr>
       <tr>
         <td style="font-size:12px;color:#78716c;padding:4px 0;">Payment</td>
-        <td style="font-size:13px;color:#1c1917;text-transform:capitalize;">${data.paymentMethod.replace(/_/g, " ")}</td>
+        <td style="font-size:13px;color:#1c1917;">${paymentMethodLabel(data.paymentMethod)}</td>
+      </tr>
+      <tr>
+        <td style="font-size:12px;color:#78716c;padding:4px 0;">Delivery slip</td>
+        <td style="font-size:13px;color:#1c1917;">${data.deliveryFeeReceiptUrl
+          ? `<a href="${data.deliveryFeeReceiptUrl}" style="color:#e11d48;font-weight:600;">View slip</a> — verify ${rupees(data.shippingFee)}`
+          : `Not uploaded yet (${rupees(data.shippingFee)} due)`}</td>
       </tr>
     </table>
 
@@ -352,25 +399,35 @@ export async function sendOrderNotificationToAdmin(data: OrderEmailData) {
 
 // ─── 3. Order status update → Buyer ──────────────────────────────────────────
 const STATUS_MESSAGES: Record<string, { headline: string; detail: string; emoji: string }> = {
+  reviewing: {
+    emoji: "🔍",
+    headline: "We're reviewing your order",
+    detail: "Our team is checking your order and your delivery charge payment. We'll update you soon.",
+  },
+  availability: {
+    emoji: "📋",
+    headline: "We're checking stock for your order",
+    detail: "We're making sure every item is ready to ship. We'll be in touch if anything changes.",
+  },
   confirmed: {
     emoji: "✅",
     headline: "Your order has been confirmed",
-    detail: "We've reviewed your order and it's been confirmed. We'll start preparing it right away.",
+    detail: "We've received your delivery charge and confirmed your order. We'll start preparing it right away.",
   },
-  shipped: {
-    emoji: "🚚",
-    headline: "Your order is on its way!",
-    detail: "Your order has been handed to our delivery partner. Estimated delivery: 1–3 business days.",
-  },
-  delivered: {
-    emoji: "🎁",
-    headline: "Your order has been delivered",
-    detail: "We hope you love your Seoul Aura haul! Leave a review to help others discover great products.",
-  },
-  cancelled: {
+  rejected: {
     emoji: "❌",
     headline: "Your order has been cancelled",
-    detail: "Your order has been cancelled. If you paid online, a refund will be processed within 5–7 business days. Need help? Contact us.",
+    detail: "We couldn't go ahead with this order. If you've already paid the delivery charge, we'll refund it. Need help? Contact us.",
+  },
+  fulfilled: {
+    emoji: "🚚",
+    headline: "Your order is on its way!",
+    detail: "Your order has been packed and handed over for delivery. Follow it with the tracking link below.",
+  },
+  done: {
+    emoji: "🎁",
+    headline: "Your order is complete",
+    detail: "Your order has been delivered and paid in full. We hope you love your Seoul Aura haul!",
   },
 };
 
@@ -378,8 +435,56 @@ interface OrderStatusEmailData {
   orderNumber: string;
   customerName: string;
   customerEmail: string;
+  phoneNumber?: string;
   status: string;
+  items: { name: string; quantity: number; price: number; image?: string }[];
+  subtotal: number;
+  shippingFee: number;
+  savings?: number;
   total: number;
+  paymentMethod: string;
+  shippingAddress: { line1: string; line2?: string; district?: string; city: string; postalCode?: string; country: string };
+  deliveryFeePaid?: boolean;
+  deliveryFeeReceiptUrl?: string;
+  estimatedDeliveryDate?: Date | string;
+  estimatedDeliveryMessage?: string;
+  trackingToken?: string;
+}
+
+/**
+ * The order's money, split the way it's actually paid: the items by the
+ * buyer's chosen method, the delivery charge up front by bank transfer.
+ */
+function orderTotalsTable(data: OrderStatusEmailData) {
+  const { complete, deliveryFeePaid: feePaid, paid, balance } = orderPayment(data);
+  const savings = data.savings ?? 0;
+  const paidTag = `<span style="color:#16a34a;font-weight:600;"> · Paid ✓</span>`;
+  const row = (label: string, value: string, style = "color:#78716c;") => `
+      <tr>
+        <td style="font-size:13px;${style}padding:4px 0;">${label}</td>
+        <td style="font-size:13px;${style}text-align:right;padding:4px 0;white-space:nowrap;">${value}</td>
+      </tr>`;
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
+      ${savings > 0 ? `
+        ${row("Original price", `<span style="text-decoration:line-through;color:#a8a29e;">${rupees(data.subtotal + savings)}</span>`)}
+        ${row("You saved", `-${rupees(savings)}`, "color:#b45309;font-weight:600;")}` : ""}
+      ${row(`Subtotal <span style="color:#a8a29e;">· ${paymentMethodLabel(data.paymentMethod)}</span>${complete ? paidTag : ""}`, rupees(data.subtotal))}
+      ${row(`Delivery charge <span style="color:#a8a29e;">· Bank Transfer</span>${feePaid ? paidTag : ""}`, rupees(data.shippingFee))}
+      <tr>
+        <td style="font-size:16px;font-weight:700;color:#1c1917;padding:10px 0 0;border-top:1px solid #f5f0ee;">${complete ? "Total Paid" : "Total"}</td>
+        <td style="font-size:16px;font-weight:700;color:#1c1917;text-align:right;padding:10px 0 0;border-top:1px solid #f5f0ee;">${rupees(data.total)}</td>
+      </tr>
+      ${!complete && feePaid ? `
+        ${row("Paid · delivery charge", `-${rupees(paid)}`, "color:#16a34a;font-weight:600;")}
+        <tr>
+          <td style="font-size:14px;font-weight:700;color:#e11d48;padding:8px 0 0;">Balance to pay <span style="font-weight:400;color:#78716c;font-size:12px;">· ${paymentMethodLabel(data.paymentMethod)}</span></td>
+          <td style="font-size:14px;font-weight:700;color:#e11d48;text-align:right;padding:8px 0 0;">${rupees(balance)}</td>
+        </tr>` : ""}
+      ${!complete && !feePaid ? `
+        ${row("Due now · delivery charge (bank transfer)", rupees(data.shippingFee), "color:#e11d48;font-weight:600;")}
+        ${row(`Then · ${paymentMethodLabel(data.paymentMethod)}`, rupees(data.total - data.shippingFee))}` : ""}
+    </table>`;
 }
 
 export async function sendOrderStatusUpdateToBuyer(data: OrderStatusEmailData) {
@@ -399,19 +504,65 @@ export async function sendOrderStatusUpdateToBuyer(data: OrderStatusEmailData) {
       ${badge(data.status)}
     </div>
 
-    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;">
+    <p style="margin:0 0 16px;font-size:13px;color:#78716c;">Hi ${data.customerName}, here's your order as it stands now.</p>
+
+    <h3 style="margin:0 0 12px;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Items</h3>
+    ${itemsTable(data.items)}
+    ${orderTotalsTable(data)}
+
+    ${/* Still waiting on the delivery charge — repeat how to pay it */
+      data.status !== "rejected" && data.status !== "done" && !data.deliveryFeePaid
+        ? deliveryFeeBlock(data.shippingFee, !!data.deliveryFeeReceiptUrl)
+        : ""}
+
+    ${data.estimatedDeliveryDate && data.status !== "rejected" ? `
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;background:#faf9f8;border-radius:4px;">
       <tr>
-        <td style="font-size:13px;color:#78716c;">Hi ${data.customerName}</td>
-        <td style="font-size:14px;font-weight:700;color:#1c1917;text-align:right;">${rupees(data.total)}</td>
+        <td style="padding:14px 16px;font-size:12px;color:#78716c;">Expected delivery</td>
+        <td style="padding:14px 16px;font-size:14px;font-weight:700;color:#1c1917;text-align:right;">${deliveryDate(data.estimatedDeliveryDate)}</td>
+      </tr>
+      ${data.estimatedDeliveryMessage ? `
+      <tr>
+        <td colspan="2" style="padding:0 16px 14px;font-size:13px;color:#1c1917;line-height:1.7;">${data.estimatedDeliveryMessage}</td>
+      </tr>` : ""}
+    </table>` : ""}
+
+    <hr style="border:none;border-top:1px solid #f5f0ee;margin:28px 0;" />
+
+    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr>
+        <td width="50%" valign="top" style="padding-right:16px;">
+          <h4 style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Delivery Address</h4>
+          <p style="margin:0;font-size:13px;color:#1c1917;line-height:1.7;">
+            ${data.customerName}${data.phoneNumber ? `<br/>${data.phoneNumber}` : ""}<br/>
+            ${[
+              [data.shippingAddress.line1, data.shippingAddress.line2].filter(Boolean).join(", "),
+              [data.shippingAddress.city, data.shippingAddress.district].filter(Boolean).join(", "),
+              data.shippingAddress.postalCode,
+            ].filter(Boolean).join("<br/>")}
+          </p>
+        </td>
+        <td width="50%" valign="top">
+          <h4 style="margin:0 0 8px;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Payment</h4>
+          <p style="margin:0;font-size:13px;color:#1c1917;line-height:1.7;">
+            Items: ${paymentMethodLabel(data.paymentMethod)}<br/>
+            Delivery charge: Bank Transfer${data.deliveryFeePaid || data.status === "done" ? " (paid)" : ""}
+          </p>
+        </td>
       </tr>
     </table>
 
-    <hr style="border:none;border-top:1px solid #f5f0ee;margin:24px 0;" />
+    <hr style="border:none;border-top:1px solid #f5f0ee;margin:28px 0;" />
 
     <div style="text-align:center;">
-      <a href="${SITE}/account" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
+      <a href="${data.trackingToken ? `${SITE}/track/${data.trackingToken}` : `${SITE}/account?tab=orders`}" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
         Track My Order
       </a>
+      <p style="margin:12px 0 0;text-align:center;">
+        <a href="${SITE}/account?tab=orders" style="font-size:12px;color:#e11d48;font-weight:600;text-decoration:none;">
+          View full order in My Orders →
+        </a>
+      </p>
     </div>
 
     <p style="margin-top:24px;font-size:12px;color:#a8a29e;text-align:center;">
@@ -423,6 +574,97 @@ export async function sendOrderStatusUpdateToBuyer(data: OrderStatusEmailData) {
     from: FROM,
     to: data.customerEmail,
     subject: `${msg.emoji} Order ${data.orderNumber} — ${msg.headline}`,
+    html,
+  });
+}
+
+// ─── 3b. Delivery charge slip uploaded → Admin ───────────────────────────────
+interface OrderReceiptEmailData {
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  shippingFee: number;
+  receiptUrl: string;
+}
+
+export async function sendOrderReceiptUploadedToAdmin(data: OrderReceiptEmailData) {
+  const html = layout(`
+    <h1 style="margin:0 0 4px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">
+      Delivery charge slip uploaded
+    </h1>
+    <p style="margin:0 0 24px;font-size:13px;color:#78716c;">
+      ${data.customerName} (${data.customerEmail}) uploaded a bank slip for order
+      <strong style="font-family:monospace;color:#1c1917;">${data.orderNumber}</strong>.
+      Please check it matches the delivery charge of <strong>${rupees(data.shippingFee)}</strong>.
+    </p>
+    <div style="text-align:center;margin-bottom:24px;">
+      <a href="${data.receiptUrl}"><img src="${data.receiptUrl}" alt="Bank slip" style="max-width:100%;max-height:420px;border:1px solid #f0ebe8;border-radius:4px;" /></a>
+    </div>
+    <div style="text-align:center;">
+      <a href="${SITE}/admin/orders" style="display:inline-block;background:#1c1917;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
+        Review in Admin Panel
+      </a>
+    </div>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    subject: `[Slip uploaded] ${data.orderNumber} · ${data.customerName} · ${rupees(data.shippingFee)}`,
+    html,
+  });
+}
+
+// ─── 3c. Delivery charge received → Buyer ────────────────────────────────────
+interface OrderDeliveryFeePaidEmailData {
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  shippingFee: number;
+  total: number;
+  paymentMethod: string;
+  trackingToken?: string;
+}
+
+export async function sendOrderDeliveryFeePaidToBuyer(data: OrderDeliveryFeePaidEmailData) {
+  const balance = Math.max(0, data.total - data.shippingFee);
+  const html = layout(`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-size:46px;line-height:1;margin-bottom:12px;">💳</div>
+      <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">Delivery charge received</h1>
+      <p style="margin:0 auto;font-size:14px;color:#78716c;max-width:400px;line-height:1.7;">
+        Hi ${data.customerName}, we've received your delivery charge of <strong>${rupees(data.shippingFee)}</strong>
+        for order <strong style="font-family:monospace;color:#1c1917;">${data.orderNumber}</strong>. Your order is locked in.
+      </p>
+    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;background:#faf9f8;border:1px solid #f0ebe8;border-radius:4px;">
+      <tr>
+        <td style="padding:12px 16px 4px;font-size:13px;color:#78716c;">Order total</td>
+        <td style="padding:12px 16px 4px;font-size:13px;color:#1c1917;text-align:right;">${rupees(data.total)}</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 16px;font-size:13px;color:#16a34a;font-weight:600;">Paid · delivery charge</td>
+        <td style="padding:4px 16px;font-size:13px;color:#16a34a;font-weight:600;text-align:right;">-${rupees(data.shippingFee)}</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 16px 12px;font-size:15px;color:#e11d48;font-weight:700;border-top:1px solid #f0ebe8;">
+          Balance to pay <span style="font-weight:400;color:#78716c;font-size:12px;">· ${paymentMethodLabel(data.paymentMethod)}</span>
+        </td>
+        <td style="padding:8px 16px 12px;font-size:15px;color:#e11d48;font-weight:700;text-align:right;border-top:1px solid #f0ebe8;">${rupees(balance)}</td>
+      </tr>
+    </table>
+    <div style="text-align:center;">
+      <a href="${SITE}/account?tab=orders" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 28px;border-radius:3px;letter-spacing:0.5px;">
+        View My Order
+      </a>
+      ${trackOrderLink(data.trackingToken)}
+    </div>
+  `);
+
+  return resend.emails.send({
+    from: FROM,
+    to: data.customerEmail,
+    subject: `💳 Delivery charge received · ${data.orderNumber} — Seoul Aura`,
     html,
   });
 }
@@ -752,8 +994,13 @@ export async function sendPreOrderNotificationToAdmin(data: PreOrderEmailData) {
   });
 }
 
-// ─── Shared: bank transfer details for the 25% deposit ───────────────────────
-const BANK_TRANSFER_DETAILS_HTML = `
+// ─── Shared: bank transfer details (pre-order deposit, order delivery charge) ─
+function bankTransferDetailsHtml(
+  afterTransfer = `Once transferred, please send the payment slip via WhatsApp to
+            <a href="${BANK_DETAILS.whatsappLink}" style="color:#e11d48;font-weight:600;text-decoration:none;"> ${BANK_DETAILS.whatsappDisplay}</a>
+            so we can confirm your deposit quickly.`
+) {
+  return `
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:10px;background:#faf9f8;border:1px solid #f0ebe8;border-radius:4px;overflow:hidden;">
     <tbody>
       <tr>
@@ -761,27 +1008,27 @@ const BANK_TRANSFER_DETAILS_HTML = `
       </tr>
       <tr>
         <td style="padding:3px 16px;font-size:12px;color:#78716c;width:130px;">Account Name</td>
-        <td style="padding:3px 16px;font-size:13px;color:#1c1917;font-weight:600;">H.M.W.B. Kulathunga</td>
+        <td style="padding:3px 16px;font-size:13px;color:#1c1917;font-weight:600;">${BANK_DETAILS.accountName}</td>
       </tr>
       <tr>
         <td style="padding:3px 16px;font-size:12px;color:#78716c;">Bank</td>
-        <td style="padding:3px 16px;font-size:13px;color:#1c1917;">Hatton National Bank (HNB) — Matale Branch</td>
+        <td style="padding:3px 16px;font-size:13px;color:#1c1917;">${BANK_DETAILS.bank}</td>
       </tr>
       <tr>
         <td style="padding:3px 16px;font-size:12px;color:#78716c;">Account Number</td>
-        <td style="padding:3px 16px;font-size:13px;color:#1c1917;font-family:monospace;font-weight:700;">065020379824</td>
+        <td style="padding:3px 16px;font-size:13px;color:#1c1917;font-family:monospace;font-weight:700;">${BANK_DETAILS.accountNumber}</td>
       </tr>
       <tr>
         <td colspan="2" style="padding:8px 16px 10px;border-top:1px solid #f0ebe8;">
           <p style="margin:8px 0 0;font-size:12px;color:#78716c;line-height:1.6;">
-            Once transferred, please send the payment slip via WhatsApp to
-            <a href="https://wa.me/94778362755" style="color:#e11d48;font-weight:600;text-decoration:none;"> +94 77 836 2755</a>
-            so we can confirm your deposit quickly.
+            ${afterTransfer}
           </p>
         </td>
       </tr>
     </tbody>
   </table>`;
+}
+const BANK_TRANSFER_DETAILS_HTML = bankTransferDetailsHtml();
 
 // ─── 6. Pre-order status update → Buyer ──────────────────────────────────────
 const PRE_ORDER_STATUS_MESSAGES: Record<string, { headline: string; detail: string; emoji: string }> = {
@@ -1439,7 +1686,10 @@ export async function sendPreOrderDeliveryUpdateToBuyer(data: PreOrderDeliveryEm
 
 // ─── 10. Pre-order estimated delivery date → Buyer ───────────────────────────
 interface PreOrderDeliveryEstimateEmailData {
+  /** Pre-order request number, or a regular order's order number. */
   requestNumber: string;
+  /** Wording only — "order" for regular orders. */
+  kind?: "order" | "preOrder";
   customerName: string;
   customerEmail: string;
   estimatedDeliveryDate: Date | string;
@@ -1457,14 +1707,14 @@ export async function sendPreOrderDeliveryEstimateToBuyer(data: PreOrderDelivery
       <p style="margin:0 0 6px;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:700;">Delivery Update</p>
       <h1 style="margin:0 0 8px;font-family:Georgia,serif;font-size:24px;font-weight:400;color:#1c1917;">Your order is expected by ${dateLabel}</h1>
       <p style="margin:0 auto;font-size:14px;color:#78716c;max-width:400px;line-height:1.7;">
-        Hi ${data.customerName}, we've got an updated arrival estimate for your pre-order.
+        Hi ${data.customerName}, we've got an updated arrival estimate for your ${data.kind === "order" ? "order" : "pre-order"}.
       </p>
     </div>
 
     <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;margin-bottom:24px;">
       <tr>
         <td style="padding:16px 20px;">
-          <p style="margin:0;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Request Number</p>
+          <p style="margin:0;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">${data.kind === "order" ? "Order Number" : "Request Number"}</p>
           <p style="margin:4px 0 0;font-size:18px;font-family:monospace;color:#1c1917;font-weight:700;">${data.requestNumber}</p>
         </td>
         <td style="padding:16px 20px;text-align:right;">

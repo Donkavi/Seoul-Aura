@@ -844,6 +844,11 @@ export async function lookupOrder(orderNumber: string, email: string) {
     orderNumber: order.orderNumber,
     status: order.status,
     paymentStatus: order.paymentStatus,
+    // The order is only confirmed once its delivery charge is paid by bank transfer
+    deliveryCharge: order.shippingFee,
+    deliveryChargePaid: !!order.deliveryFeePaid,
+    deliveryChargeSlipUploaded: !!(order.deliveryFeeReceipt as { url?: string } | undefined)?.url,
+    deliveryStatus: order.deliveryStatus ?? null,
     total: order.total,
     placedOn: (order.createdAt as Date)?.toISOString?.().slice(0, 10),
     items: (order.items as Array<{ name: string; quantity: number }>).map((i) => ({

@@ -14,6 +14,8 @@ import { cn, formatPrice, relativeDate, lineSavings } from "@/lib/utils";
 import { paymentVisibility, isPaymentComplete } from "@/lib/preOrderStatus";
 import { DELIVERY_PHASES } from "@/lib/deliveryStatus";
 import VerifyPhone from "@/components/auth/VerifyPhone";
+import OrderDetailModal, { ORDER_STATUS_STYLES, orderStatusLabel } from "@/components/account/OrderDetailModal";
+import { orderPayment } from "@/lib/orderStatus";
 import type { Order, Subscription } from "@/types";
 
 // ─── Google Icon ─────────────────────────────────────────────────────────────
@@ -191,13 +193,6 @@ function Field({
 }
 
 // ─── Status badge styles ──────────────────────────────────────────────────────
-const ORDER_STATUS: Record<string, string> = {
-  pending:   "bg-gold-50 text-gold-700",
-  confirmed: "bg-rose-50 text-rose-700",
-  shipped:   "bg-blue-50 text-blue-700",
-  delivered: "bg-green-50 text-green-700",
-  cancelled: "bg-ink-100 text-ink-500",
-};
 const SUB_STATUS: Record<string, string> = {
   active:    "bg-green-50 text-green-700",
   paused:    "bg-gold-50 text-gold-700",
@@ -205,17 +200,20 @@ const SUB_STATUS: Record<string, string> = {
 };
 
 // ─── Tab: Orders ─────────────────────────────────────────────────────────────
-function OrdersTab({ email }: { email: string }) {
+function OrdersTab() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = orders.find((o) => o._id === selectedId) ?? null;
 
   useEffect(() => {
-    fetch(`/api/orders?email=${encodeURIComponent(email)}&limit=50`)
+    // The API only returns the signed-in customer's own orders
+    fetch(`/api/orders?limit=50`)
       .then((r) => r.json())
       .then((d) => setOrders(d.orders ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [email]);
+  }, []);
 
   if (loading) return <TabLoader />;
 
@@ -226,50 +224,93 @@ function OrdersTab({ email }: { email: string }) {
   );
 
   return (
-    <div className="space-y-4">
-      {orders.map((o) => (
-        <div key={o._id} className="bg-white border border-ink-100 rounded-sm p-5 hover:border-rose-200 transition-colors">
-          <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-            <div>
-              <p className="text-xs font-mono text-ink-500">{o.orderNumber}</p>
-              <p className="text-xs text-ink-400 mt-0.5">{relativeDate(o.createdAt)}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={cn("text-xs px-3 py-1 rounded-full font-medium capitalize", ORDER_STATUS[o.status] ?? "bg-ink-100 text-ink-500")}>
-                {o.status}
-              </span>
-              <span className="text-xs text-ink-500 capitalize">{o.orderType}</span>
-            </div>
-          </div>
-
-          <div className="space-y-2 mb-4">
-            {o.items.map((item, i) => (
-              <div key={i} className="flex items-center gap-3">
-                {item.image ? (
-                  <div className="w-10 h-10 relative shrink-0 rounded overflow-hidden border border-ink-100">
-                    <Image src={item.image} alt={item.name} fill className="object-cover" />
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 shrink-0 rounded bg-ink-100 flex items-center justify-center">
-                    <ShoppingBag size={14} className="text-ink-400" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-ink-900 truncate">{item.name}</p>
-                  <p className="text-xs text-ink-500">Qty {item.quantity} · {formatPrice(item.price)}</p>
+    <>
+      <div className="space-y-4">
+        {orders.map((o) => {
+          const leg = DELIVERY_PHASES.find((d) => d.key === o.deliveryStatus);
+          // Nothing is confirmed until the delivery charge is in — nudge until it is
+          const needsSlip = o.status !== "rejected" && !o.deliveryFeePaid && !o.deliveryFeeReceipt?.url;
+          const payment = orderPayment(o);
+          return (
+            <button
+              key={o._id}
+              onClick={() => setSelectedId(o._id)}
+              className="w-full text-left bg-white border border-ink-100 rounded-sm p-5 hover:border-rose-300 hover:shadow-sm transition-all group"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+                <div>
+                  <p className="text-xs font-mono text-ink-500">{o.orderNumber}</p>
+                  <p className="text-xs text-ink-400 mt-0.5">{relativeDate(o.createdAt)}</p>
                 </div>
-                <p className="text-sm font-medium text-ink-900 shrink-0">{formatPrice(item.price * item.quantity)}</p>
+                <div className="flex items-center gap-2">
+                  <span className={cn("text-xs px-3 py-1 rounded-full font-medium", ORDER_STATUS_STYLES[o.status] ?? "bg-ink-100 text-ink-500")}>
+                    {orderStatusLabel(o.status)}
+                  </span>
+                  <ChevronRight size={14} className="text-ink-300 group-hover:text-rose-400 transition-colors" />
+                </div>
               </div>
-            ))}
-          </div>
 
-          <div className="flex items-center justify-between border-t border-ink-100 pt-3">
-            <span className="text-xs text-ink-500">Total</span>
-            <span className="text-sm font-semibold text-ink-900">{formatPrice(o.total)}</span>
-          </div>
-        </div>
-      ))}
-    </div>
+              <div className="space-y-2 mb-4">
+                {o.items.map((item, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    {item.image ? (
+                      <div className="w-10 h-10 relative shrink-0 rounded overflow-hidden border border-ink-100">
+                        <Image src={item.image} alt={item.name} fill className="object-cover" />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 shrink-0 rounded bg-ink-100 flex items-center justify-center">
+                        <ShoppingBag size={14} className="text-ink-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-ink-900 truncate">{item.name}</p>
+                      <p className="text-xs text-ink-500">Qty {item.quantity} · {formatPrice(item.price)}</p>
+                    </div>
+                    <p className="text-sm font-medium text-ink-900 shrink-0">{formatPrice(item.price * item.quantity)}</p>
+                  </div>
+                ))}
+              </div>
+
+              {leg && (
+                <div className="flex items-center gap-1.5 mb-3 text-xs text-rose-700">
+                  <span>{leg.emoji}</span>
+                  <span className="font-medium">{leg.label}</span>
+                  <span className="text-ink-300">·</span>
+                  <span className="text-ink-400">Tap to track</span>
+                </div>
+              )}
+
+              {needsSlip && (
+                <p className="mb-3 text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-sm px-3 py-2">
+                  Pay the {formatPrice(o.shippingFee)} delivery charge and upload the slip to confirm this order.
+                </p>
+              )}
+
+              <div className="flex items-center justify-between border-t border-ink-100 pt-3">
+                <span className="text-xs text-ink-500">{payment.complete ? "Total Paid" : "Total (incl. delivery)"}</span>
+                <span className="text-sm font-semibold text-ink-900">{formatPrice(o.total)}</span>
+              </div>
+              {payment.deliveryFeePaid && !payment.complete && o.status !== "rejected" && (
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs text-ink-500">
+                    Delivery paid <span className="text-green-600">✓</span> · Balance to pay
+                  </span>
+                  <span className="text-sm font-semibold text-rose-600">{formatPrice(payment.balance)}</span>
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {selected && (
+        <OrderDetailModal
+          order={selected}
+          onClose={() => setSelectedId(null)}
+          onUpdated={(updated) => setOrders((prev) => prev.map((o) => (o._id === updated._id ? updated : o)))}
+        />
+      )}
+    </>
   );
 }
 
@@ -1030,7 +1071,7 @@ function Dashboard({ user }: { user: { name?: string | null; email?: string | nu
 
   const renderTab = () => {
     switch (activeTab) {
-      case "orders":        return <OrdersTab email={email} />;
+      case "orders":        return <OrdersTab />;
       case "pre-orders":   return <PreOrdersTab email={email} />;
       case "subscriptions": return <SubscriptionsTab email={email} />;
       case "wishlist":      return <WishlistTab />;

@@ -28,9 +28,19 @@ function isExpiredPreOrder(item: CartItem): boolean {
   return !!item.product.isPreOrder && !!item.addedAt && Date.now() - item.addedAt > PRE_ORDER_TTL_MS;
 }
 
+/**
+ * Most of one product a shopper can hold in the bag. In-stock items stop at the
+ * stock on hand; pre-orders are sourced on request, so they aren't capped.
+ */
+export function maxCartQty(product: Product): number {
+  if (product.isPreOrder) return Infinity;
+  return typeof product.stock === "number" ? Math.max(0, product.stock) : Infinity;
+}
+
 function cartReducer(state: CartState, action: CartAction): CartState {
   switch (action.type) {
     case "ADD_ITEM": {
+      if (maxCartQty(action.product) < 1) return state;
       const existing = state.items.find((i) => i.product._id === action.product._id);
       if (existing) {
         return {
@@ -38,7 +48,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
           isOpen: true,
           items: state.items.map((i) =>
             i.product._id === action.product._id
-              ? { ...i, quantity: i.quantity + (action.quantity ?? 1) }
+              ? { ...i, quantity: Math.min(i.quantity + (action.quantity ?? 1), maxCartQty(action.product)) }
               : i
           ),
         };
@@ -48,18 +58,19 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         isOpen: true,
         items: [
           ...state.items,
-          { product: action.product, quantity: action.quantity ?? 1, addedAt: action.addedAt ?? Date.now() },
+          { product: action.product, quantity: Math.min(action.quantity ?? 1, maxCartQty(action.product)), addedAt: action.addedAt ?? Date.now() },
         ],
       };
     }
     case "ADD_ITEM_SILENT": {
+      if (maxCartQty(action.product) < 1) return state;
       const existing = state.items.find((i) => i.product._id === action.product._id);
       if (existing) {
         return {
           ...state,
           items: state.items.map((i) =>
             i.product._id === action.product._id
-              ? { ...i, quantity: i.quantity + (action.quantity ?? 1) }
+              ? { ...i, quantity: Math.min(i.quantity + (action.quantity ?? 1), maxCartQty(action.product)) }
               : i
           ),
         };
@@ -68,7 +79,7 @@ function cartReducer(state: CartState, action: CartAction): CartState {
         ...state,
         items: [
           ...state.items,
-          { product: action.product, quantity: action.quantity ?? 1, addedAt: action.addedAt ?? Date.now() },
+          { product: action.product, quantity: Math.min(action.quantity ?? 1, maxCartQty(action.product)), addedAt: action.addedAt ?? Date.now() },
         ],
       };
     }
@@ -81,7 +92,9 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       return {
         ...state,
         items: state.items.map((i) =>
-          i.product._id === action.productId ? { ...i, quantity: action.quantity } : i
+          i.product._id === action.productId
+            ? { ...i, quantity: Math.min(action.quantity, Math.max(1, maxCartQty(i.product))) }
+            : i
         ),
       };
     case "CLEAR":

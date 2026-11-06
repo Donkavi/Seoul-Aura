@@ -488,8 +488,9 @@ export default function ProductView({
                   </button>
                   <span className="w-10 text-center font-medium">{qty}</span>
                   <button
-                    onClick={() => setQty(qty + 1)}
-                    className="px-3 h-full hover:bg-ink-50"
+                    onClick={() => setQty(Math.min(product.stock, qty + 1))}
+                    disabled={qty >= product.stock}
+                    className="px-3 h-full hover:bg-ink-50 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                     aria-label="Increase"
                   >
                     <Plus size={14} />

@@ -83,6 +83,11 @@ export default function TermsPage() {
         <Section n="2" title="Payments">
           <P>We accept <strong>Cash on Delivery</strong> and <strong>Bank Transfer</strong>. Pre-order deposits
           (25%) must be paid by bank transfer. Bank details are shared once your order is confirmed.</P>
+          <P>For in-stock orders, the <strong>delivery charge must be paid up front by bank transfer</strong> to
+          confirm your order. The charge depends on your delivery city and is shown at checkout. Upload the
+          bank slip at checkout or from <strong>My Orders</strong> in your account. Orders without a verified
+          delivery charge payment may be cancelled. The rest of the order can be paid by Cash on Delivery or
+          Bank Transfer.</P>
         </Section>
 
         <Section n="3" title="Shipping & Delivery">

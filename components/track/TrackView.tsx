@@ -29,6 +29,9 @@ export interface TrackEvent {
 }
 
 export interface TrackData {
+  /** A regular order ships from our Sri Lankan stock; a pre-order comes from Korea. */
+  kind?: "order" | "preOrder";
+  /** Pre-order request number, or a regular order's order number. */
   requestNumber: string;
   customerName: string;
   deliveryStatus?: DeliveryStatus | null;
@@ -459,7 +462,7 @@ export default function TrackView({ data }: { data: TrackData }) {
           <p className="text-sm text-ink-500 leading-relaxed mt-3 max-w-md mx-auto text-balance">
             {shipped
               ? `Hi ${firstName}, ${phase!.detail}`
-              : `Hi ${firstName}, your order is being prepared. We'll update this page the moment it leaves Korea.`}
+              : `Hi ${firstName}, your order is being prepared. We'll update this page the moment it ${data.kind === "order" ? "is on its way" : "leaves Korea"}.`}
           </p>
         </header>
 
@@ -642,8 +645,8 @@ export default function TrackView({ data }: { data: TrackData }) {
             </a>
           </p>
           <p className="text-xs text-ink-400 mt-3">
-            <Link href="/account?tab=pre-orders" className="hover:text-rose-600">
-              View all your pre-orders
+            <Link href={data.kind === "order" ? "/account?tab=orders" : "/account?tab=pre-orders"} className="hover:text-rose-600">
+              {data.kind === "order" ? "View all your orders" : "View all your pre-orders"}
             </Link>
           </p>
         </footer>

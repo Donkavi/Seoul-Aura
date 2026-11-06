@@ -1,5 +1,6 @@
 /** Delivery legs live in `lib/deliveryStatus` so admin, email and tracking agree. */
 import type { DeliveryStatus } from "@/lib/deliveryStatus";
+import type { OrderStatus } from "@/lib/orderStatus";
 import type { FinanceKind, FinancePaymentStatus } from "@/lib/finance";
 export type { DeliveryStatus };
 
@@ -97,6 +98,7 @@ export interface Order {
   orderNumber: string;
   customerName: string;
   customerEmail: string;
+  phoneNumber?: string;
   items: Array<{
     productId: string;
     name: string;
@@ -110,7 +112,7 @@ export interface Order {
   /** Total saved against compare-at prices (reporting only, not deducted). */
   savings?: number;
   total: number;
-  status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  status: OrderStatus;
   orderType: "standard" | "subscription";
   shippingAddress: {
     line1: string;
@@ -124,6 +126,15 @@ export interface Order {
   paymentMethod: string;
   paymentStatus: "pending" | "paid" | "failed" | "refunded";
   notes?: string;
+  termsAcceptedAt?: string;
+  deliveryFeeReceipt?: { url: string; uploadedAt: string };
+  deliveryFeePaid?: boolean;
+  adminNotes?: string;
+  deliveryStatus?: DeliveryStatus;
+  deliveryEvents?: DeliveryEvent[];
+  trackingToken?: string;
+  estimatedDeliveryDate?: string;
+  estimatedDeliveryMessage?: string;
   createdAt: string;
 }
 

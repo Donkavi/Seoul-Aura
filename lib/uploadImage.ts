@@ -69,7 +69,20 @@ export function commaFreeImageUrl(url: string): string {
 }
 
 export async function uploadReviewImage(file: File): Promise<string> {
-  const sigRes = await fetch("/api/upload/signature", { method: "POST" });
+  return uploadImage(file, "review");
+}
+
+/** Uploads a bank slip for an order's delivery charge. */
+export async function uploadReceiptImage(file: File): Promise<string> {
+  return uploadImage(file, "receipt");
+}
+
+async function uploadImage(file: File, purpose: "review" | "receipt"): Promise<string> {
+  const sigRes = await fetch("/api/upload/signature", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ purpose }),
+  });
   if (!sigRes.ok) {
     const { error } = await sigRes.json().catch(() => ({ error: null }));
     throw new Error(error ?? "Could not start the upload. Please try again.");
