@@ -48,8 +48,12 @@ export async function GET(req: NextRequest) {
 
     const query: Record<string, unknown> = {};
     if (status && status !== "all") query.status = status;
-    if (!isAdmin) {
-      query.customerEmail = { $regex: `^${escapeRegex(sessionEmail!)}$`, $options: "i" };
+    // Every caller gets their own orders unless an admin explicitly asks for the
+    // whole store (?all=true) — an admin's My Orders is still just their orders.
+    const wantsAll = isAdmin && searchParams.get("all") === "true";
+    if (!wantsAll) {
+      if (!sessionEmail) return NextResponse.json({ orders: [], total: 0, page, pages: 0 });
+      query.customerEmail = { $regex: `^${escapeRegex(sessionEmail)}$`, $options: "i" };
     } else {
       const email = searchParams.get("email");
       if (email) query.customerEmail = { $regex: `^${escapeRegex(email)}$`, $options: "i" };

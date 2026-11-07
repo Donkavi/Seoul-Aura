@@ -261,18 +261,21 @@ function deliveryFeeBlock(shippingFee: number, receiptUploaded: boolean) {
 }
 
 export async function sendOrderConfirmationToBuyer(data: OrderEmailData) {
-  const isPreorder = data.orderType === "subscription";
+  // A new order is still pending — it's only confirmed once the delivery charge is verified
   const html = layout(`
     <h1 style="margin:0 0 4px;font-family:Georgia,serif;font-size:26px;font-weight:400;color:#1c1917;">
-      Order confirmed! 🎉
+      Order received! 🛍️
     </h1>
-    <p style="margin:0 0 24px;font-size:14px;color:#78716c;">
-      Hi ${data.customerName}, your order is placed and we're getting it ready.
+    <p style="margin:0 0 24px;font-size:14px;color:#78716c;line-height:1.7;">
+      Hi ${data.customerName}, thanks for your order. ${data.deliveryFeeReceiptUrl
+        ? "We've got your delivery charge slip — we'll verify it and email you as soon as your order is confirmed."
+        : "It will be confirmed once we receive the delivery charge — payment details are below."}
     </p>
 
     <div style="background:#fff7f7;border:1px solid #fde8e8;border-radius:4px;padding:16px 20px;margin-bottom:24px;">
       <p style="margin:0;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#e11d48;font-weight:600;">Order Number</p>
-      <p style="margin:4px 0 0;font-size:20px;font-family:monospace;color:#1c1917;font-weight:700;">${data.orderNumber}</p>
+      <p style="margin:4px 0 8px;font-size:20px;font-family:monospace;color:#1c1917;font-weight:700;">${data.orderNumber}</p>
+      ${badge("pending")}
     </div>
 
     <h3 style="margin:0 0 12px;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#78716c;">Items</h3>
@@ -305,7 +308,7 @@ export async function sendOrderConfirmationToBuyer(data: OrderEmailData) {
     <hr style="border:none;border-top:1px solid #f5f0ee;margin:28px 0;" />
 
     <p style="margin:0;font-size:13px;color:#78716c;line-height:1.7;">
-      We'll send you another email when your order is shipped. Estimated delivery is <strong>3–5 business days</strong>.
+      We'll email you when your order is confirmed, and again when it ships. Delivery usually takes <strong>3–5 business days</strong> after confirmation.
       Questions? Reply to this email or contact us at <a href="mailto:seoulaurateam@gmail.com" style="color:#e11d48;">seoulaurateam@gmail.com</a>.
     </p>
 

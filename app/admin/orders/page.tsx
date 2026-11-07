@@ -67,6 +67,7 @@ export default function AdminOrdersPage() {
     if (tab !== "all") params.set("status", tab);
     if (search) params.set("search", search);
     params.set("limit", "100");
+    params.set("all", "true");
     try {
       const res = await fetch(`/api/orders?${params}`);
       const data = await res.json();
